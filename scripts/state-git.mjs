@@ -27,7 +27,11 @@ if (!existsSync(join(stateDir, '.git'))) {
 const git = (...a) => spawnSync('git', ['-C', stateDir, ...a], { encoding: 'utf8' });
 
 if (mode === 'pull') {
-  git('fetch', 'origin');
+  const f = git('fetch', 'origin');
+  if (f.status !== 0) {
+    console.log(JSON.stringify({ synced: false, offline: true, note: 'remote unreachable — safe to keep working locally; push at session end will retry' }));
+    process.exit(0);
+  }
   const r = git('merge', '--ff-only', 'origin/main');
   if (r.status !== 0) {
     console.log(JSON.stringify({ synced: false, conflict: true, local: git('rev-parse', 'HEAD').stdout.trim(), remote: git('rev-parse', 'origin/main').stdout.trim(), note: 'histories diverged (both machines wrote offline). ASK the learner which machine is newer, then on the newer one: git -C <state> push --force-with-lease origin main. Never blind-merge state.json.' }));
@@ -36,10 +40,11 @@ if (mode === 'pull') {
   console.log(JSON.stringify({ synced: true, at: git('rev-parse', '--short', 'HEAD').stdout.trim() }));
 } else {
   git('add', '-A');
+  const d = git('diff', '--cached', '--quiet'); // plumbing: locale-proof. 0 = no staged changes
+  if (d.status === 0) { console.log(JSON.stringify({ pushed: false, note: 'ledger unchanged' })); process.exit(0); }
   const msg = argv.includes('--message') && argv[argv.indexOf('--message') + 1] ? argv[argv.indexOf('--message') + 1] : `ledger update ${new Date().toLocaleDateString('en-CA')}`;
   const c = git('-c', 'user.name=english-context-bot', '-c', 'user.email=english-context@local', 'commit', '-m', msg);
-  if (c.status !== 0 && !/nothing to commit/.test(c.stdout + c.stderr)) { console.error(c.stdout + c.stderr); process.exit(1); }
-  if (/nothing to commit/.test(c.stdout)) { console.log(JSON.stringify({ pushed: false, note: 'ledger unchanged' })); process.exit(0); }
+  if (c.status !== 0) { console.error(c.stdout + c.stderr); process.exit(1); }
   let p = git('push', 'origin', 'main');
   if (p.status !== 0) {
     const r = git('pull', '--rebase', 'origin', 'main');
