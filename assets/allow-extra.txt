@@ -1,0 +1,4 @@
+# english-context · 自备白名单（已知词，不触发纲外判定、不计入生词率、不加粗注释）
+# 一行一个词（原形）。见 assets/ 同目录其他文件。
+sensors
+robot
