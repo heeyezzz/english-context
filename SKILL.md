@@ -28,7 +28,10 @@ alive in fresh contexts.
 ## Session workflow
 
 1. **Init (first run only):** `node "$SKILL_DIR/scripts/ledger.mjs" init`.
-2. **Sync Anki (each session, read-only):**
+2. **Pull ledger + sync Anki (each session, both read-mostly):**
+   `node "$SKILL_DIR/scripts/state-git.mjs" pull --state-dir $STATE` — if it reports `conflict`,
+   stop and ask the learner which machine's ledger is newer; never auto-merge state.
+   Then Anki words:
    `node "$SKILL_DIR/scripts/sync-anki-words.mjs" --out "$STATE/anki-words.json"` then
    `node "$SKILL_DIR/scripts/ledger.mjs" import-anki --file "$STATE/anki-words.json"`. If Anki is closed, continue with the
    last-synced file and say so — never fail a reading session over a missing endpoint.
@@ -56,6 +59,23 @@ alive in fresh contexts.
    「候选毕业：word (6/6) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
    Anki bridge once per graduated word: it is a fully-contextualized candidate for a permanent
    微语境闪卡 via the `anki-flashcard` skill (propose; that skill's own gate sequence then applies).
+10. **Push ledger (end of every session, after any confirm/void/graduate/interest change):**
+    `node "$SKILL_DIR/scripts/state-git.mjs" push --message "session <id>" --state-dir $STATE`.
+    A divergence report goes to the learner, never a silent local-only save.
+
+## Cross-machine setup (mac ↔ Windows Hermes)
+
+`$STATE` is a git working copy of a **separate private data repo** (`english-context-data`); the skill
+repo itself holds no learner state. On the second machine:
+
+1. Install Node ≥ 18 (scripts use global `fetch`).
+2. Clone skill → `%USERPROFILE%\.agents\skills\english-context` (Hermes skills dir), clone data repo →
+   `%USERPROFILE%\.english-context`. Paths need no config: `os.homedir()` resolves on both OSes.
+3. Anki on the same machine with Agent Connect/AnkiConnect on 127.0.0.1:8766, deck name matching
+   `EC_ANKI_DECK` (default `all in one::微语境闪卡`); otherwise reunion words come from the last
+   `anki-words.json` synced from either machine.
+4. Working rule: pull at session start, push at session end. Offline on both machines at once is the
+   only divergence case — step 2 of the workflow handles it by asking the learner.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
@@ -80,6 +100,7 @@ references/passage-format.md      输出模板 + 格式级规则（注释/题目
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|status|pend|confirm|void|graduate|import-anki|pool|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
+scripts/state-git.mjs             台账跨机同步：pull(会话开始)/push(会话结束)，分叉时停下问人
 assets/cefr-j-words.tsv           CEFR-J/Octanove 词表（拷贝自 anki-flashcard，独立演化）
 assets/allow-extra.txt            白名单（已知专业词：sensors 等）
 assets/irregular-forms.txt        不规则变化不算超纲
