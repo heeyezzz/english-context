@@ -167,8 +167,12 @@ grepj '"check": "disabled"' "$T/st_up.json" && ok "status output carries skillUp
 node "$S/ledger.mjs" pool --state-dir "$STATE" --limit 3 > "$T/pu_up.json" 2>/dev/null
 grepj '"check": "disabled"' "$T/pu_up.json" && ok "pool output carries skillUpdate" || bad "skillUpdate not wired into pool"
 mkdir -p "$T/noorigin" && git -C "$T/noorigin" init -q 2>/dev/null
-env -u EC_UPDATE_CHECK node -e "import('file://$S/skill-update.mjs').then(async (m)=>{const {writeFileSync}=await import('node:fs');writeFileSync('$T/off.json',JSON.stringify(m.skillUpdate('$T/noorigin','$T/offstate')))})"
+# NB: paths go in via ARGV (MSYS converts those to native form) and become file:// through
+# pathToFileURL — embedding a git-bash /c/... path in the -e string breaks native node.
+env -u EC_UPDATE_CHECK node -e 'const {pathToFileURL}=require("node:url");Promise.all([import(pathToFileURL(process.argv[1]).href),import("node:fs")]).then(([{skillUpdate},{writeFileSync}])=>writeFileSync(process.argv[4],JSON.stringify(skillUpdate(process.argv[2],process.argv[3]))))' "$S/skill-update.mjs" "$T/noorigin" "$T/offstate" "$T/off.json"
 grepj '"offline":true' "$T/off.json" && ok "skillUpdate soft-fails to offline when fetch impossible" || bad "skillUpdate soft-fail"
+PC "$T/passage.md" "$T/meta.json" > "$T/pc_sig.json" 2>/dev/null
+grepj '"validatedBy": "[0-9].*sha256:' "$T/pc_sig.json" && ok "passage-check report carries validator signature (version+hash)" || bad "validatedBy signature missing from report"
 
 echo "== ship.mjs fail-closed publisher =="
 ORIGIN="$T/ship-origin.git"; SHIPR="$T/ship-repo"
@@ -197,6 +201,15 @@ git -C "$T/ship-second" add -A && git -C "$T/ship-second" -c user.name=u -c user
 echo mine >> "$SHIPR/README.md"
 SHIPW "must-reject-ahead" > "$T/s4.out" 2> "$T/s4.err"
 { [ $? != 0 ] && grep -q "origin/main is" "$T/s4.err"; } && ok "ship refuses when origin moved ahead (no blind push)" || bad "remote-moved guard"
+# version-leg baseline regression (Win 2026-09-23 report): both lint legs must measure against
+# origin/main, not HEAD — an unpushed bump must satisfy a later rule edit without re-churn.
+git -C "$SHIPR" reset -q && git -C "$SHIPR" checkout -q -- .   # reset FIRST: a rejected ship left its add -A in the index
+git -C "$SHIPR" -c user.name=t -c user.email=t@t pull -q --rebase origin main  # absorb ship-second's 'other' commit first
+printf -- '---\nname: t\nversion: 0.3.0\n---\n# t\nrule note\n' > "$SHIPR/SKILL.md"
+git -C "$SHIPR" add -A && git -C "$SHIPR" -c user.name=t -c user.email=t@t commit -qm "bump+rule, left unpushed"
+echo y > "$SHIPR/scripts/another-rule.mjs"
+SHIPW "origin-baseline" > "$T/s5.out" 2> "$T/s5.err"
+grep -q '"shipped": true' "$T/s5.out" && ok "ship version-leg compares to origin/main (unpushed bump honored)" || bad "version-leg baseline: $(cat "$T/s5.err")"
 
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1

@@ -8,17 +8,21 @@ import { join } from 'node:path';
 import { classifyFiles, versionFromSkillMd } from './lib-layers.mjs';
 
 const THROTTLE_H = 24;
+const OFFLINE_RETRY_MIN = 10; // a failed fetch must not mute the check for a whole day
 
 function git(repo, ...a) {
   return spawnSync('git', ['-C', repo, ...a], { encoding: 'utf8', timeout: 8000 });
 }
 
-export function skillUpdate(skillDir, stateDir) {
+// force=true (used by `pool`, the last checkpoint before drafting): fetch even inside the
+// throttle window, so a push from the other machine mid-session is at most one passage old.
+export function skillUpdate(skillDir, stateDir, { force = false } = {}) {
   if (process.env.EC_UPDATE_CHECK === '0') return { check: 'disabled' };
   const stampFile = join(stateDir, '.local', 'skill-update.json');
   let stamp = null;
   try { stamp = JSON.parse(readFileSync(stampFile, 'utf8')); } catch {}
-  if (stamp && Date.now() - stamp.ts < THROTTLE_H * 3600 * 1000) return stamp.result ?? { check: 'recent' };
+  if (!force && stamp && stamp.result?.offline) force = Date.now() - stamp.ts > OFFLINE_RETRY_MIN * 60 * 1000;
+  if (!force && stamp && Date.now() - stamp.ts < THROTTLE_H * 3600 * 1000) return stamp.result ?? { check: 'recent' };
 
   let result;
   try {

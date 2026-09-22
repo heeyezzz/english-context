@@ -7,8 +7,19 @@ import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
+import { createHash } from 'node:crypto';
 
 const SKILL_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
+const SELF_PATH = fileURLToPath(import.meta.url);
+
+// Machine-readable validator signature: version can lie (see the 1.4.2 sed no-op), a blob hash
+// cannot. Step 6 of SKILL.md copies `validatedBy` from this report into the archive frontmatter.
+function validatorSignature() {
+  const version = (readFileSync(join(SKILL_DIR, 'SKILL.md'), 'utf8').match(/^version:\s*(\S+)/m) || [])[1] || 'unknown';
+  let hash = 'unhashed';
+  try { hash = createHash('sha256').update(readFileSync(SELF_PATH)).digest('hex').slice(0, 8); } catch {}
+  return `${version} (sha256:${hash})`;
+}
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);
@@ -243,6 +254,7 @@ const report = {
   targets: Object.fromEntries(targetHits),
   reunionUsed,
   undeclared,
+  validatedBy: validatorSignature(),
   fail, warn,
 };
 console.log(JSON.stringify(report, null, 2));

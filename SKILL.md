@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.6.0
+version: 1.6.1
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -59,9 +59,10 @@ alive in fresh contexts.
 6. **Pending entry + archive:** after a PASS, `ledger.mjs pend --meta <json>` (records the session as
    `pending`; note the returned session id). Exposures are NOT counted yet. Then write the exact
    displayed material to `$STATE/passages/<session-id>.md` with frontmatter
-   (`session, date, topic, targets, reunion, metrics, quiz answers, validatedBy` — `validatedBy` is the
-   current skill version, from `status`'s `skillUpdate.version` or the SKILL.md frontmatter; it pins
-   which validator gate approved the text — see [the format guide](references/passage-format.md)), and run
+   (`session, date, topic, targets, reunion, metrics, quiz answers, validatedBy` — `validatedBy` is
+   copied verbatim from the passage-check report's `validatedBy` field ("version (sha256:hash)"),
+   never retyped from memory; it pins which validator gate approved the text — see
+   [the format guide](references/passage-format.md)), and run
    `node "$SKILL_DIR/scripts/state-git.mjs" push --message "passage <session-id>" --state-dir $STATE`
    so the archive crosses machines immediately. Filenames are unique session ids → append-only, never conflicts in git.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
@@ -118,7 +119,11 @@ session. Interpret it every session:
 | `{upToDate:true, version}` | local skill = origin/main | nothing; `version` is what step 6 writes into `validatedBy` |
 | `{behind:N, ruleLayer:true, ...}` | `scripts/ SKILL.md references/ assets/` changed upstream | **before drafting**: tell the learner validation rules may differ, ask whether to `git pull` this session; never auto-pull |
 | `{behind:N, ruleLayer:false}` | docs/tests only | keep going, mention at session end |
-| `{offline:true}` / `{check:'recent'}` | fetch failed / already checked today | silently continue — the check re-runs on its own |
+| `{offline:true}` / `{check:'recent'}` | fetch failed / already checked within the throttle window | silently continue — a failed fetch retries after ~10 min, a successful one after 24h |
+
+Throttling nuance (Win Hermes finding, v1.6.1): `pool` — the last checkpoint before drafting —
+forces one real fetch whenever its stamp was not written during this command, so a push from the
+other machine is invisible for at most one passage; `status` stays on the 24h throttle.
 
 ## Publishing skill changes (Mac = source of truth)
 

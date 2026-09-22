@@ -5,6 +5,7 @@
 //                                               version changed but no rule file    -> WARN  (empty bump)
 //  4) remote moved since HEAD    -> REJECT (pull first; never blind-push)
 //  5) commit + push, printing exactly what consumers' skillUpdate will see.
+// A rejection after step 1 leaves the staging area populated — undo with `git reset` if unwanted.
 import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -40,7 +41,9 @@ const files = (git('diff', '--cached', '--name-only', 'origin/main').stdout || '
 const { layers, ruleFiles } = classifyFiles(files);
 const localSkill = readFileSync(join(repo, 'SKILL.md'), 'utf8');
 const localV = versionFromSkillMd(localSkill);
-const baseText = git('show', 'HEAD:SKILL.md').stdout || '';
+// both lint legs measure against origin/main — what consumers actually have. HEAD would
+// double-count an already-committed unpushed bump and force per-commit version churn.
+const baseText = git('show', 'origin/main:SKILL.md').stdout || '';
 const baseV = versionFromSkillMd(baseText);
 // a SKILL.md diff that only moves the version: line is a bookkeeping edit, not a rule change
 const ruleChanged = ruleFiles.some((f) => f !== 'SKILL.md')

@@ -232,7 +232,9 @@ else if (cmd === 'pool') {
     sleeping: inFlight.length - eligible.length,
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
-    skillUpdate: skillUpdate(SKILL_DIR, stateDir),
+    // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
+    // other machine is visible for at most one passage (status stays throttled).
+    skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
     note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；总数仍 4–6，照旧过硬闸',
   }, null, 2));
 }

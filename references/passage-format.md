@@ -46,7 +46,7 @@ targets: [aroma, bitter, steep, strain, blend]
 reunion: [schedule, volunteer]
 metrics: { words: 288, aboveLevelRate: 3.1%, maxSentence: 15, avgSentence: 10.4 }
 quizAnswers: [B, A, C]
-validatedBy: 1.6.0   # 放行本篇的 skill 版本（status 输出 skillUpdate.version；追溯补写时加 " (backfill)"）
+validatedBy: 1.6.1 (sha256:ab12cd34)   # 逐字抄 passage-check 报告里的 validatedBy 字段，不要手填
 ---
 
 （正文、生词表、重逢词、题目——与展示内容 1:1，题目可含选项但答案只写在 frontmatter）
