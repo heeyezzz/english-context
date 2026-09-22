@@ -84,6 +84,9 @@ L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
 SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'])")
 L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
 grepj '"tier": 1' "$T/cf_ok2.json" && grepj '"streakGood": 0' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
+# in-progress words must surface for reuse while 1-5/6 (before the graduation threshold)
+L pool --limit 4 > "$T/pool1.json" 2>/dev/null
+grepj 'service ([1-5]/6' "$T/pool1.json" && ok "in-progress word (2/6) surfaces in mustReuse" || bad "mustReuse missing in-progress word"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
@@ -110,7 +113,7 @@ grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-
 L interest --add "urban trains" > /dev/null 2>&1 && grepj "urban trains" "$STATE/state.json" && ok "interest add" || bad "interest add"
 L pool --limit 6 > "$T/pool.json" 2>/dev/null
 grepj 'mustReuse' "$T/pool.json" && grepj 'fresh' "$T/pool.json" && ok "pool returns mustReuse + fresh" || bad "pool"
-grepj 'measure ([0-9]/6' "$T/pool.json" && ok "in-progress word surfaces in mustReuse" || bad "mustReuse missing in-progress word"
+grepj '"mustReuse": \[\]' "$T/pool.json" && ok "words at 6/6 leave mustReuse (awaiting nomination)" || bad "mustReuse leaks at-threshold words"
 python3 - "$T" "$STATE" <<'PY'
 import json, sys
 pool = json.load(open(sys.argv[1] + "/pool.json"))
