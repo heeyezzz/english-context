@@ -110,6 +110,7 @@ const SUFFIX_RULES = [
   (w) => (w.endsWith('er') && w.length > 4 ? w.slice(0, -1) : null),
   (w) => (w.endsWith('ers') && w.length > 5 ? w.slice(0, -3) : null),
   (w) => (w.endsWith('est') && w.length > 5 ? w.slice(0, -3) : null),
+  (w) => (w === 'cannot' || (w.endsWith('not') && w.length > 5) ? w.slice(0, -3) : null), // cannot -> can
 ];
 
 const NUMERALS = new Set(['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
@@ -134,11 +135,13 @@ function classify(surface) {
       if (level === 'A1') break;
     }
   }
-  const base = candidates.find((c) => levelOf.has(c)) || w;
+  // any surface form may normalize to a known/whitelist/irregular base ("allocates" -> "allocate"
+  // when allocate lives only in the Anki list, not in CEFR): match across all candidates, not just w/base
+  const anyForm = (set) => set.has(w) || candidates.some((c) => set.has(c));
   if (level && (level === 'A1' || level === 'A2')) return { kind: 'in', level };
-  if (irregular.has(w) || irregular.has(base)) return { kind: 'in', level: 'A2?' };
-  if (whitelist.has(w) || whitelist.has(base)) return { kind: 'whitelisted', level };
-  if (known.has(w) || known.has(base)) return { kind: 'known', level };
+  if (anyForm(irregular)) return { kind: 'in', level: 'A2?' };
+  if (anyForm(whitelist)) return { kind: 'whitelisted', level };
+  if (anyForm(known)) return { kind: 'known', level };
   return { kind: 'above', level: level || 'OFF' };
 }
 
@@ -163,12 +166,12 @@ for (const t of tokens) {
 }
 
 function candidates0(w) {
-  if (levelOf.has(w)) return w;
+  if (levelOf.has(w) || known.has(w) || whitelist.has(w)) return w;
   if (targets.includes(w)) return w;
   for (const f of SUFFIX_RULES) {
     const b = f(w);
     if (!b) continue;
-    if (levelOf.has(b)) return b;
+    if (levelOf.has(b) || known.has(b) || whitelist.has(b)) return b;
     if (targets.includes(b)) return b;
   }
   // update/updates: base of surface when surface itself is a target

@@ -69,6 +69,20 @@ L() { node "$S/ledger.mjs" "$@" --state-dir "$STATE"; }
 check "init" 0 L init
 echo '{"words":["allocate","schedule","volunteer","postpone"]}' > "$T/anki.json"
 L import-anki --file "$T/anki.json" > /dev/null 2>&1 && ok "import-anki" || bad "import-anki"
+# known-forms regression (win-reported): "allocates" whose base lives only in the Anki known
+# list, and the compounded "cannot" - neither may be flagged, allocate must count as reunion
+cat > "$T/knownforms.md" <<'KF'
+He **cannot** **whistle** near the **candle**; the **tremble** and the **sore** finger end by morning. She **allocates** wax to the **candle**, and the **whistle** returns when the **tremble** ends. He **cannot** sing, so the **sore** throat waits, and the **whistle** sleeps.
+KF
+echo '{"topic":"kf","targets":["whistle","candle","tremble","sore"],"reunion":["allocate"],"names":[]}' > "$T/knownforms.json"
+node "$S/passage-check.mjs" --passage "$T/knownforms.md" --meta "$T/knownforms.json" --state-dir "$STATE" --min-words 1 --max-words 9999 --max-rate 100 > "$T/kf.json" 2>/dev/null
+python3 -c "
+import json,sys
+r=json.load(open('$T/kf.json'))
+bad=[u for u in r['undeclared'] if u.split(' ')[0] in ('allocates','cannot')]
+assert not bad, 'known-forms still flagged: %s' % bad
+assert 'allocate' in r['reunionUsed'], 'allocate not counted as reunion word'
+" && ok "known-word -s forms and cannot normalize to their bases" || bad "known-forms regression"
 L pend --meta "$T/meta.json" > "$T/pend.json" 2>/dev/null
 SID=$(python3 -c "import json;print(json.load(open('$T/pend.json'))['session'])")
 grepj '"status": "pending"' "$STATE/state.json" && ok "pend records session as pending (no exposure yet)" || bad "pend status"
