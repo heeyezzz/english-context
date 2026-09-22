@@ -200,8 +200,9 @@ else if (cmd === 'pool') {
   const rows = readFileSync(join(SKILL_DIR, 'assets', 'cefr-j-words.tsv'), 'utf8').split('\n')
     .filter((l) => !l.startsWith('#') && l.trim());
   const pool = rows.map((r) => r.split('\t').map((f) => f.trim()))
-    // fresh = never used as a target; in-progress words surface via mustReuse instead
-    .filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.toLowerCase()) && !(w in s.words));
+    // fresh = exposures 0 (never counted). Voided pendings leave 0/6 ghosts, so key off the
+    // count, not off membership; Anki/graduated zeros are already caught by known.has
+    .filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.toLowerCase()) && (s.words[w]?.exposures || 0) === 0);
   const daysSince = (d) => d ? Math.round((Date.now() - new Date(d + 'T00:00:00')) / 86400000) : 999;
   const inFlight = Object.entries(s.words)
     .filter(([, e]) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT);

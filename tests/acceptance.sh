@@ -103,6 +103,13 @@ SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['
 L confirm --session "$SID3" --score 3/3 --feel wordy > "$T/cf3.json" 2>/dev/null
 grepj '"syntaxCalm": 1' "$T/cf3.json" && ok "wordy consumes calm budget but does not re-arm (2->1)" || bad "wordy routing"
 L confirm --session "$SID2" --state-dir "$STATE" >/dev/null 2>&1 && bad "double confirm accepted" || ok "double confirm refused"
+# regression (win bug): a voided session must strand no 0/6 ghosts outside both pools
+echo '{"topic":"ghost","targets":["whistle"],"reunion":[],"names":[]}' > "$T/ghost.json"
+L pend --meta "$T/ghost.json" > "$T/ghost_p.json" 2>/dev/null
+GID=$(python3 -c "import json;print(json.load(open('$T/ghost_p.json'))['session'])")
+L void --session "$GID" > /dev/null 2>&1
+L pool --limit 3000 > "$T/ghost_pool.json" 2>/dev/null
+python3 -c "import json;d=json.load(open('$T/ghost_pool.json'));assert any(c.startswith('whistle ') for c in d['fresh'])" && ok "voided word returns to fresh (no 0/6 ghost lost)" || bad "void strands ghosts out of both pools"
 for i in 2 3; do
   L pend --meta "$T/meta.json" > /dev/null 2>&1
   SID2=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
@@ -127,7 +134,7 @@ known = [w for w, e in words["words"].items() if e["status"] == "known"]
 fresh = [c.split(" ")[0] for c in pool["fresh"]]
 must = [c.split(" ")[0] for c in pool["mustReuse"]]
 assert not (set(fresh) & set(known)), f"graduated word in fresh pool: {known}"
-assert not (set(fresh) & set(words["words"])), "in-progress word leaked into fresh"
+assert not any(words["words"].get(w, {}).get("exposures", 0) > 0 for w in fresh), "word with exposures>0 leaked into fresh"
 assert not (set(must) & set(known)), "graduated word leaked into mustReuse"
 assert pool["inFlight"] >= 4, "inFlight not reported"
 PY
