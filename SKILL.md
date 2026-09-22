@@ -69,8 +69,10 @@ alive in fresh contexts.
 repo itself holds no learner state. On the second machine:
 
 1. Install Node ≥ 18 (scripts use global `fetch`).
-2. Clone skill → `%USERPROFILE%\.agents\skills\english-context` (Hermes skills dir), clone data repo →
-   `%USERPROFILE%\.english-context`. Paths need no config: `os.homedir()` resolves on both OSes.
+2. Clone skill → the skills directory your agent actually loads from (verify before assuming: e.g.
+   Hermes per-profile dir `%LOCALAPPDATA%\hermes\profiles\<profile>\skills`, or `~/.agents/skills`),
+   clone data repo → `%USERPROFILE%\.english-context` (or `~/.english-context` — `os.homedir()`
+   resolves on both OSes; the DATA path must be exactly this, scripts default to it).
 3. Anki on the same machine with Agent Connect/AnkiConnect on 127.0.0.1:8766, deck name matching
    `EC_ANKI_DECK` (default `all in one::微语境闪卡`); otherwise reunion words come from the last
    `anki-words.json` synced from either machine.
