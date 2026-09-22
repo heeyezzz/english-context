@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # english-context acceptance suite. Read-only against Anki; all state writes go to a temp dir.
 set -u
+export EC_UPDATE_CHECK=0   # the suite never touches the network; skillUpdate shape is still asserted
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 S="$SKILL_DIR/scripts"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
@@ -159,6 +160,43 @@ assert not (set(must) & set(known)), "graduated word leaked into mustReuse"
 assert pool["inFlight"] >= 4, "inFlight not reported"
 PY
 [ $? -eq 0 ] && ok "fresh excludes known and in-progress words" || bad "pool leaks known/in-progress words"
+
+echo "== skillUpdate wiring (status/pool carry the field; soft-fail) =="
+node "$S/ledger.mjs" status --state-dir "$STATE" > "$T/st_up.json" 2>/dev/null
+grepj '"check": "disabled"' "$T/st_up.json" && ok "status output carries skillUpdate" || bad "skillUpdate not wired into status"
+node "$S/ledger.mjs" pool --state-dir "$STATE" --limit 3 > "$T/pu_up.json" 2>/dev/null
+grepj '"check": "disabled"' "$T/pu_up.json" && ok "pool output carries skillUpdate" || bad "skillUpdate not wired into pool"
+mkdir -p "$T/noorigin" && git -C "$T/noorigin" init -q 2>/dev/null
+env -u EC_UPDATE_CHECK node -e "import('file://$S/skill-update.mjs').then(async (m)=>{const {writeFileSync}=await import('node:fs');writeFileSync('$T/off.json',JSON.stringify(m.skillUpdate('$T/noorigin','$T/offstate')))})"
+grepj '"offline":true' "$T/off.json" && ok "skillUpdate soft-fails to offline when fetch impossible" || bad "skillUpdate soft-fail"
+
+echo "== ship.mjs fail-closed publisher =="
+ORIGIN="$T/ship-origin.git"; SHIPR="$T/ship-repo"
+git init -q --bare -b main "$ORIGIN"
+git clone -q "$ORIGIN" "$SHIPR" 2>/dev/null
+mkdir -p "$SHIPR/scripts"
+cp "$S/ship.mjs" "$S/lib-layers.mjs" "$SHIPR/scripts/"
+printf -- '---\nname: t\nversion: 0.1.0\n---\n# t\n' > "$SHIPR/SKILL.md"
+git -C "$SHIPR" add -A && git -C "$SHIPR" -c user.name=t -c user.email=t@t commit -qm base && git -C "$SHIPR" push -q origin main
+SHIPW() { node "$SHIPR/scripts/ship.mjs" --repo "$SHIPR" --no-verify -m "$1"; }
+echo x > "$SHIPR/scripts/new-rule.mjs"
+SHIPW "must-reject" > "$T/s1.out" 2> "$T/s1.err"
+{ [ $? != 0 ] && grep -q "SHIP REJECTED" "$T/s1.err" && grep -q "version" "$T/s1.err"; } \
+  && ok "ship rejects rule-layer change without a version bump" || bad "ship version lint (reject path)"
+git -C "$SHIPR" reset -q && rm -f "$SHIPR/scripts/new-rule.mjs"
+echo hello > "$SHIPR/README.md"
+SHIPW "docs only" > "$T/s2.out" 2> "$T/s2.err"
+grep -q '"shipped": true' "$T/s2.out" && ok "docs-only change ships clean (no bump needed)" || bad "docs-only ship: $(cat "$T/s2.err")"
+printf -- '---\nname: t\nversion: 0.2.0\n---\n# t\n' > "$SHIPR/SKILL.md"
+echo more >> "$SHIPR/README.md"
+SHIPW "empty bump" > "$T/s3.out" 2> "$T/s3.err"
+grep -q '"shipped": true' "$T/s3.out" && grep -q "empty bump" "$T/s3.out" && ok "bump without rule file ships with empty-bump warning" || bad "empty bump warning"
+git clone -q "$ORIGIN" "$T/ship-second" 2>/dev/null
+echo other >> "$T/ship-second/README.md"
+git -C "$T/ship-second" add -A && git -C "$T/ship-second" -c user.name=u -c user.email=u@u commit -qm other && git -C "$T/ship-second" push -q origin main
+echo mine >> "$SHIPR/README.md"
+SHIPW "must-reject-ahead" > "$T/s4.out" 2> "$T/s4.err"
+{ [ $? != 0 ] && grep -q "origin/main is" "$T/s4.err"; } && ok "ship refuses when origin moved ahead (no blind push)" || bad "remote-moved guard"
 
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1

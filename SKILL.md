@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.5.1
+version: 1.6.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -36,6 +36,8 @@ alive in fresh contexts.
    `node "$SKILL_DIR/scripts/sync-anki-words.mjs" --out "$STATE/anki-words.json"` then
    `node "$SKILL_DIR/scripts/ledger.mjs" import-anki --file "$STATE/anki-words.json"`. If Anki is closed, continue with the
    last-synced file and say so — never fail a reading session over a missing endpoint.
+   `status`/`pool` also print `skillUpdate` (is the skill itself behind GitHub?) — see the
+   self-update check section for what to do with each shape.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
    `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
@@ -57,8 +59,9 @@ alive in fresh contexts.
 6. **Pending entry + archive:** after a PASS, `ledger.mjs pend --meta <json>` (records the session as
    `pending`; note the returned session id). Exposures are NOT counted yet. Then write the exact
    displayed material to `$STATE/passages/<session-id>.md` with frontmatter
-   (`session, date, topic, targets, reunion, metrics, quiz answers` — see
-   [the format guide](references/passage-format.md)), and run
+   (`session, date, topic, targets, reunion, metrics, quiz answers, validatedBy` — `validatedBy` is the
+   current skill version, from `status`'s `skillUpdate.version` or the SKILL.md frontmatter; it pins
+   which validator gate approved the text — see [the format guide](references/passage-format.md)), and run
    `node "$SKILL_DIR/scripts/state-git.mjs" push --message "passage <session-id>" --state-dir $STATE`
    so the archive crosses machines immediately. Filenames are unique session ids → append-only, never conflicts in git.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
@@ -103,6 +106,31 @@ repo itself holds no learner state. On the second machine:
    `git reset --hard HEAD` (only when `git status` is clean) — do NOT empty the index via
    `git rm --cached -r .` and then `checkout -- .`: pathspec checkout reads the index and fails on it.
 
+## Skill self-update check (script-level)
+
+`ledger.mjs status` and `pool` print a `skillUpdate` field, computed by `skill-update.mjs` on the
+mandatory session-start path (throttled to one `git fetch` per 24h, stored in `$STATE/.local/`;
+`EC_UPDATE_CHECK=0` disables). Soft-fail by design — a network hiccup must never block a reading
+session. Interpret it every session:
+
+| `skillUpdate` shows | meaning | agent action |
+|---|---|---|
+| `{upToDate:true, version}` | local skill = origin/main | nothing; `version` is what step 6 writes into `validatedBy` |
+| `{behind:N, ruleLayer:true, ...}` | `scripts/ SKILL.md references/ assets/` changed upstream | **before drafting**: tell the learner validation rules may differ, ask whether to `git pull` this session; never auto-pull |
+| `{behind:N, ruleLayer:false}` | docs/tests only | keep going, mention at session end |
+| `{offline:true}` / `{check:'recent'}` | fetch failed / already checked today | silently continue — the check re-runs on its own |
+
+## Publishing skill changes (Mac = source of truth)
+
+Standing rule (2026-09-23): on the Mac, **改完、测绿就自动推，不用每次问** — but the only publish path is
+`node "$SKILL_DIR/scripts/ship.mjs" -m "message"`. It is fail-closed: acceptance suite must print
+`fail=0` (skippable only via `--no-verify`, which is reserved for the suite's own ship tests),
+origin must not have moved, and a diff-consistency version lint runs — rule-layer files changed
+without a `version:` bump → REJECT; version bumped with no rule file → warn ("empty bump").
+Never `git commit`/`git push` the skill repo by hand; hand-pushing is how the 1.4.2→1.5.0 silent
+mismatch happened. Windows Hermes consumes via the `skillUpdate` field above and only ships fixes
+the learner explicitly asks for.
+
 ## Spacing rules (script-enforced)
 
 | Rule | Value |
@@ -145,11 +173,15 @@ tier 1→3 控制候选池（B1 → B1+B2 → B2）与目标词数（4–5 → 5
 
 ```text
 SKILL.md
+BOOTSTRAP.md                      新机器/新 agent 的一句话记忆：发布只走 ship.mjs
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|status|pend|confirm|void|graduate|import-anki|pool|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
 scripts/state-git.mjs             台账跨机同步：pull(会话开始)/push(会话结束)，分叉时停下问人
+scripts/skill-update.mjs          会话必过路径上的 skill 落后检查（24h 节流、软失败、只读）
+scripts/ship.mjs                  唯一发布路径：绿测试 + 版本联动 lint + 远端移动守卫，fail-closed
+scripts/lib-layers.mjs            rule 层定义（scripts/SKILL.md/references/assets），lint 与 check 共用
 assets/cefr-j-words.tsv           CEFR-J/Octanove 词表（拷贝自 anki-flashcard，独立演化）
 assets/allow-extra.txt            白名单（已知专业词：sensors 等）
 assets/irregular-forms.txt        不规则变化不算超纲
@@ -159,3 +191,4 @@ tests/acceptance.sh               验收套件
 State (survives skill reinstall): `$STATE/state.json`, `$STATE/known-words.txt`,
 `$STATE/anki-words.json`, `$STATE/passages/<session-id>.md`（展示过的每篇正文档案：pend 时写入、
 void 时删除；append-only 唯一文件名，git 永不冲突，随 ledger 写操作的自动推送跨机同步）。
+`$STATE/.local/` holds the `skillUpdate` throttle stamp — gitignored, never synced.

@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
+import { skillUpdate } from './skill-update.mjs';
 
 const SKILL_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const argv = process.argv;
@@ -76,6 +77,7 @@ else if (cmd === 'status') {
     activeWords: Object.entries(s.words).filter(([, e]) => e.status === 'active').map(([w, e]) => `${w}:${e.exposures}/${GRADUATE_AT}`).join(' '),
     graduationNominations: nominations.map(([w, e]) => `${w} (${e.exposures} exposures)`),
     interests: s.interests,
+    skillUpdate: skillUpdate(SKILL_DIR, stateDir),
   }, null, 2));
 }
 
@@ -230,6 +232,7 @@ else if (cmd === 'pool') {
     sleeping: inFlight.length - eligible.length,
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
+    skillUpdate: skillUpdate(SKILL_DIR, stateDir),
     note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；总数仍 4–6，照旧过硬闸',
   }, null, 2));
 }
