@@ -4,6 +4,7 @@
 // Commands: init | status | pend | confirm | graduate | import-anki | pool | interest
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -32,10 +33,17 @@ function load() {
   }
   return JSON.parse(readFileSync(stateFile, 'utf8'));
 }
+let lastSync = null;
 function save(s) {
   mkdirSync(stateDir, { recursive: true });
   writeFileSync(stateFile, JSON.stringify(s, null, 2));
+  if (!argv.includes('--no-sync')) {
+    const r = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts', 'state-git.mjs'), 'push', '--state-dir', stateDir], { encoding: 'utf8' });
+    try { lastSync = JSON.parse(r.stdout.trim().split('\n').pop()); }
+    catch { lastSync = { pushed: false, note: 'sync unavailable — commit is local, next session will retry' }; }
+  }
 }
+function out(obj) { if (lastSync) obj.sync = lastSync; console.log(JSON.stringify(obj, null, 2)); }
 function knownSet(s) {
   const set = new Set();
   if (existsSync(knownFile)) for (const l of readFileSync(knownFile, 'utf8').split('\n')) { const w = l.trim().toLowerCase(); if (w && !w.startsWith('#')) set.add(w); }
@@ -82,7 +90,7 @@ else if (cmd === 'pend') {
     s.words[t] = s.words[t] || { exposures: 0, first: null, last: null, status: 'active', source: 'pool' };
   }
   save(s);
-  console.log(JSON.stringify({ session: id, status: 'pending', note: 'exposures NOT counted until `confirm`' }));
+  out({ session: id, status: 'pending', note: 'exposures NOT counted until `confirm`' });
 }
 
 else if (cmd === 'confirm') {
@@ -113,11 +121,11 @@ else if (cmd === 'confirm') {
   }
   save(s);
   const nominations = sess.targets.filter((t) => s.words[t].exposures >= GRADUATE_AT);
-  console.log(JSON.stringify({
+  out({
     session: id, tier: s.difficulty.tier, tierLabel: TIERS[s.difficulty.tier].label,
     exposures: Object.fromEntries(sess.targets.map((t) => [t, `${s.words[t].exposures}/${GRADUATE_AT}`])),
     graduationNominations: nominations.map((w) => `${w} — run: graduate --word ${w} (then optionally hand it to anki-flashcard for a permanent SRS card)`),
-  }, null, 2));
+  });
 }
 
 else if (cmd === 'void') {
@@ -125,7 +133,7 @@ else if (cmd === 'void') {
   const sess = s.sessions.find((x) => x.id === arg('session', null));
   if (!sess) { console.error('no such session'); process.exit(2); }
   sess.status = 'void'; save(s);
-  console.log(JSON.stringify({ session: sess.id, status: 'void', note: 'no exposures counted' }));
+  out({ session: sess.id, status: 'void', note: 'no exposures counted' });
 }
 
 else if (cmd === 'graduate') {
@@ -136,7 +144,7 @@ else if (cmd === 'graduate') {
   e.status = 'known'; s.words[w] = e;
   appendFileSync(knownFile, w + '\n');
   save(s);
-  console.log(JSON.stringify({ graduated: w, exposures: e.exposures, bridge: `optional: create a permanent flashcard via the anki-flashcard skill (dry-run → approve → confirmed)` }));
+  out({ graduated: w, exposures: e.exposures, bridge: `optional: create a permanent flashcard via the anki-flashcard skill (dry-run → approve → confirmed)` });
 }
 
 else if (cmd === 'interest') {
@@ -145,7 +153,7 @@ else if (cmd === 'interest') {
   if (add) { if (!s.interests.includes(add)) s.interests.push(add); }
   if (arg('remove', null)) s.interests = s.interests.filter((x) => x !== arg('remove', null));
   save(s);
-  console.log(JSON.stringify({ interests: s.interests }));
+  out({ interests: s.interests });
 }
 
 else if (cmd === 'import-anki') {
@@ -157,7 +165,7 @@ else if (cmd === 'import-anki') {
   for (const w of words) s.words[w] = s.words[w] || { exposures: 0, first: null, last: null, status: 'active', source: 'anki' };
   writeFileSync(join(stateDir, 'anki-words.json'), JSON.stringify({ synced: today, deck: data.deck || null, words }, null, 2));
   save(s);
-  console.log(JSON.stringify({ imported: words.length, words, note: 'these are KNOWN words: no annotation, no rate cost; prefer weaving them in as 重逢词' }));
+  out({ imported: words.length, words, note: 'these are KNOWN words: no annotation, no rate cost; prefer weaving them in as 重逢词' });
 }
 
 else if (cmd === 'pool') {

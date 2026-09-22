@@ -47,6 +47,11 @@ if (mode === 'pull') {
   if (c.status !== 0) { console.error(c.stdout + c.stderr); process.exit(1); }
   let p = git('push', 'origin', 'main');
   if (p.status !== 0) {
+    const f = git('fetch', 'origin');
+    if (f.status !== 0) {
+      console.log(JSON.stringify({ pushed: false, offline: true, note: 'committed locally; remote unreachable — next session will retry' }));
+      process.exit(0);
+    }
     const r = git('pull', '--rebase', 'origin', 'main');
     if (r.status !== 0) {
       git('rebase', '--abort');

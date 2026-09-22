@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.0.2
+version: 1.0.3
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -59,9 +59,10 @@ alive in fresh contexts.
    「候选毕业：word (6/6) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
    Anki bridge once per graduated word: it is a fully-contextualized candidate for a permanent
    微语境闪卡 via the `anki-flashcard` skill (propose; that skill's own gate sequence then applies).
-10. **Push ledger (end of every session, after any confirm/void/graduate/interest change):**
-    `node "$SKILL_DIR/scripts/state-git.mjs" push --message "session <id>" --state-dir $STATE`.
-    A divergence report goes to the learner, never a silent local-only save.
+10. **Push ledger:** automatic. Every state write (pend/confirm/void/graduate/interest/import-anki)
+    commits and pushes itself — the command's JSON carries a `sync` field: `pushed:true` = done;
+    `offline:true` = safely committed locally, retried next session; **`conflict:true` = stop and ask
+    the learner which machine's ledger wins** (never blind-merge). `--no-sync` opts out for dry runs.
 
 ## Cross-machine setup (mac ↔ Windows Hermes)
 
