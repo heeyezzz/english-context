@@ -70,7 +70,13 @@ else if (cmd === 'pend') {
   const s = load();
   const meta = JSON.parse(readFileSync(arg('meta', null), 'utf8'));
   if (!meta.targets?.length) { console.error('meta.targets required'); process.exit(2); }
-  const id = arg('id', `${today}-${(meta.topic || 'x').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+  let id = arg('id', null);
+  if (!id) {
+    const slug = (meta.topic || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    id = `${today}-${slug || 'session'}`;
+    let n = 2;
+    while (s.sessions.some((x) => x.id === id)) id = `${today}-${slug || 'session'}-${n++}`; // CJK topics slug to '' — keep same-day sessions unique
+  }
   s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', words: meta.words || null });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
     s.words[t] = s.words[t] || { exposures: 0, first: null, last: null, status: 'active', source: 'pool' };
@@ -161,9 +167,9 @@ else if (cmd === 'pool') {
   const limit = +arg('limit', 12);
   const rows = readFileSync(join(SKILL_DIR, 'assets', 'cefr-j-words.tsv'), 'utf8').split('\n')
     .filter((l) => !l.startsWith('#') && l.trim());
-  const levelCount = new Map();
-  for (const r of rows) { const [w, lvl] = r.split('\t'); levelCount.set(lvl, (levelCount.get(lvl) || 0) + 1); }
-  const pool = rows.map((r) => r.split('\t')).filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.trim().toLowerCase()) && (s.words[w]?.exposures || 0) < 3);
+  const pool = rows.map((r) => r.split('\t').map((f) => f.trim()))
+    // trim: a CRLF checkout (Windows without .gitattributes) leaves "\r" on the level field
+    .filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.toLowerCase()) && (s.words[w]?.exposures || 0) < 3);
   // deterministic rotation by date so the same day shows the same sample
   let seed = [...today].reduce((a, c) => a + c.charCodeAt(0), 0);
   const idx = [];

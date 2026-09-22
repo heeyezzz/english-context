@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.0.1
+version: 1.0.2
 platforms: [macos, linux, windows]
 metadata:
   hermes:
