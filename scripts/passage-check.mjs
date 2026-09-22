@@ -91,6 +91,7 @@ const SUFFIX_RULES = [
   (w) => (w.endsWith('ves') && w.length > 4 ? w.slice(0, -3) + 'f' : null), // shelves->shelf, leaves->leaf
   (w) => (w.endsWith('ves') && w.length > 5 ? w.slice(0, -3) + 'fe' : null), // knives->knife
   (w) => (w.endsWith('oes') && w.length > 4 ? w.slice(0, -2) : null),
+  (w) => (w.endsWith('s') && w.length > 4 && /[cs]ion$|[sz]$/.test(w.slice(0, -1)) ? w.slice(0, -1) : null), // concessions->concession
   (w) => (w.endsWith('ed') && w.length > 4 && w.endsWith('ked') ? w.slice(0, -2) : null), // asked -> ask
   (w) => (w.endsWith('es') && w.length > 4 && /[sxzo]$/.test(w.slice(0, -2)) ? w.slice(0, -2) : null), // goes -> go
   (w) => (w.endsWith('es') && w.length > 4 ? w.slice(0, -2) : null),

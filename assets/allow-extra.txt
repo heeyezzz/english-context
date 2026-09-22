@@ -2,3 +2,6 @@
 # 一行一个词（原形）。见 assets/ 同目录其他文件。
 sensors
 robot
+rider
+riders
+app

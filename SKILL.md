@@ -1,8 +1,8 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.0.0
-platforms: [macos, linux]
+version: 1.0.1
+platforms: [macos, linux, windows]
 metadata:
   hermes:
     tags: [english, reading, sla, cefr, vocabulary, anki]
@@ -76,6 +76,10 @@ repo itself holds no learner state. On the second machine:
    `anki-words.json` synced from either machine.
 4. Working rule: pull at session start, push at session end. Offline on both machines at once is the
    only divergence case — step 2 of the workflow handles it by asking the learner.
+5. Windows (verified 2026-09-22): all scripts are pure Node and run natively; `tests/acceptance.sh`
+   needs MSYS bash, where `mktemp -d` yields `/tmp/...` that native node resolves to `C:\tmp\...` and
+   `pwd`-derived `/c/...` paths break `import` — pass drive-style paths (`C:/Users/...`) to node, and
+   note `python3` may be a WindowsApps stub; the suite's few python3 uses can be swapped for `node -e`.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
