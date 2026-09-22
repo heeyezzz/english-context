@@ -1,0 +1,1579 @@
+{
+  "diagrams": [
+    {
+      "meta": {
+        "title": "english-context 会话主流程与校验闸门",
+        "subtitle": "从「来一篇」到 confirm 记账的完整路径：静默校验环、pending 门、体感→调控",
+        "sourceRef": "english-context@5269cd6",
+        "scope": "一次生成会话",
+        "diagramType": "flowchart",
+        "locale": "zh-CN"
+      },
+      "layout": {
+        "primaryPath": [
+          "start",
+          "sync",
+          "pick",
+          "draft",
+          "check",
+          "pend",
+          "show",
+          "readq",
+          "confirm",
+          "autpush",
+          "end"
+        ],
+        "version": "adaptive-v2-elkjs-0.11.0",
+        "strategy": "layered-4-fold2c"
+      },
+      "nodes": [
+        {
+          "id": "start",
+          "label": "学习者说「来一篇」",
+          "kind": "start",
+          "module": "会话编排",
+          "position": {
+            "x": 585,
+            "y": 32
+          },
+          "size": {
+            "width": 267,
+            "height": 100
+          }
+        },
+        {
+          "id": "sync",
+          "label": "拉台账 + 同步 Anki 已学词",
+          "kind": "process",
+          "module": "台账同步",
+          "subtitle": "state-git pull（ff-only）→ sync-anki-words → import-anki",
+          "facts": [
+            "conflict 时停下问人，绝不盲合并",
+            "Anki 未开则沿用上次的 anki-words.json"
+          ],
+          "source": {
+            "kind": "source",
+            "file": "SKILL.md",
+            "lineStart": 31,
+            "lineEnd": 37
+          },
+          "position": {
+            "x": 478.5,
+            "y": 228
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "pick",
+          "label": "选题 + 选目标词/重逢词",
+          "kind": "process",
+          "module": "会话编排",
+          "subtitle": "兴趣清单轮转；ledger pool 出 B1/B2 候选，按主题挑 4–6 个",
+          "source": {
+            "kind": "source",
+            "file": "SKILL.md",
+            "lineStart": 38,
+            "lineEnd": 43
+          },
+          "position": {
+            "x": 478.5,
+            "y": 424
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "draft",
+          "label": "起草 250–350 词新闻体短文",
+          "kind": "process",
+          "module": "材料生成",
+          "subtitle": "syntaxCalm>0 时单句≤16/均≤10，校验带收紧参数",
+          "source": {
+            "kind": "source",
+            "file": "SKILL.md",
+            "lineStart": 44,
+            "lineEnd": 49
+          },
+          "position": {
+            "x": 502.5,
+            "y": 620
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "check",
+          "label": "passage-check 通过？",
+          "kind": "decision",
+          "module": "硬校验",
+          "subtitle": "纲外词零未申报 · 目标词4–6各≥2次 · token率≤4% · 句长/篇长",
+          "facts": [
+            "学习者也见过一次上游草稿因此被拦下（riders/version 事件）"
+          ],
+          "source": {
+            "kind": "source",
+            "file": "scripts/passage-check.mjs",
+            "lineStart": 209,
+            "lineEnd": 227
+          },
+          "position": {
+            "x": 502.5,
+            "y": 912
+          },
+          "size": {
+            "width": 480,
+            "height": 226
+          }
+        },
+        {
+          "id": "failend",
+          "label": "第 4 次仍失败：如实上报结构性阻塞",
+          "kind": "end",
+          "module": "硬校验",
+          "position": {
+            "x": 520,
+            "y": 1360
+          },
+          "size": {
+            "width": 445,
+            "height": 100
+          }
+        },
+        {
+          "id": "pend",
+          "label": "ledger pend 挂起会话（不计数）",
+          "kind": "process",
+          "module": "曝光台账",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 77,
+            "lineEnd": 93
+          },
+          "position": {
+            "x": 32,
+            "y": 1360
+          },
+          "size": {
+            "width": 424,
+            "height": 100
+          }
+        },
+        {
+          "id": "show",
+          "label": "在对话中展示成品",
+          "kind": "output",
+          "module": "材料生成",
+          "subtitle": "加粗目标词+语境义 + 重逢词清单 + 3 道选择题",
+          "source": {
+            "kind": "source",
+            "file": "references/passage-format.md",
+            "lineStart": 1,
+            "lineEnd": 30
+          },
+          "position": {
+            "x": 1365.5,
+            "y": 32
+          },
+          "size": {
+            "width": 468,
+            "height": 100
+          }
+        },
+        {
+          "id": "readq",
+          "label": "学习者读完了？",
+          "kind": "decision",
+          "module": "会话编排",
+          "source": {
+            "kind": "source",
+            "file": "SKILL.md",
+            "lineStart": 54,
+            "lineEnd": 60
+          },
+          "position": {
+            "x": 1479.5,
+            "y": 228
+          },
+          "size": {
+            "width": 240,
+            "height": 134
+          }
+        },
+        {
+          "id": "void",
+          "label": "ledger void 作废本篇（零记账）",
+          "kind": "process",
+          "module": "曝光台账",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 142,
+            "lineEnd": 148
+          },
+          "position": {
+            "x": 1531.5,
+            "y": 780
+          },
+          "size": {
+            "width": 424,
+            "height": 100
+          }
+        },
+        {
+          "id": "confirm",
+          "label": "ledger confirm：唯一记账点",
+          "kind": "process",
+          "module": "曝光台账",
+          "subtitle": "收成绩+四档体感（flow/ok/wordy/dense）→ 曝光+1 → 难度调控",
+          "facts": [
+            "wordy=词汇降档 · dense=句式冷静2篇 · <60%=双降 · 连续2次良好=升档",
+            "≥6 曝光提名毕业， learner 同意才 graduate"
+          ],
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 96,
+            "lineEnd": 140
+          },
+          "position": {
+            "x": 2019.5,
+            "y": 584
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "autpush",
+          "label": "自动 commit + push 到 GitHub 数据仓库",
+          "kind": "process",
+          "module": "台账同步",
+          "subtitle": "输出 sync 字段：pushed / offline / conflict",
+          "source": {
+            "kind": "source",
+            "file": "scripts/state-git.mjs",
+            "lineStart": 41,
+            "lineEnd": 63
+          },
+          "position": {
+            "x": 2019.5,
+            "y": 780
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "end",
+          "label": "本篇闭环完成",
+          "kind": "end",
+          "module": "会话编排",
+          "position": {
+            "x": 1647.5,
+            "y": 976
+          },
+          "size": {
+            "width": 240,
+            "height": 100
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "f1",
+          "source": "start",
+          "target": "sync",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 718.5,
+                "y": 144
+              },
+              {
+                "x": 718.5,
+                "y": 216
+              }
+            ]
+          }
+        },
+        {
+          "id": "f2",
+          "source": "sync",
+          "target": "pick",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 718.5,
+                "y": 340
+              },
+              {
+                "x": 718.5,
+                "y": 412
+              }
+            ]
+          }
+        },
+        {
+          "id": "f3",
+          "source": "pick",
+          "target": "draft",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 718.5,
+                "y": 536
+              },
+              {
+                "x": 718.5,
+                "y": 608
+              }
+            ]
+          }
+        },
+        {
+          "id": "f4",
+          "source": "draft",
+          "target": "check",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 742.5,
+                "y": 732
+              },
+              {
+                "x": 742.5,
+                "y": 900
+              }
+            ]
+          }
+        },
+        {
+          "id": "f5",
+          "source": "check",
+          "target": "pend",
+          "kind": "yes",
+          "label": "通过（学习者只见合格品）",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 490.5,
+                "y": 1025
+              },
+              {
+                "x": 244,
+                "y": 1025
+              },
+              {
+                "x": 244,
+                "y": 1348
+              }
+            ],
+            "labelAt": {
+              "x": 244,
+              "y": 1249
+            }
+          }
+        },
+        {
+          "id": "f6",
+          "source": "check",
+          "target": "draft",
+          "kind": "no",
+          "label": "未通过：静默自修（≤3 轮）",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 994.5,
+                "y": 1025
+              },
+              {
+                "x": 1158,
+                "y": 1025
+              },
+              {
+                "x": 1158,
+                "y": 548
+              },
+              {
+                "x": 766.5,
+                "y": 548
+              },
+              {
+                "x": 766.5,
+                "y": 608
+              }
+            ],
+            "labelAt": {
+              "x": 1158,
+              "y": 670
+            }
+          }
+        },
+        {
+          "id": "f7",
+          "source": "check",
+          "target": "failend",
+          "kind": "failure",
+          "label": "第 4 次仍失败",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 742.5,
+                "y": 1150
+              },
+              {
+                "x": 742.5,
+                "y": 1348
+              }
+            ],
+            "labelAt": {
+              "x": 742.5,
+              "y": 1249
+            }
+          }
+        },
+        {
+          "id": "f8",
+          "source": "pend",
+          "target": "show",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 244,
+                "y": 1508
+              },
+              {
+                "x": 1293.5,
+                "y": 1508
+              },
+              {
+                "x": 1293.5,
+                "y": 82
+              }
+            ]
+          }
+        },
+        {
+          "id": "f9",
+          "source": "show",
+          "target": "readq",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1599.5,
+                "y": 144
+              },
+              {
+                "x": 1599.5,
+                "y": 216
+              }
+            ]
+          }
+        },
+        {
+          "id": "f10",
+          "source": "readq",
+          "target": "confirm",
+          "kind": "yes",
+          "label": "读完了/对答案",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1467.5,
+                "y": 295
+              },
+              {
+                "x": 1455.5,
+                "y": 295
+              },
+              {
+                "x": 1455.5,
+                "y": 386
+              },
+              {
+                "x": 2259.5,
+                "y": 386
+              },
+              {
+                "x": 2259.5,
+                "y": 572
+              }
+            ],
+            "labelAt": {
+              "x": 2259.5,
+              "y": 473
+            }
+          }
+        },
+        {
+          "id": "f11",
+          "source": "readq",
+          "target": "void",
+          "kind": "no",
+          "label": "重写/换主题",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1731.5,
+                "y": 295
+              },
+              {
+                "x": 1743.5,
+                "y": 295
+              },
+              {
+                "x": 1743.5,
+                "y": 768
+              }
+            ],
+            "labelAt": {
+              "x": 1743.5,
+              "y": 473
+            }
+          }
+        },
+        {
+          "id": "f12",
+          "source": "void",
+          "target": "end",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1743.5,
+                "y": 892
+              },
+              {
+                "x": 1743.5,
+                "y": 964
+              }
+            ]
+          }
+        },
+        {
+          "id": "f13",
+          "source": "confirm",
+          "target": "autpush",
+          "kind": "flow",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 2259.5,
+                "y": 696
+              },
+              {
+                "x": 2259.5,
+                "y": 768
+              }
+            ]
+          }
+        },
+        {
+          "id": "f14",
+          "source": "autpush",
+          "target": "end",
+          "kind": "success",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 2259.5,
+                "y": 892
+              },
+              {
+                "x": 2259.5,
+                "y": 904
+              },
+              {
+                "x": 1791.5,
+                "y": 904
+              },
+              {
+                "x": 1791.5,
+                "y": 964
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "meta": {
+        "title": "目标词曝光生命周期状态机",
+        "subtitle": "一个词从候选池到毕业进 known-words 的全部路径；曝光只在 confirm 时计数",
+        "sourceRef": "english-context@5269cd6",
+        "scope": "state.json 的 words 实体",
+        "diagramType": "state",
+        "locale": "zh-CN"
+      },
+      "nodes": [
+        {
+          "id": "initial",
+          "label": "start",
+          "kind": "initial",
+          "position": {
+            "x": 470.5,
+            "y": 32
+          },
+          "size": {
+            "width": 88,
+            "height": 28
+          }
+        },
+        {
+          "id": "candidate",
+          "label": "候选池（tier 楼层内）",
+          "kind": "state",
+          "module": "曝光台账",
+          "subtitle": "pool 输出按日期种子确定性轮转",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 182,
+            "lineEnd": 199
+          },
+          "position": {
+            "x": 347.5,
+            "y": 250
+          },
+          "size": {
+            "width": 334,
+            "height": 100
+          }
+        },
+        {
+          "id": "pending",
+          "label": "pending（已挂起未计数）",
+          "kind": "state",
+          "module": "曝光台账",
+          "subtitle": "曝光 NOT counted",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 88,
+            "lineEnd": 93
+          },
+          "position": {
+            "x": 358.5,
+            "y": 540
+          },
+          "size": {
+            "width": 336,
+            "height": 100
+          }
+        },
+        {
+          "id": "counted",
+          "label": "counted n/6",
+          "kind": "state",
+          "module": "曝光台账",
+          "subtitle": "exposures++，first/last 更新",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 108,
+            "lineEnd": 112
+          },
+          "position": {
+            "x": 365.5,
+            "y": 854
+          },
+          "size": {
+            "width": 346,
+            "height": 100
+          }
+        },
+        {
+          "id": "nominated",
+          "label": "毕业提名（≥6/6）",
+          "kind": "state",
+          "module": "曝光台账",
+          "subtitle": "confirm 输出 graduationNominations",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 134,
+            "lineEnd": 138
+          },
+          "position": {
+            "x": 335,
+            "y": 1144
+          },
+          "size": {
+            "width": 431,
+            "height": 100
+          }
+        },
+        {
+          "id": "known",
+          "label": "known（已毕业）",
+          "kind": "state",
+          "module": "曝光台账",
+          "subtitle": "写入 known-words.txt；此后织入零成本、不加注",
+          "facts": [
+            "graduate 时附带一次性 Anki 桥提议：可交给 anki-flashcard 做永久闪卡（仅提议）"
+          ],
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 150,
+            "lineEnd": 158
+          },
+          "position": {
+            "x": 298.5,
+            "y": 1458
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "ankiknown",
+          "label": "Anki 已知词（重逢词池）",
+          "kind": "state",
+          "module": "重逢词",
+          "subtitle": "只读同步而来，source=anki，不占生词率",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 162,
+            "lineEnd": 172
+          },
+          "position": {
+            "x": 811,
+            "y": 250
+          },
+          "size": {
+            "width": 415,
+            "height": 100
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "t0",
+          "source": "initial",
+          "target": "candidate",
+          "kind": "transition",
+          "label": "ledger init / 词表装载",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 502.5,
+                "y": 72
+              },
+              {
+                "x": 502.5,
+                "y": 238
+              }
+            ],
+            "labelAt": {
+              "x": 502.5,
+              "y": 155
+            }
+          }
+        },
+        {
+          "id": "t1",
+          "source": "candidate",
+          "target": "pending",
+          "kind": "transition",
+          "label": "被选为目标词，随材料 pend",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 514.5,
+                "y": 362
+              },
+              {
+                "x": 514.5,
+                "y": 528
+              }
+            ],
+            "labelAt": {
+              "x": 514.5,
+              "y": 445
+            }
+          }
+        },
+        {
+          "id": "t2",
+          "source": "pending",
+          "target": "counted",
+          "kind": "transition",
+          "label": "学习者确认读完",
+          "guard": "唯一计数点",
+          "action": "exposures+1",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 514.5,
+                "y": 652
+              },
+              {
+                "x": 514.5,
+                "y": 842
+              }
+            ],
+            "labelAt": {
+              "x": 514.5,
+              "y": 747
+            }
+          }
+        },
+        {
+          "id": "t3",
+          "source": "pending",
+          "target": "candidate",
+          "kind": "transition",
+          "label": "重写/换主题 → void",
+          "action": "零记账退回",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 538.5,
+                "y": 652
+              },
+              {
+                "x": 538.5,
+                "y": 664
+              },
+              {
+                "x": 787,
+                "y": 664
+              },
+              {
+                "x": 787,
+                "y": 194
+              },
+              {
+                "x": 526.5,
+                "y": 194
+              },
+              {
+                "x": 526.5,
+                "y": 238
+              }
+            ],
+            "labelAt": {
+              "x": 787,
+              "y": 445
+            }
+          }
+        },
+        {
+          "id": "t4",
+          "source": "counted",
+          "target": "pending",
+          "kind": "transition",
+          "label": "下一材料再次织入并 pend",
+          "guard": "exposures<6",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 526.5,
+                "y": 966
+              },
+              {
+                "x": 526.5,
+                "y": 978
+              },
+              {
+                "x": 196.5,
+                "y": 978
+              },
+              {
+                "x": 196.5,
+                "y": 484
+              },
+              {
+                "x": 538.5,
+                "y": 484
+              },
+              {
+                "x": 538.5,
+                "y": 528
+              }
+            ],
+            "labelAt": {
+              "x": 196.5,
+              "y": 747
+            }
+          }
+        },
+        {
+          "id": "t5",
+          "source": "counted",
+          "target": "nominated",
+          "kind": "transition",
+          "label": "confirm",
+          "guard": "exposures ≥ 6",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 550.5,
+                "y": 966
+              },
+              {
+                "x": 550.5,
+                "y": 1132
+              }
+            ],
+            "labelAt": {
+              "x": 550.5,
+              "y": 1049
+            }
+          }
+        },
+        {
+          "id": "t6",
+          "source": "nominated",
+          "target": "known",
+          "kind": "transition",
+          "label": "学习者同意毕业",
+          "action": "graduate → known-words.txt + Anki 桥提议",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 538.5,
+                "y": 1256
+              },
+              {
+                "x": 538.5,
+                "y": 1446
+              }
+            ],
+            "labelAt": {
+              "x": 538.5,
+              "y": 1351
+            }
+          }
+        },
+        {
+          "id": "t7",
+          "source": "nominated",
+          "target": "counted",
+          "kind": "transition",
+          "label": "暂不毕业",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 562.5,
+                "y": 1256
+              },
+              {
+                "x": 562.5,
+                "y": 1268
+              },
+              {
+                "x": 790,
+                "y": 1268
+              },
+              {
+                "x": 790,
+                "y": 798
+              },
+              {
+                "x": 538.5,
+                "y": 798
+              },
+              {
+                "x": 538.5,
+                "y": 842
+              }
+            ],
+            "labelAt": {
+              "x": 790,
+              "y": 1049
+            }
+          }
+        },
+        {
+          "id": "t8",
+          "source": "initial",
+          "target": "ankiknown",
+          "kind": "transition",
+          "label": "sync-anki-words 只读导入",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 526.5,
+                "y": 72
+              },
+              {
+                "x": 526.5,
+                "y": 84
+              },
+              {
+                "x": 1018.5,
+                "y": 84
+              },
+              {
+                "x": 1018.5,
+                "y": 238
+              }
+            ],
+            "labelAt": {
+              "x": 1018.5,
+              "y": 155
+            }
+          }
+        },
+        {
+          "id": "t9",
+          "source": "ankiknown",
+          "target": "counted",
+          "kind": "transition",
+          "label": "重逢词织入且 confirm",
+          "guard": "source=anki 的词从 0/6 起计",
+          "evidence": "inference",
+          "action": "曝光计数行为与池选词一致",
+          "route": {
+            "via": [
+              {
+                "x": 1018.5,
+                "y": 362
+              },
+              {
+                "x": 1018.5,
+                "y": 822
+              },
+              {
+                "x": 562.5,
+                "y": 822
+              },
+              {
+                "x": 562.5,
+                "y": 842
+              }
+            ],
+            "labelAt": {
+              "x": 1018.5,
+              "y": 590
+            }
+          }
+        }
+      ],
+      "layout": {
+        "version": "adaptive-v2-elkjs-0.11.0",
+        "strategy": "layered-0"
+      }
+    },
+    {
+      "meta": {
+        "title": "跨机数据流：台账、重逢词与代码",
+        "subtitle": "mac ↔ GitHub（代码库/数据库）↔ Windows 的数据移动，含 Anki 只读侧链",
+        "sourceRef": "english-context@5269cd6",
+        "scope": "双机同步全景",
+        "diagramType": "dataflow",
+        "locale": "zh-CN"
+      },
+      "groups": [
+        {
+          "id": "gh",
+          "label": "GitHub（heeyezzz）",
+          "kind": "ownership",
+          "position": {
+            "x": 184,
+            "y": 470.5
+          },
+          "size": {
+            "width": 524,
+            "height": 354
+          }
+        },
+        {
+          "id": "machines",
+          "label": "学习者的两台机器（mac / Windows Hermes）",
+          "kind": "ownership",
+          "position": {
+            "x": 1152,
+            "y": 470.5
+          },
+          "size": {
+            "width": 489,
+            "height": 190
+          }
+        }
+      ],
+      "nodes": [
+        {
+          "id": "learner",
+          "label": "学习者",
+          "kind": "external",
+          "subtitle": "读完反馈：答案 + 四档体感",
+          "position": {
+            "x": 289,
+            "y": 33.5
+          },
+          "size": {
+            "width": 295,
+            "height": 100
+          }
+        },
+        {
+          "id": "anki",
+          "label": "Anki（Agent Connect 127.0.0.1:8766）",
+          "kind": "external",
+          "subtitle": "微语境闪卡 deck：只读，永不写入",
+          "position": {
+            "x": 104,
+            "y": 199
+          },
+          "size": {
+            "width": 480,
+            "height": 100
+          }
+        },
+        {
+          "id": "ledger",
+          "label": "ledger.mjs（所有写操作）",
+          "kind": "process",
+          "tags": [
+            "core"
+          ],
+          "subtitle": "pend/confirm/void/graduate/import-anki → 写 state.json 后自动同步",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 36,
+            "lineEnd": 46
+          },
+          "module": "曝光台账",
+          "position": {
+            "x": 1066,
+            "y": 32
+          },
+          "size": {
+            "width": 480,
+            "height": 103
+          }
+        },
+        {
+          "id": "syncanki",
+          "label": "sync-anki-words.mjs",
+          "kind": "process",
+          "module": "重逢词",
+          "subtitle": "findNotes + notesInfo 拉 Word 字段",
+          "source": {
+            "kind": "source",
+            "file": "scripts/sync-anki-words.mjs",
+            "lineStart": 23,
+            "lineEnd": 30
+          },
+          "position": {
+            "x": 1093.5,
+            "y": 199
+          },
+          "size": {
+            "width": 425,
+            "height": 100
+          }
+        },
+        {
+          "id": "stategit",
+          "label": "state-git.mjs pull / push",
+          "kind": "process",
+          "module": "台账同步",
+          "subtitle": "pull 仅 ff-only；push 先 commit 再重试；分叉即停",
+          "source": {
+            "kind": "source",
+            "file": "scripts/state-git.mjs",
+            "lineStart": 29,
+            "lineEnd": 63
+          },
+          "position": {
+            "x": 1152,
+            "y": 936.5
+          },
+          "size": {
+            "width": 480,
+            "height": 112
+          }
+        },
+        {
+          "id": "localstate",
+          "label": "~/.english-context（本机的 git 工作副本）",
+          "kind": "dataStore",
+          "module": "台账同步",
+          "subtitle": "state.json + known-words.txt + anki-words.json",
+          "source": {
+            "kind": "source",
+            "file": "scripts/ledger.mjs",
+            "lineStart": 18,
+            "lineEnd": 21
+          },
+          "position": {
+            "x": 206,
+            "y": 888.5
+          },
+          "size": {
+            "width": 480,
+            "height": 160
+          }
+        },
+        {
+          "id": "remotedata",
+          "label": "english-context-data（私有仓库）",
+          "kind": "dataStore",
+          "module": "台账同步",
+          "groupId": "gh",
+          "subtitle": "学习账本：曝光、体感史、tier、兴趣",
+          "position": {
+            "x": 216,
+            "y": 692.5
+          },
+          "size": {
+            "width": 460,
+            "height": 100
+          }
+        },
+        {
+          "id": "skillrepo",
+          "label": "english-context（公开仓库）",
+          "kind": "dataStore",
+          "groupId": "gh",
+          "subtitle": "代码+词表+测试；零个人数据",
+          "module": "代码分发",
+          "position": {
+            "x": 282,
+            "y": 528.5
+          },
+          "size": {
+            "width": 394,
+            "height": 100
+          }
+        },
+        {
+          "id": "clone",
+          "label": "两机的 skill 安装目录",
+          "kind": "dataStore",
+          "groupId": "machines",
+          "subtitle": "git pull --ff-only 更新；修复只走上游",
+          "module": "代码分发",
+          "position": {
+            "x": 1184,
+            "y": 528.5
+          },
+          "size": {
+            "width": 425,
+            "height": 100
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "d1",
+          "source": "learner",
+          "target": "ledger",
+          "kind": "data",
+          "label": "成绩 + 体感（flow/ok/wordy/dense）",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 596,
+                "y": 83.5
+              },
+              {
+                "x": 1054,
+                "y": 83.5
+              }
+            ],
+            "labelAt": {
+              "x": 825,
+              "y": 83
+            }
+          }
+        },
+        {
+          "id": "d2",
+          "source": "ledger",
+          "target": "localstate",
+          "kind": "data",
+          "label": "曝光记账、难度状态、重逢词同步结果",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1594,
+                "y": 83.5
+              },
+              {
+                "x": 1594,
+                "y": 338
+              },
+              {
+                "x": 56,
+                "y": 338
+              },
+              {
+                "x": 56,
+                "y": 956.5
+              }
+            ],
+            "labelAt": {
+              "x": 825,
+              "y": 338
+            }
+          }
+        },
+        {
+          "id": "d3",
+          "source": "anki",
+          "target": "syncanki",
+          "kind": "data",
+          "label": "已学词 Word 字段（6 词，只读）",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 596,
+                "y": 249
+              },
+              {
+                "x": 1081.5,
+                "y": 249
+              }
+            ],
+            "labelAt": {
+              "x": 825,
+              "y": 248.5
+            }
+          }
+        },
+        {
+          "id": "d4",
+          "source": "syncanki",
+          "target": "localstate",
+          "kind": "data",
+          "label": "anki-words.json",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1306,
+                "y": 392
+              },
+              {
+                "x": 32,
+                "y": 392
+              },
+              {
+                "x": 32,
+                "y": 980.5
+              }
+            ],
+            "labelAt": {
+              "x": 669,
+              "y": 392
+            }
+          }
+        },
+        {
+          "id": "d5",
+          "source": "localstate",
+          "target": "stategit",
+          "kind": "data",
+          "label": "未提交的台账变更",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 698,
+                "y": 968.5
+              },
+              {
+                "x": 1140,
+                "y": 968.5
+              }
+            ],
+            "labelAt": {
+              "x": 930,
+              "y": 968
+            }
+          }
+        },
+        {
+          "id": "d6",
+          "source": "stategit",
+          "target": "remotedata",
+          "kind": "data",
+          "label": "ledger 提交（每次写账即推）",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1644,
+                "y": 968.5
+              },
+              {
+                "x": 1665,
+                "y": 968.5
+              },
+              {
+                "x": 1665,
+                "y": 446.5
+              },
+              {
+                "x": 104,
+                "y": 446.5
+              },
+              {
+                "x": 104,
+                "y": 742.5
+              },
+              {
+                "x": 204,
+                "y": 742.5
+              }
+            ],
+            "labelAt": {
+              "x": 930,
+              "y": 446
+            }
+          }
+        },
+        {
+          "id": "d7",
+          "source": "remotedata",
+          "target": "stategit",
+          "kind": "data",
+          "label": "另一台机器 session 开头的 origin/main",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 688,
+                "y": 742.5
+              },
+              {
+                "x": 1072,
+                "y": 742.5
+              },
+              {
+                "x": 1072,
+                "y": 1016.5
+              },
+              {
+                "x": 1140,
+                "y": 1016.5
+              }
+            ],
+            "labelAt": {
+              "x": 930,
+              "y": 742
+            }
+          }
+        },
+        {
+          "id": "d8",
+          "source": "stategit",
+          "target": "localstate",
+          "kind": "data",
+          "label": "ff-only 合并后的最新账本",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 1644,
+                "y": 1016.5
+              },
+              {
+                "x": 1665,
+                "y": 1016.5
+              },
+              {
+                "x": 1665,
+                "y": 1072.5
+              },
+              {
+                "x": 104,
+                "y": 1072.5
+              },
+              {
+                "x": 104,
+                "y": 1016.5
+              },
+              {
+                "x": 194,
+                "y": 1016.5
+              }
+            ],
+            "labelAt": {
+              "x": 930,
+              "y": 1072
+            }
+          }
+        },
+        {
+          "id": "d9",
+          "source": "skillrepo",
+          "target": "clone",
+          "kind": "data",
+          "label": "版本化代码与 CEFR 词表",
+          "evidence": "source",
+          "route": {
+            "via": [
+              {
+                "x": 688,
+                "y": 578.5
+              },
+              {
+                "x": 1172,
+                "y": 578.5
+              }
+            ],
+            "labelAt": {
+              "x": 930,
+              "y": 578
+            }
+          }
+        }
+      ],
+      "layout": {
+        "version": "adaptive-v2-elkjs-0.11.0",
+        "strategy": "layered-3-fold2"
+      }
+    }
+  ]
+}
