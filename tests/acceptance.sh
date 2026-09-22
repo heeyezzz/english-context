@@ -79,6 +79,11 @@ L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
 grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
 grepj '"syntaxCalm": 0' "$T/cf.json" && ok "ok feedback leaves syntaxCalm at 0" || bad "syntaxCalm on ok"
 grepj '"tier": 1' "$T/cf.json" && ok "single good session does not promote" || bad "premature promotion"
+# ok = i+1 equilibrium: it holds the tier and never accumulates a promotion streak
+L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
+SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'])")
+L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
+grepj '"tier": 1' "$T/cf_ok2.json" && grepj '"streakGood": 0' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")

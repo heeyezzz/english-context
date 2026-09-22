@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.2.0
+version: 1.3.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -109,11 +109,13 @@ repo itself holds no learner state. On the second machine:
 
 | 体感 / 成绩 | 词汇档 tier | 句式 |
 |---|---|---|
-| flow / ok + 正确率 ≥80% | `streakGood++`，连续 2 次 +1 档 | 不变 |
-| wordy（生词太多） | 立即 −1 档（下限 1） | 不变 |
-| dense（句子太难） | **不变**（词汇达标） | `syntaxCalm = 2` |
-| 正确率 <60% | −1 档 | `syntaxCalm = 2` |
+| flow ① + 正确率 ≥80% | `streakGood++`，**连续 2 次**才 +1 档 | 不变 |
+| ok ②（甜区，i+1） | **保持**（甜区就是目标态，不是超标信号）；连击清零 | 不变 |
+| wordy ③（生词太多） | 立即 −1 档（下限 1）；连击清零 | 不变 |
+| dense ④（句子太难） | **不变**（词汇达标）；连击清零 | `syntaxCalm = 2` |
+| 正确率 <60% | −1 档；连击清零 | `syntaxCalm = 2` |
 
+只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
 tier 1→3 控制候选池（B1 → B1+B2 → B2）与目标词数（4–5 → 5–6 → 6–7）。
 `syntaxCalm > 0` 时（由 `status`/`pool`/`confirm` 输出的 `syntaxCalm` 字段读出）：起草按单句 ≤16 词、
 平均 ≤10 词执行，并且第 5 步的 passage-check 必须带 `--max-sentence 16 --avg-sentence 10` 运行；

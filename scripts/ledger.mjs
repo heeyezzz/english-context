@@ -111,14 +111,15 @@ else if (cmd === 'confirm') {
     s.words[t] = e;
   }
   // dynamic difficulty. 体感 is a load-type diagnosis, not a scalar:
+  //   flow  = i+0: material slid below the learner -> this tier's band is exhausted -> promote (x2 streak)
+  //   ok    = i+1: the equilibrium we are trying to hold -> tier stays, streak resets
   //   wordy = vocabulary overload -> tier down (syntax untouched)
   //   dense = syntax overload   -> tier kept, sentences calm for the next 2 passages
-  //   flow/ok with score >= 80% -> streakGood++; two in a row promote one tier (never jump)
   //   score < 60%               -> both levers ease at once
   s.difficulty.syntaxCalm = s.difficulty.syntaxCalm || 0;
   if (s.difficulty.syntaxCalm > 0) s.difficulty.syntaxCalm--;
   const failed = (sess.score != null && sess.score < 0.6) || feel === 'wordy';
-  const good = !failed && feel !== 'dense' && (sess.score == null || sess.score >= 0.8);
+  const flow = feel === 'flow' && (sess.score == null || sess.score >= 0.8);
   if (failed) {
     s.difficulty.streakGood = 0;
     if (s.difficulty.tier > 1) s.difficulty.tier--;
@@ -126,14 +127,17 @@ else if (cmd === 'confirm') {
   } else if (feel === 'dense') {
     s.difficulty.streakGood = 0;
     s.difficulty.syntaxCalm = 2;
-  } else if (good) {
+  } else if (flow) {
     s.difficulty.streakGood++;
     if (s.difficulty.streakGood >= 2 && s.difficulty.tier < 3) { s.difficulty.tier++; s.difficulty.streakGood = 0; }
+  } else {
+    s.difficulty.streakGood = 0; // ok / mid / no answer: hold the tier, break the flow streak
   }
   save(s);
   const nominations = sess.targets.filter((t) => s.words[t].exposures >= GRADUATE_AT);
   out({
     session: id, tier: s.difficulty.tier, tierLabel: TIERS[s.difficulty.tier].label, syntaxCalm: s.difficulty.syntaxCalm,
+    streakGood: s.difficulty.streakGood,
     exposures: Object.fromEntries(sess.targets.map((t) => [t, `${s.words[t].exposures}/${GRADUATE_AT}`])),
     graduationNominations: nominations.map((w) => `${w} — run: graduate --word ${w} (then optionally hand it to anki-flashcard for a permanent SRS card)`),
   });
