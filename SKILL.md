@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.3.0
+version: 1.4.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -39,9 +39,12 @@ alive in fresh contexts.
    `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
 4. **Targets:** `ledger.mjs pool --limit 12` returns two lists. Fill the quota: **2–3 words from
-   `mustReuse`** (in-progress words 1–5/6, longest-unseen first — skip one only if the topic truly
-   cannot host it, but never ship a passage with zero returnees) + **2–3 words from `fresh`**
-   (never-used tier-level candidates). Learner-specified words always win and count toward the quota.
+   `mustReuse`** (in-progress words whose cooldown has passed and that were not counted today —
+   longest-unseen first; skip one only if the topic truly cannot host it) + **2–3 words from `fresh`**
+   (never-used tier-level candidates). On a binge day `mustReuse` empties out (everything counted today
+   sleeps) — then fill the whole quota from `fresh`; never refuse to generate, and mention
+   `inFlight`/`sleeping` when the learner is reading several passages in one day.
+   Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
@@ -92,6 +95,15 @@ repo itself holds no learner state. On the second machine:
    Line endings: if a pre-`.gitattributes` clone shows CRLF files, renormalize with
    `git reset --hard HEAD` (only when `git status` is clean) — do NOT empty the index via
    `git rm --cached -r .` and then `checkout -- .`: pathspec checkout reads the index and fails on it.
+
+## Spacing rules (script-enforced)
+
+| Rule | Value |
+|---|---|
+| Cooldown ladder | a word may return only after `1/6→1d, 2/6→1d, 3/6→2d, 4/6→3d, 5/6→4d` since its last exposure |
+| Same-day lock | **max one exposure per word per calendar day** — a second same-day appearance is still read (and can be a reunion word) but does not increment |
+| Consequence | graduation inherently spans ≥6 distinct days; binge reading fills with fresh words instead of massing the same ones |
+| Reporting | `confirm` returns `lockedToday` for words that did not count; `pool`/`status` return `inFlight` (words 1–5/6) and `pool` also `sleeping` (in cooldown or counted today) |
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 

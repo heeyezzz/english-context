@@ -84,9 +84,14 @@ L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
 SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'])")
 L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
 grepj '"tier": 1' "$T/cf_ok2.json" && grepj '"streakGood": 0' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
-# in-progress words must surface for reuse while 1-5/6 (before the graduation threshold)
+grepj 'already counted today' "$T/cf_ok2.json" && ok "confirm reports same-day locks instead of silently skipping" || bad "lock not reported"
+# same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
-grepj 'service ([1-5]/6' "$T/pool1.json" && ok "in-progress word (2/6) surfaces in mustReuse" || bad "mustReuse missing in-progress word"
+grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.json" && ok "same-day lock: today's words sleep, no returnee offered" || bad "same-day lock"
+# once the cooldown has passed they re-enter the returnee pool
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=new Date(Date.now()-3*86400000).toLocaleDateString('en-CA');for(const w of Object.keys(s.words))if(s.words[w].status==='active'&&s.words[w].exposures>=1)s.words[w].last=d;require('fs').writeFileSync(f,JSON.stringify(s))"
+L pool --limit 4 > "$T/pool2.json" 2>/dev/null
+grepj 'service (1/6,' "$T/pool2.json" && ok "past-cooldown word re-enters mustReuse" || bad "cooldown gate blocks a due word"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
@@ -113,15 +118,18 @@ grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-
 L interest --add "urban trains" > /dev/null 2>&1 && grepj "urban trains" "$STATE/state.json" && ok "interest add" || bad "interest add"
 L pool --limit 6 > "$T/pool.json" 2>/dev/null
 grepj 'mustReuse' "$T/pool.json" && grepj 'fresh' "$T/pool.json" && ok "pool returns mustReuse + fresh" || bad "pool"
-grepj '"mustReuse": \[\]' "$T/pool.json" && ok "words at 6/6 leave mustReuse (awaiting nomination)" || bad "mustReuse leaks at-threshold words"
+grepj '"mustReuse": \[\]' "$T/pool.json" && ok "no returnee leaks: everything is locked today or at threshold" || bad "mustReuse leaks"
 python3 - "$T" "$STATE" <<'PY'
 import json, sys
 pool = json.load(open(sys.argv[1] + "/pool.json"))
 words = json.load(open(sys.argv[2] + "/state.json"))
 known = [w for w, e in words["words"].items() if e["status"] == "known"]
 fresh = [c.split(" ")[0] for c in pool["fresh"]]
+must = [c.split(" ")[0] for c in pool["mustReuse"]]
 assert not (set(fresh) & set(known)), f"graduated word in fresh pool: {known}"
 assert not (set(fresh) & set(words["words"])), "in-progress word leaked into fresh"
+assert not (set(must) & set(known)), "graduated word leaked into mustReuse"
+assert pool["inFlight"] >= 4, "inFlight not reported"
 PY
 [ $? -eq 0 ] && ok "fresh excludes known and in-progress words" || bad "pool leaks known/in-progress words"
 

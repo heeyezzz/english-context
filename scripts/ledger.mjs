@@ -25,6 +25,9 @@ const TIERS = {
   3: { pool: ['B2'], targets: [6, 7], label: 'B1→B2' },
 };
 const GRADUATE_AT = +arg('graduate-at', 6);
+// Reading is recognition, not SRS retrieval: a short ladder beats Anki-style curves
+// (a 14-day top rung would strand words in the queue forever — see backlog math).
+const COOLDOWN_DAYS = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 4 };
 
 function load() {
   if (!existsSync(stateFile)) {
@@ -67,6 +70,7 @@ else if (cmd === 'status') {
   const nominations = Object.entries(s.words).filter(([, e]) => e.status === 'active' && e.exposures >= GRADUATE_AT);
   console.log(JSON.stringify({
     tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, streakGood: s.difficulty.streakGood, syntaxCalm: s.difficulty.syntaxCalm || 0,
+    inFlight: Object.values(s.words).filter((e) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT).length,
     sessions: { total: s.sessions.length, counted: s.sessions.filter((x) => x.status === 'counted').length, pending: pending.map((p) => ({ id: p.id, topic: p.topic, date: p.date })) },
     activeWords: Object.entries(s.words).filter(([, e]) => e.status === 'active').map(([w, e]) => `${w}:${e.exposures}/${GRADUATE_AT}`).join(' '),
     graduationNominations: nominations.map(([w, e]) => `${w} (${e.exposures} exposures)`),
@@ -104,9 +108,13 @@ else if (cmd === 'confirm') {
   const feel = arg('feel', null);   // easy|ok|hard
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
   if (feel) sess.feel = feel;
+  // One exposure per word per day: a second same-day appearance is still read, but not
+  // counted — otherwise a binge day fakes the spacing that acquisition needs.
+  const lockedToday = [];
   for (const t of sess.targets) {
     const e = s.words[t] || { exposures: 0, first: today, status: 'active', source: 'pool' };
     if (!e.first) e.first = today;
+    if (e.last === today) { lockedToday.push(t); s.words[t] = e; continue; }
     e.exposures++; e.last = today; e.status = 'active';
     s.words[t] = e;
   }
@@ -139,6 +147,7 @@ else if (cmd === 'confirm') {
     session: id, tier: s.difficulty.tier, tierLabel: TIERS[s.difficulty.tier].label, syntaxCalm: s.difficulty.syntaxCalm,
     streakGood: s.difficulty.streakGood,
     exposures: Object.fromEntries(sess.targets.map((t) => [t, `${s.words[t].exposures}/${GRADUATE_AT}`])),
+    lockedToday: lockedToday.length ? lockedToday.map((w) => `${w} — already counted today, no increment`) : undefined,
     graduationNominations: nominations.map((w) => `${w} — run: graduate --word ${w} (then optionally hand it to anki-flashcard for a permanent SRS card)`),
   });
 }
@@ -194,8 +203,12 @@ else if (cmd === 'pool') {
     // fresh = never used as a target; in-progress words surface via mustReuse instead
     .filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.toLowerCase()) && !(w in s.words));
   const daysSince = (d) => d ? Math.round((Date.now() - new Date(d + 'T00:00:00')) / 86400000) : 999;
-  const mustReuse = Object.entries(s.words)
-    .filter(([, e]) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT)
+  const inFlight = Object.entries(s.words)
+    .filter(([, e]) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT);
+  // spacing: a word only re-enters the returnee pool after its ladder cooldown has passed,
+  // and never on a day it already counted (same-day lock) — binge days fill with fresh words instead
+  const eligible = inFlight.filter(([, e]) => e.last !== today && daysSince(e.last) >= (COOLDOWN_DAYS[e.exposures] || 1));
+  const mustReuse = eligible
     .sort((a, b) => (daysSince(a[1].last) - daysSince(b[1].last)) || (b[1].exposures - a[1].exposures))
     .slice(0, 8)
     .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}${e.last ? `, ${daysSince(e.last)}d unseen` : ''})`);
@@ -208,6 +221,8 @@ else if (cmd === 'pool') {
   console.log(JSON.stringify({
     tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, syntaxCalm: s.difficulty.syntaxCalm || 0,
     poolSize: pool.length,
+    inFlight: inFlight.length,
+    sleeping: inFlight.length - eligible.length,
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
     note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；总数仍 4–6，照旧过硬闸',
