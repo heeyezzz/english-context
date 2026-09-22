@@ -157,9 +157,10 @@ else if (cmd === 'void') {
   const s = load();
   const sess = s.sessions.find((x) => x.id === arg('session', null));
   if (!sess) { console.error('no such session'); process.exit(2); }
-  sess.status = 'void'; save(s);
+  sess.status = 'void';
   let passageRemoved = false;
   try { unlinkSync(join(stateDir, 'passages', sess.id + '.md')); passageRemoved = true; } catch {}
+  save(s); // unlink first: the deletion must ride THIS push, not a later write
   out({ session: sess.id, status: 'void', note: 'no exposures counted', passageRemoved });
 }
 

@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.4.2
+version: 1.5.1
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -13,8 +13,9 @@ metadata:
 # English-context Reading Generator
 
 Generates one comprehensible-input passage per session (i+1), validated by scripts, and tracks every
-word's exposure across sessions in a ledger at `~/.english-context/`. The passage itself is chat-only
-markdown — nothing is written to disk as study material, and **Anki is only ever read, never written**.
+word's exposure across sessions in a ledger at `~/.english-context/`. The displayed material is
+archived verbatim to `$STATE/passages/<session-id>.md` at pend time (deleted on void) — the chat is
+the presentation layer, the archive is the record. **Anki is only ever read, never written**.
 Words graduating here can be *proposed* to the sibling `anki-flashcard` skill, never auto-imported.
 
 Theory contracts baked into the rules: 98%-coverage input with ≥2 contextual re-encounters per target
