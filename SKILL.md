@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.0.3
+version: 1.0.4
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -51,9 +51,12 @@ alive in fresh contexts.
    `pending`; note the returned session id). Exposures are NOT counted yet.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
    one gentle line — never nag twice about the same one.
-8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), run
-   `ledger.mjs confirm --session <id> --score a/b --feel easy|ok|hard` (feel: use their words; ask
-   once if absent). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
+8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
+   a 体感 in one prompt — always present the three-level scale so it is one tap to answer:
+   「① 太简单 ② 刚好 ③ 有点吃力」(→ `easy` / `ok` / `hard`). Their own phrasing always wins over
+   the scale. Then `ledger.mjs confirm --session <id> --score a/b --feel ...` (feel absent and
+   unanswered once → ask once more; still absent → omit the flag, never guess).
+   This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
    --session <id>`; zero accounting.
 9. **Graduation:** `confirm` nominates any target at ≥6 exposures. Present nominations as
    「候选毕业：word (6/6) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
