@@ -3,7 +3,7 @@
 // State lives in ~/.english-context/ (override with --state-dir or EC_STATE_DIR).
 // Commands: init | status | pend | confirm | graduate | import-anki | pool | interest
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,6 +57,7 @@ function knownSet(s) {
 
 if (cmd === 'init') {
   mkdirSync(stateDir, { recursive: true });
+  mkdirSync(join(stateDir, 'passages'), { recursive: true });
   if (!existsSync(knownFile)) writeFileSync(knownFile, '# graduated + explicitly known words, one per line\n');
   const s = load();
   if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 1, difficulty: { tier: 1, streakGood: 0 }, words: {}, sessions: [], interests: [] }, null, 2));
@@ -157,7 +158,9 @@ else if (cmd === 'void') {
   const sess = s.sessions.find((x) => x.id === arg('session', null));
   if (!sess) { console.error('no such session'); process.exit(2); }
   sess.status = 'void'; save(s);
-  out({ session: sess.id, status: 'void', note: 'no exposures counted' });
+  let passageRemoved = false;
+  try { unlinkSync(join(stateDir, 'passages', sess.id + '.md')); passageRemoved = true; } catch {}
+  out({ session: sess.id, status: 'void', note: 'no exposures counted', passageRemoved });
 }
 
 else if (cmd === 'graduate') {

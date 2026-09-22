@@ -117,6 +117,12 @@ SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['
 L confirm --session "$SID3" --score 3/3 --feel wordy > "$T/cf3.json" 2>/dev/null
 grepj '"syntaxCalm": 1' "$T/cf3.json" && ok "wordy consumes calm budget but does not re-arm (2->1)" || bad "wordy routing"
 L confirm --session "$SID2" --state-dir "$STATE" >/dev/null 2>&1 && bad "double confirm accepted" || ok "double confirm refused"
+# void also removes the archived passage file (pend 写、void 删)
+L pend --meta "$T/meta.json" > "$T/p_v.json" 2>/dev/null
+SIDV=$(python3 -c "import json;print(json.load(open('$T/p_v.json'))['session'])")
+mkdir -p "$STATE/passages"; echo "# archived draft" > "$STATE/passages/$SIDV.md"
+L void --session "$SIDV" > "$T/vt.json" 2>/dev/null
+grepj '"passageRemoved": true' "$T/vt.json" && [ ! -f "$STATE/passages/$SIDV.md" ] && ok "void deletes the archived passage" || bad "void archive removal"
 # regression (win bug): a voided session must strand no 0/6 ghosts outside both pools
 echo '{"topic":"ghost","targets":["whistle"],"reunion":[],"names":[]}' > "$T/ghost.json"
 L pend --meta "$T/ghost.json" > "$T/ghost_p.json" 2>/dev/null

@@ -53,8 +53,13 @@ alive in fresh contexts.
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE`.
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th
    failure report the structural blocker honestly instead of shipping a bad passage.
-6. **Pending entry:** after a PASS, `ledger.mjs pend --meta <json>` (records the session as
-   `pending`; note the returned session id). Exposures are NOT counted yet.
+6. **Pending entry + archive:** after a PASS, `ledger.mjs pend --meta <json>` (records the session as
+   `pending`; note the returned session id). Exposures are NOT counted yet. Then write the exact
+   displayed material to `$STATE/passages/<session-id>.md` with frontmatter
+   (`session, date, topic, targets, reunion, metrics, quiz answers` — see
+   [the format guide](references/passage-format.md)), and run
+   `node "$SKILL_DIR/scripts/state-git.mjs" push --message "passage <session-id>" --state-dir $STATE`
+   so the archive crosses machines immediately. Filenames are unique session ids → append-only, never conflicts in git.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
    one gentle line — never nag twice about the same one.
 8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
@@ -63,7 +68,8 @@ alive in fresh contexts.
    `dense`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
    --score a/b --feel ...` (feel absent and unanswered once → ask once more; still absent → omit the
    flag, never guess). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
-   --session <id>`; zero accounting.
+   --session <id>`; zero accounting, and void also deletes the archived `$STATE/passages/<id>.md`
+   (reports `passageRemoved`; the deletion rides the auto-push) — a voided passage leaves no corpse.
 9. **Graduation:** `confirm` nominates any target at ≥6 exposures. Present nominations as
    「候选毕业：word (6/6) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
    Anki bridge once per graduated word: it is a fully-contextualized candidate for a permanent
@@ -150,4 +156,5 @@ tests/acceptance.sh               验收套件
 ```
 
 State (survives skill reinstall): `$STATE/state.json`, `$STATE/known-words.txt`,
-`$STATE/anki-words.json`.
+`$STATE/anki-words.json`, `$STATE/passages/<session-id>.md`（展示过的每篇正文档案：pend 时写入、
+void 时删除；append-only 唯一文件名，git 永不冲突，随 ledger 写操作的自动推送跨机同步）。

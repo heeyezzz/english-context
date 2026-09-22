@@ -30,3 +30,26 @@ Rules that are format, not script-checked:
 
 Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长（最长≤20、均≤12）、
 目标词 4–6 个各≥2 次、纲外 token 率≤4%、未申报纲外词=0、目标词加粗（warn 级）。
+
+## 存档文件（$STATE/passages/<session-id>.md）
+
+展示即归档：第 6 步 pend 之后，agent 把**与对话完全一致**的成品写入
+`~/.english-context/passages/<session-id>.md`，头部加 YAML frontmatter，然后
+`state-git.mjs push` 让它立刻跨机可见；void 会删除该文件。
+
+```markdown
+---
+session: 2026-09-23-coffee-2
+date: 2026-09-23
+topic: 咖啡
+targets: [aroma, bitter, steep, strain, blend]
+reunion: [schedule, volunteer]
+metrics: { words: 288, aboveLevelRate: 3.1%, maxSentence: 15, avgSentence: 10.4 }
+quizAnswers: [B, A, C]
+---
+
+（正文、生词表、重逢词、题目——与展示内容 1:1，题目可含选项但答案只写在 frontmatter）
+```
+
+价值：重读旧篇、`grep -l strain passages/` 查一个词的全部历史语境、
+毕业时给 Anki 桥挑最佳例句。
