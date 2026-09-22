@@ -82,6 +82,9 @@ repo itself holds no learner state. On the second machine:
    needs MSYS bash, where `mktemp -d` yields `/tmp/...` that native node resolves to `C:\tmp\...` and
    `pwd`-derived `/c/...` paths break `import` — pass drive-style paths (`C:/Users/...`) to node, and
    note `python3` may be a WindowsApps stub; the suite's few python3 uses can be swapped for `node -e`.
+   Line endings: if a pre-`.gitattributes` clone shows CRLF files, renormalize with
+   `git reset --hard HEAD` (only when `git status` is clean) — do NOT empty the index via
+   `git rm --cached -r .` and then `checkout -- .`: pathspec checkout reads the index and fails on it.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
