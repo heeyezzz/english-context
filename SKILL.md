@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.0.4
+version: 1.1.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -52,11 +52,11 @@ alive in fresh contexts.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
    one gentle line — never nag twice about the same one.
 8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
-   a 体感 in one prompt — always present the three-level scale so it is one tap to answer:
-   「① 太简单 ② 刚好 ③ 有点吃力」(→ `easy` / `ok` / `hard`). Their own phrasing always wins over
-   the scale. Then `ledger.mjs confirm --session <id> --score a/b --feel ...` (feel absent and
-   unanswered once → ask once more; still absent → omit the flag, never guess).
-   This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
+   a 体感 in one prompt — always present the four-level load scale so it is one tap to answer:
+   「① 太简单(flow) ② 刚好(ok) ③ 生词太多(wordy) ④ 句子太难(dense)」(→ `flow` / `ok` / `wordy` /
+   `dense`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
+   --score a/b --feel ...` (feel absent and unanswered once → ask once more; still absent → omit the
+   flag, never guess). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
    --session <id>`; zero accounting.
 9. **Graduation:** `confirm` nominates any target at ≥6 exposures. Present nominations as
    「候选毕业：word (6/6) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
@@ -92,7 +92,8 @@ repo itself holds no learner state. On the second machine:
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
-- 250–350 words; longest sentence ≤20, average ≤12 words.
+- 250–350 words; longest sentence ≤20, average ≤12 words (tightened to ≤16 / ≤10, via
+  `--max-sentence 16 --avg-sentence 10`, while `difficulty.syntaxCalm > 0`).
 - 4–6 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
 - Zero undeclared above-level words: anything above CEFR A2 must be a declared target, reunion word,
@@ -101,9 +102,20 @@ repo itself holds no learner state. On the second machine:
 
 ## Dynamic difficulty
 
-`state.json:difficulty.tier` 1→3. Tier sets the candidate pool (B1 → B1+B2 → B2) and target count.
-Two consecutive good sessions (score ≥80%, not 吃力) promote; one 吃力/hard or <60% demotes. The
-starting tier was calibrated to 2.5–3.5% on 2026-09-22 (trial: 5 targets, 3/3 correct, "偶尔吃力").
+体感 is a **load-type diagnosis**, and each answer pulls a different lever:
+
+| 体感 / 成绩 | 词汇档 tier | 句式 |
+|---|---|---|
+| flow / ok + 正确率 ≥80% | `streakGood++`，连续 2 次 +1 档 | 不变 |
+| wordy（生词太多） | 立即 −1 档（下限 1） | 不变 |
+| dense（句子太难） | **不变**（词汇达标） | `syntaxCalm = 2` |
+| 正确率 <60% | −1 档 | `syntaxCalm = 2` |
+
+tier 1→3 控制候选池（B1 → B1+B2 → B2）与目标词数（4–5 → 5–6 → 6–7）。
+`syntaxCalm > 0` 时（由 `status`/`pool`/`confirm` 输出的 `syntaxCalm` 字段读出）：起草按单句 ≤16 词、
+平均 ≤10 词执行，并且第 5 步的 passage-check 必须带 `--max-sentence 16 --avg-sentence 10` 运行；
+每 confirm 一篇自动 −1，归零后恢复常规句式。每次 confirm 至多 ±1 档，不存在连跳。
+起始参数由 2026-09-22 试炼校准（5 词、2.5–3.5%、3/3、"偶尔吃力"）。
 
 ## Files
 

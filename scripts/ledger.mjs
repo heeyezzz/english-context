@@ -66,7 +66,7 @@ else if (cmd === 'status') {
   const pending = s.sessions.filter((x) => x.status === 'pending');
   const nominations = Object.entries(s.words).filter(([, e]) => e.status === 'active' && e.exposures >= GRADUATE_AT);
   console.log(JSON.stringify({
-    tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, streakGood: s.difficulty.streakGood,
+    tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, streakGood: s.difficulty.streakGood, syntaxCalm: s.difficulty.syntaxCalm || 0,
     sessions: { total: s.sessions.length, counted: s.sessions.filter((x) => x.status === 'counted').length, pending: pending.map((p) => ({ id: p.id, topic: p.topic, date: p.date })) },
     activeWords: Object.entries(s.words).filter(([, e]) => e.status === 'active').map(([w, e]) => `${w}:${e.exposures}/${GRADUATE_AT}`).join(' '),
     graduationNominations: nominations.map(([w, e]) => `${w} (${e.exposures} exposures)`),
@@ -110,11 +110,22 @@ else if (cmd === 'confirm') {
     e.exposures++; e.last = today; e.status = 'active';
     s.words[t] = e;
   }
-  // dynamic difficulty: up after 2 good sessions, down on hard feedback
-  const good = (sess.score == null || sess.score >= 0.8) && feel !== 'hard';
-  if (feel === 'hard' || (sess.score != null && sess.score < 0.6)) {
+  // dynamic difficulty. 体感 is a load-type diagnosis, not a scalar:
+  //   wordy = vocabulary overload -> tier down (syntax untouched)
+  //   dense = syntax overload   -> tier kept, sentences calm for the next 2 passages
+  //   flow/ok with score >= 80% -> streakGood++; two in a row promote one tier (never jump)
+  //   score < 60%               -> both levers ease at once
+  s.difficulty.syntaxCalm = s.difficulty.syntaxCalm || 0;
+  if (s.difficulty.syntaxCalm > 0) s.difficulty.syntaxCalm--;
+  const failed = (sess.score != null && sess.score < 0.6) || feel === 'wordy';
+  const good = !failed && feel !== 'dense' && (sess.score == null || sess.score >= 0.8);
+  if (failed) {
     s.difficulty.streakGood = 0;
     if (s.difficulty.tier > 1) s.difficulty.tier--;
+    if (sess.score != null && sess.score < 0.6) s.difficulty.syntaxCalm = 2;
+  } else if (feel === 'dense') {
+    s.difficulty.streakGood = 0;
+    s.difficulty.syntaxCalm = 2;
   } else if (good) {
     s.difficulty.streakGood++;
     if (s.difficulty.streakGood >= 2 && s.difficulty.tier < 3) { s.difficulty.tier++; s.difficulty.streakGood = 0; }
@@ -122,7 +133,7 @@ else if (cmd === 'confirm') {
   save(s);
   const nominations = sess.targets.filter((t) => s.words[t].exposures >= GRADUATE_AT);
   out({
-    session: id, tier: s.difficulty.tier, tierLabel: TIERS[s.difficulty.tier].label,
+    session: id, tier: s.difficulty.tier, tierLabel: TIERS[s.difficulty.tier].label, syntaxCalm: s.difficulty.syntaxCalm,
     exposures: Object.fromEntries(sess.targets.map((t) => [t, `${s.words[t].exposures}/${GRADUATE_AT}`])),
     graduationNominations: nominations.map((w) => `${w} — run: graduate --word ${w} (then optionally hand it to anki-flashcard for a permanent SRS card)`),
   });
@@ -185,7 +196,7 @@ else if (cmd === 'pool') {
   const seen = new Set();
   while (idx.length < Math.min(limit, pool.length) && seen.size < pool.length) { const i = pick(); if (!seen.has(i)) { seen.add(i); idx.push(i); } }
   console.log(JSON.stringify({
-    tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets,
+    tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, syntaxCalm: s.difficulty.syntaxCalm || 0,
     poolSize: pool.length,
     candidates: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
     note: 'agent picks 4–6 from candidates by topic relevance, or accepts user-specified words',

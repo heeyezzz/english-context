@@ -77,15 +77,27 @@ grepj '"pending"' "$T/st.json" && ok "status lists pending session" || bad "stat
 check "confirm unknown id refused" 1 L confirm --session definitely-not-here
 L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
 grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
+grepj '"syntaxCalm": 0' "$T/cf.json" && ok "ok feedback leaves syntaxCalm at 0" || bad "syntaxCalm on ok"
 grepj '"tier": 1' "$T/cf.json" && ok "single good session does not promote" || bad "premature promotion"
+# dense: syntax overload must NOT demote tier but must arm the sentence-calmer
+L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
+SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
+L confirm --session "$SID2" --score 3/3 --feel dense > "$T/cf2.json" 2>/dev/null
+grepj '"tier": 1' "$T/cf2.json" && grepj '"syntaxCalm": 2' "$T/cf2.json" && ok "dense keeps tier, arms syntaxCalm=2" || bad "dense routing"
+# wordy: vocabulary overload never RE-ARMS the calmer; it only consumes the calm budget (dense's 2 -> 1)
+L pend --meta "$T/meta.json" > /dev/null 2>&1
+SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
+L confirm --session "$SID3" --score 3/3 --feel wordy > "$T/cf3.json" 2>/dev/null
+grepj '"syntaxCalm": 1' "$T/cf3.json" && ok "wordy consumes calm budget but does not re-arm (2->1)" || bad "wordy routing"
+L confirm --session "$SID2" --state-dir "$STATE" >/dev/null 2>&1 && bad "double confirm accepted" || ok "double confirm refused"
 for i in 2 3; do
   L pend --meta "$T/meta.json" > /dev/null 2>&1
   SID2=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
   # allow same-day duplicates by unique suffix
-  L confirm --session "$SID2" --score 3/3 --feel easy > /dev/null 2>&1 || \
-  { node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=s.sessions.filter(x=>x.status==='pending').pop();d.id+='-$i';require('fs').writeFileSync(f,JSON.stringify(s))"; L confirm --session "$SID2-$i" --score 3/3 --feel easy > /dev/null 2>&1; }
+  L confirm --session "$SID2" --score 3/3 --feel flow > /dev/null 2>&1 || \
+  { node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=s.sessions.filter(x=>x.status==='pending').pop();d.id+='-$i';require('fs').writeFileSync(f,JSON.stringify(s))"; L confirm --session "$SID2-$i" --score 3/3 --feel flow > /dev/null 2>&1; }
 done
-grepj '"tier": 2' "$STATE/state.json" && ok "two more good sessions promote tier 1->2" || bad "promotion rule"
+grepj '"tier": 2' "$STATE/state.json" && ok "two more good (flow) sessions promote tier 1->2" || bad "promotion rule"
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.exposures=6;require('fs').writeFileSync(f,JSON.stringify(s))"
 L graduate --word service > "$T/gr.json" 2>/dev/null
 grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" || bad "bridge missing"
