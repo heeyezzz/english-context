@@ -187,8 +187,14 @@ else if (cmd === 'pool') {
   const rows = readFileSync(join(SKILL_DIR, 'assets', 'cefr-j-words.tsv'), 'utf8').split('\n')
     .filter((l) => !l.startsWith('#') && l.trim());
   const pool = rows.map((r) => r.split('\t').map((f) => f.trim()))
-    // trim: a CRLF checkout (Windows without .gitattributes) leaves "\r" on the level field
-    .filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.toLowerCase()) && (s.words[w]?.exposures || 0) < 3);
+    // fresh = never used as a target; in-progress words surface via mustReuse instead
+    .filter(([w, lvl]) => tier.pool.includes(lvl) && !known.has(w.toLowerCase()) && !(w in s.words));
+  const daysSince = (d) => d ? Math.round((Date.now() - new Date(d + 'T00:00:00')) / 86400000) : 999;
+  const mustReuse = Object.entries(s.words)
+    .filter(([, e]) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT)
+    .sort((a, b) => (daysSince(a[1].last) - daysSince(b[1].last)) || (b[1].exposures - a[1].exposures))
+    .slice(0, 8)
+    .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}${e.last ? `, ${daysSince(e.last)}d unseen` : ''})`);
   // deterministic rotation by date so the same day shows the same sample
   let seed = [...today].reduce((a, c) => a + c.charCodeAt(0), 0);
   const idx = [];
@@ -198,8 +204,9 @@ else if (cmd === 'pool') {
   console.log(JSON.stringify({
     tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, syntaxCalm: s.difficulty.syntaxCalm || 0,
     poolSize: pool.length,
-    candidates: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
-    note: 'agent picks 4–6 from candidates by topic relevance, or accepts user-specified words',
+    mustReuse,
+    fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
+    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；总数仍 4–6，照旧过硬闸',
   }, null, 2));
 }
 

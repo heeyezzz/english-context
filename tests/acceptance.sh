@@ -104,16 +104,18 @@ grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" 
 grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-words.txt" || bad "known-words write"
 L interest --add "urban trains" > /dev/null 2>&1 && grepj "urban trains" "$STATE/state.json" && ok "interest add" || bad "interest add"
 L pool --limit 6 > "$T/pool.json" 2>/dev/null
-grepj 'candidates' "$T/pool.json" && ok "pool returns candidates" || bad "pool"
+grepj 'mustReuse' "$T/pool.json" && grepj 'fresh' "$T/pool.json" && ok "pool returns mustReuse + fresh" || bad "pool"
+grepj 'measure ([0-9]/6' "$T/pool.json" && ok "in-progress word surfaces in mustReuse" || bad "mustReuse missing in-progress word"
 python3 - "$T" "$STATE" <<'PY'
 import json, sys
 pool = json.load(open(sys.argv[1] + "/pool.json"))
 words = json.load(open(sys.argv[2] + "/state.json"))
 known = [w for w, e in words["words"].items() if e["status"] == "known"]
-cands = [c.split(" ")[0] for c in pool["candidates"]]
-assert not (set(cands) & set(known)), f"graduated word in pool: {known}"
+fresh = [c.split(" ")[0] for c in pool["fresh"]]
+assert not (set(fresh) & set(known)), f"graduated word in fresh pool: {known}"
+assert not (set(fresh) & set(words["words"])), "in-progress word leaked into fresh"
 PY
-[ $? -eq 0 ] && ok "pool excludes graduated/known words" || bad "pool leaks known words"
+[ $? -eq 0 ] && ok "fresh excludes known and in-progress words" || bad "pool leaks known/in-progress words"
 
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1

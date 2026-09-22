@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.1.0
+version: 1.2.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -38,9 +38,12 @@ alive in fresh contexts.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
    `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
-4. **Targets:** `ledger.mjs pool --limit 12` → pick 4–6 relevant to the topic (or accept the user's
-   words). Learner-specified words always win. Reunion words: choose from Anki/graduated words that
-   fit the topic naturally; skip the section honestly rather than force ungrammatical cameo sentences.
+4. **Targets:** `ledger.mjs pool --limit 12` returns two lists. Fill the quota: **2–3 words from
+   `mustReuse`** (in-progress words 1–5/6, longest-unseen first — skip one only if the topic truly
+   cannot host it, but never ship a passage with zero returnees) + **2–3 words from `fresh`**
+   (never-used tier-level candidates). Learner-specified words always win and count toward the quota.
+   Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
+   honestly rather than force ungrammatical cameo sentences.
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write passage + `meta.json` (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns)
    to temp files and run
