@@ -23,8 +23,8 @@ const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD, not U
 
 const TIERS = {
   1: { pool: ['B1'], targets: [4, 5], label: 'A2→B1' },
-  2: { pool: ['B1', 'B2'], targets: [5, 6], label: 'B1' },
-  3: { pool: ['B2'], targets: [6, 7], label: 'B1→B2' },
+  2: { pool: ['B1', 'B2'], targets: [4, 5], label: 'B1' },
+  3: { pool: ['B2'], targets: [4, 5], label: 'B1→B2' },
 };
 const GRADUATE_AT = +arg('graduate-at', 6);
 // Reading is recognition, not SRS retrieval: a short ladder beats Anki-style curves
@@ -236,7 +236,7 @@ else if (cmd === 'pool') {
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；总数仍 4–6，照旧过硬闸',
+    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；三档统一总数 4–5（不得 3+3），照旧过硬闸',
   }, null, 2));
 }
 

@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.7.2
+version: 1.8.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -41,7 +41,8 @@ alive in fresh contexts.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
    `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
-4. **Targets:** `ledger.mjs pool --limit 12` returns two lists. Fill the quota: **2–3 words from
+4. **Targets:** `ledger.mjs pool --limit 12` returns two lists. Fill the quota — **4–5 words total
+   at every tier** (never 3+3): **2–3 words from
    `mustReuse`** (in-progress words whose cooldown has passed and that were not counted today —
    longest-unseen first; skip one only if the topic truly cannot host it) + **2–3 words from `fresh`**
    (never-used tier-level candidates). On a binge day `mustReuse` empties out (everything counted today
@@ -149,7 +150,7 @@ the learner explicitly asks for.
 
 - 250–350 words; longest sentence ≤20, average ≤12 words (tightened to ≤16 / ≤10, via
   `--max-sentence 16 --avg-sentence 10`, while `difficulty.syntaxCalm > 0`).
-- 4–6 targets, each appearing ≥2× in prose, each bolded at least once.
+- 4–5 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
 - Zero undeclared above-level words: anything above CEFR A2 must be a declared target, reunion word,
   whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and irregular forms
@@ -168,7 +169,7 @@ the learner explicitly asks for.
 | 正确率 <60% | −1 档；连击清零 | `syntaxCalm = 2` |
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
-tier 1→3 控制候选池（B1 → B1+B2 → B2）与目标词数（4–5 → 5–6 → 6–7）。
+tier 1→3 只控制候选池（B1 → B1+B2 → B2）；目标词数三档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。
 `syntaxCalm > 0` 时（由 `status`/`pool`/`confirm` 输出的 `syntaxCalm` 字段读出）：起草按单句 ≤16 词、
 平均 ≤10 词执行，并且第 5 步的 passage-check 必须带 `--max-sentence 16 --avg-sentence 10` 运行；
 每 confirm 一篇自动 −1，归零后恢复常规句式。每次 confirm 至多 ±1 档，不存在连跳。

@@ -29,7 +29,7 @@ Rules that are format, not script-checked:
 - 文末可加一行 metrics（词数/生词率/句长），来自 passage-check 输出。
 
 Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长（最长≤20、均≤12）、
-目标词 4–6 个各≥2 次、纲外 token 率≤4%、未申报纲外词=0、目标词加粗（warn 级）。
+目标词 4–5 个各≥2 次、纲外 token 率≤4%、未申报纲外词=0、目标词加粗（warn 级）。
 
 ## 存档文件（$STATE/passages/<session-id>.md）
 

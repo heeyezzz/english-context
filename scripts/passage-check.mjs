@@ -45,7 +45,7 @@ const LIMITS = {
   avgSentence: +arg('avg-sentence', 12),
   maxRate: +arg('max-rate', 4.0),          // % of running words that are above-level (targets)
   minTargets: +arg('min-targets', 4),
-  maxTargets: +arg('max-targets', 6),
+  maxTargets: +arg('max-targets', 5),
   minTargetHits: +arg('min-target-hits', 2), // each target must occur >= this many times
 };
 
