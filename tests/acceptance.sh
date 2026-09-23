@@ -38,6 +38,12 @@ PC() { node "$S/passage-check.mjs" --passage "$1" --meta "$2" --state-dir "$STAT
 echo "== passage-check =="
 check "trial passage passes all hard rules" 0 PC "$T/passage.md" "$T/meta.json"
 
+# win-reported 2026-09-23: 'goes' (4-letter -es) fell through the [sxzo] rule guarded by >4,
+# landing on the 'goe' fallback and failing as undeclared OFF. Locks that one grid cell.
+sed 's/and I know what to do/and I know where it goes/' "$T/passage.md" > "$T/goes.md"
+PC "$T/goes.md" "$T/meta.json" > "$T/goes.json" 2>/dev/null
+grepj '"pass": true' "$T/goes.json" && ok "4-letter -es form 'goes' lemmatizes to go (guard fixed)" || bad "goes lemma guard regression"
+
 sed 's/before the trains must stop/before the trains must depart permanently on the way/' "$T/passage.md" > "$T/undeclared.md"
 PC "$T/undeclared.md" "$T/meta.json" > "$T/r1.json" 2>/dev/null
 grepj 'undeclared above-level' "$T/r1.json" && ok "undeclared above-level word rejected" || bad "undeclared detection missing"
