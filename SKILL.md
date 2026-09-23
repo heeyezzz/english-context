@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.6.1
+version: 1.6.2
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -116,14 +116,16 @@ session. Interpret it every session:
 
 | `skillUpdate` shows | meaning | agent action |
 |---|---|---|
-| `{upToDate:true, version}` | local skill = origin/main | nothing; `version` is what step 6 writes into `validatedBy` |
+| `{upToDate:true, version}` | local skill = origin/main | nothing — and do NOT source step 6's `validatedBy` from here: it is a cached field; the archive signature comes verbatim from the passage-check report |
 | `{behind:N, ruleLayer:true, ...}` | `scripts/ SKILL.md references/ assets/` changed upstream | **before drafting**: tell the learner validation rules may differ, ask whether to `git pull` this session; never auto-pull |
 | `{behind:N, ruleLayer:false}` | docs/tests only | keep going, mention at session end |
 | `{offline:true}` / `{check:'recent'}` | fetch failed / already checked within the throttle window | silently continue — a failed fetch retries after ~10 min, a successful one after 24h |
 
-Throttling nuance (Win Hermes finding, v1.6.1): `pool` — the last checkpoint before drafting —
+Throttling nuance (Win Hermes findings, v1.6.1/1.6.2): `pool` — the last checkpoint before drafting —
 forces one real fetch whenever its stamp was not written during this command, so a push from the
-other machine is invisible for at most one passage; `status` stays on the 24h throttle.
+other machine is invisible for at most one passage; `status` stays on the 24h throttle. The cache
+stamp is keyed on local HEAD: after any `git pull` the first `status`/`pool` re-fetches, so a stale
+"upToDate" can never survive a version change on this machine.
 
 ## Publishing skill changes (Mac = source of truth)
 

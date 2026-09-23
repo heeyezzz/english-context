@@ -19,8 +19,12 @@ function git(repo, ...a) {
 export function skillUpdate(skillDir, stateDir, { force = false } = {}) {
   if (process.env.EC_UPDATE_CHECK === '0') return { check: 'disabled' };
   const stampFile = join(stateDir, '.local', 'skill-update.json');
+  // The stamp is keyed on local HEAD: pulling the skill invalidates any cached answer,
+  // so "just pulled but status still says upToDate/1.6.0" cannot happen (Win finding 5).
+  const head = (git(skillDir, 'rev-parse', '--short', 'HEAD').stdout || '').trim() || null;
   let stamp = null;
   try { stamp = JSON.parse(readFileSync(stampFile, 'utf8')); } catch {}
+  if (stamp && stamp.head !== head) stamp = null;
   if (!force && stamp && stamp.result?.offline) force = Date.now() - stamp.ts > OFFLINE_RETRY_MIN * 60 * 1000;
   if (!force && stamp && Date.now() - stamp.ts < THROTTLE_H * 3600 * 1000) return stamp.result ?? { check: 'recent' };
 
@@ -53,7 +57,7 @@ export function skillUpdate(skillDir, stateDir, { force = false } = {}) {
   }
   try {
     mkdirSync(join(stateDir, '.local'), { recursive: true });
-    writeFileSync(stampFile, JSON.stringify({ ts: Date.now(), result }));
+    writeFileSync(stampFile, JSON.stringify({ ts: Date.now(), head, result }));
   } catch {}
   return result;
 }

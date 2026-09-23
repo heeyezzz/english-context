@@ -14,6 +14,9 @@ const SELF_PATH = fileURLToPath(import.meta.url);
 
 // Machine-readable validator signature: version can lie (see the 1.4.2 sed no-op), a blob hash
 // cannot. Step 6 of SKILL.md copies `validatedBy` from this report into the archive frontmatter.
+// Scope note (Win 2026-09-23): the hash covers this file's source only — an assets/ change
+// (word list, irregular forms) shifts the verdict invisibly to the hash; that layer is policed
+// by the version field plus ship.mjs's rule-layer lint, not by the sha256.
 function validatorSignature() {
   const version = (readFileSync(join(SKILL_DIR, 'SKILL.md'), 'utf8').match(/^version:\s*(\S+)/m) || [])[1] || 'unknown';
   let hash = 'unhashed';

@@ -169,7 +169,9 @@ grepj '"check": "disabled"' "$T/pu_up.json" && ok "pool output carries skillUpda
 mkdir -p "$T/noorigin" && git -C "$T/noorigin" init -q 2>/dev/null
 # NB: paths go in via ARGV (MSYS converts those to native form) and become file:// through
 # pathToFileURL — embedding a git-bash /c/... path in the -e string breaks native node.
-env -u EC_UPDATE_CHECK node -e 'const {pathToFileURL}=require("node:url");Promise.all([import(pathToFileURL(process.argv[1]).href),import("node:fs")]).then(([{skillUpdate},{writeFileSync}])=>writeFileSync(process.argv[4],JSON.stringify(skillUpdate(process.argv[2],process.argv[3]))))' "$S/skill-update.mjs" "$T/noorigin" "$T/offstate" "$T/off.json"
+# NB2: the env var is cleared inside node (`delete process.env`) — `env -u VAR cmd` silently
+# no-ops when a shadowed env.exe wins PATH (Win 2026-09-23), and shell unset syntax diverges.
+node -e 'const {pathToFileURL}=require("node:url");delete process.env.EC_UPDATE_CHECK;Promise.all([import(pathToFileURL(process.argv[1]).href),import("node:fs")]).then(([{skillUpdate},{writeFileSync}])=>writeFileSync(process.argv[4],JSON.stringify(skillUpdate(process.argv[2],process.argv[3]))))' "$S/skill-update.mjs" "$T/noorigin" "$T/offstate" "$T/off.json"
 grepj '"offline":true' "$T/off.json" && ok "skillUpdate soft-fails to offline when fetch impossible" || bad "skillUpdate soft-fail"
 PC "$T/passage.md" "$T/meta.json" > "$T/pc_sig.json" 2>/dev/null
 grepj '"validatedBy": "[0-9].*sha256:' "$T/pc_sig.json" && ok "passage-check report carries validator signature (version+hash)" || bad "validatedBy signature missing from report"
