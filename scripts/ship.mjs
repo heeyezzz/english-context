@@ -7,7 +7,7 @@
 //  5) commit + push, printing exactly what consumers' skillUpdate will see.
 // A rejection after step 1 leaves the staging area populated — undo with `git reset` if unwanted.
 import { spawnSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyFiles, versionFromSkillMd, onlyVersionChanged } from './lib-layers.mjs';
@@ -51,6 +51,20 @@ const ruleChanged = ruleFiles.some((f) => f !== 'SKILL.md')
 const warnings = [];
 if (ruleChanged && localV === baseV) die(`rule layer changed (${ruleFiles.slice(0, 3).join(', ')}…) but version stays ${localV} — bump it or revert`);
 if (!ruleChanged && localV !== baseV) warnings.push(`empty bump ${baseV}->${localV}: version moved with no rule-layer change in the diff`);
+
+// CHANGELOG.md is maintained by this script — every successful ship prepends one entry
+// (version + date + the -m message). Agents never edit it by hand; same message = already logged.
+try {
+  const logPath = join(repo, 'CHANGELOG.md');
+  const header = '# Changelog\n\nAuto-maintained by scripts/ship.mjs — newest first.\n\n';
+  const log = existsSync(logPath) ? readFileSync(logPath, 'utf8') : header;
+  if (!log.includes(msg)) {
+    const body = log.startsWith(header) ? log.slice(header.length) : log;
+    const entry = `## ${localV} — ${new Date().toLocaleDateString('en-CA')}\n\n${msg}\n\n`;
+    writeFileSync(logPath, header + entry + body);
+    git('add', 'CHANGELOG.md');
+  }
+} catch {}
 
 const c = git('-c', 'user.name=heeyezzz', '-c', 'user.email=heeyezzz@users.noreply.github.com', 'commit', '-m', msg);
 if (c.status !== 0) die('commit failed: ' + (c.stdout + c.stderr));

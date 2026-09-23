@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.9.0
+version: 1.10.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -141,7 +141,8 @@ Standing rule (2026-09-23): on the Mac, **改完、测绿就自动推，不用�
 origin must not have moved, and a diff-consistency version lint runs — rule-layer files changed
 without a `version:` bump → REJECT; version bumped with no rule file → warn ("empty bump").
 Never `git commit`/`git push` the skill repo by hand; hand-pushing is how the 1.4.2→1.5.0 silent
-mismatch happened. Windows Hermes consumes via the `skillUpdate` field above and only ships fixes
+mismatch happened. Every successful ship auto-prepends an entry to `CHANGELOG.md`
+(version + date + the `-m` text) — the changelog is script-owned, agents never edit it by hand. Windows Hermes consumes via the `skillUpdate` field above and only ships fixes
 the learner explicitly asks for.
 
 ## Spacing rules (script-enforced)
@@ -186,6 +187,7 @@ tier 1→3 只控制候选池（B1 → B1+B2 → B2）；目标词数三档统�
 
 ```text
 SKILL.md
+CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
 BOOTSTRAP.md                      新机器/新 agent 的一句话记忆：发布只走 ship.mjs
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
