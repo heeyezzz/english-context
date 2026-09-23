@@ -3,7 +3,7 @@
 // Usage: node passage-check.mjs --passage file.md --meta file.json [--state-dir DIR]
 // Exit 0 = PASS, 1 = FAIL. Prints a metrics report either way.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -258,7 +258,12 @@ const report = {
   reunionUsed,
   undeclared,
   validatedBy: validatorSignature(),
+  // archive-time anchor: ledger.mjs archive refuses to file a passage whose bytes changed
+  // after validation (sha256 of the raw file as sent to this gate).
+  passageSha256: createHash('sha256').update(raw).digest('hex'),
   fail, warn,
 };
-console.log(JSON.stringify(report, null, 2));
+const reportJson = JSON.stringify(report, null, 2);
+if (arg('report', null)) { try { writeFileSync(arg('report'), reportJson); } catch (e) { console.error('--report write failed: ' + e.message); } }
+console.log(reportJson);
 process.exit(report.pass ? 0 : 1);

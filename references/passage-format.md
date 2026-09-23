@@ -33,9 +33,9 @@ Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长（最
 
 ## 存档文件（$STATE/passages/<session-id>.md）
 
-展示即归档：第 6 步 pend 之后，agent 把**与对话完全一致**的成品写入
-`~/.english-context/passages/<session-id>.md`，头部加 YAML frontmatter，然后
-`state-git.mjs push` 让它立刻跨机可见；void 会删除该文件。
+展示即归档：**frontmatter 现由 `ledger.mjs archive` 机器写入**（第 6 步），本节描述的是产物
+形态，不再是 agent 的手写规范。archive 用 passage-check 报告的 `passageSha256` 锚定字节：
+送检后文本再被改动会直接拒绝归档；void 会删除该文件。
 
 ```markdown
 ---
@@ -46,7 +46,7 @@ targets: [aroma, bitter, steep, strain, blend]
 reunion: [schedule, volunteer]
 metrics: { words: 288, aboveLevelRate: 3.1%, maxSentence: 15, avgSentence: 10.4 }
 quizAnswers: [B, A, C]
-validatedBy: 1.6.1 (sha256:ab12cd34)   # 逐字抄 passage-check 报告里的 validatedBy 字段，不要手填
+validatedBy: 1.6.1 (sha256:ab12cd34)   # 由 archive 从 passage-check 报告程序化复制
 ---
 
 （正文、生词表、重逢词、题目——与展示内容 1:1，题目可含选项但答案只写在 frontmatter）

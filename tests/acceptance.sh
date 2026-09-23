@@ -107,6 +107,11 @@ grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.jso
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=new Date(Date.now()-3*86400000).toLocaleDateString('en-CA');for(const w of Object.keys(s.words))if(s.words[w].status==='active'&&s.words[w].exposures>=1)s.words[w].last=d;require('fs').writeFileSync(f,JSON.stringify(s))"
 L pool --limit 4 > "$T/pool2.json" 2>/dev/null
 grepj 'service (1/6,' "$T/pool2.json" && ok "past-cooldown word re-enters mustReuse" || bad "cooldown gate blocks a due word"
+# sort direction regression (v1.7.0): mustReuse is longest-unseen-first, per SKILL.md step 4
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.last=new Date(Date.now()-6*86400000).toLocaleDateString('en-CA');require('fs').writeFileSync(f,JSON.stringify(s))"
+L pool --limit 4 > "$T/pool_sort.json" 2>/dev/null
+node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_sort.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('service ') ? 0 : 1)" \
+  && ok "mustReuse sorts longest-unseen first (6d beats 3d)" || bad "mustReuse sort direction"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
@@ -212,6 +217,33 @@ git -C "$SHIPR" add -A && git -C "$SHIPR" -c user.name=t -c user.email=t@t commi
 echo y > "$SHIPR/scripts/another-rule.mjs"
 SHIPW "origin-baseline" > "$T/s5.out" 2> "$T/s5.err"
 grep -q '"shipped": true' "$T/s5.out" && ok "ship version-leg compares to origin/main (unpushed bump honored)" || bad "version-leg baseline: $(cat "$T/s5.err")"
+
+echo "== archive (scripted step-6) =="
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/rep_ok.json" > /dev/null 2>&1
+grepj '"passageSha256"' "$T/rep_ok.json" && ok "--report writes report file containing passageSha256" || bad "--report/passageSha256"
+L pend --meta "$T/meta.json" > "$T/a_p1.json" 2>/dev/null
+SID_A=$(python3 -c "import json;print(json.load(open('$T/a_p1.json'))['session'])")
+L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" --quiz "B,A,C" > "$T/a_ok.json" 2> "$T/a_ok.err"
+{ [ $? = 0 ] && grepj "\"archived\": \"$SID_A\"" "$T/a_ok.json" && [ -f "$STATE/passages/$SID_A.md" ]; } && ok "archive happy path: file written, id reported" || bad "archive happy path: $(cat "$T/a_ok.err")"
+grepj "^session: $SID_A$" "$STATE/passages/$SID_A.md" && grepj 'quizAnswers: \[B, A, C\]' "$STATE/passages/$SID_A.md" && grepj '^validatedBy: .*sha256:' "$STATE/passages/$SID_A.md" && ok "frontmatter: session/quizAnswers/validatedBy generated mechanically" || bad "archive frontmatter content"
+grepj '"validatedBy":' "$T/a_ok.json" && grep -q 'Trains That Tell You the Truth' "$STATE/passages/$SID_A.md" && ok "report echoes signature; body is the validated file verbatim" || bad "archive body/signature"
+# tamper: different bytes under the same report must be refused, no file left behind
+L pend --meta "$T/meta.json" > "$T/a_p2.json" 2>/dev/null
+SID_B=$(python3 -c "import json;print(json.load(open('$T/a_p2.json'))['session'])")
+sed 's/ninety-five of every hundred/four of five/' "$T/passage.md" > "$T/passage-tampered.md"
+L archive --session "$SID_B" --passage "$T/passage-tampered.md" --report "$T/rep_ok.json" > /dev/null 2> "$T/a_t.err"
+{ [ $? != 0 ] && grep -qi 'sha256' "$T/a_t.err" && [ ! -f "$STATE/passages/$SID_B.md" ]; } \
+  && ok "archive refuses passage modified after validation (sha256 anchor)" || bad "archive tamper check"
+echo '{"pass": false}' > "$T/rep_bad.json"
+L archive --session "$SID_B" --passage "$T/passage.md" --report "$T/rep_bad.json" > /dev/null 2> "$T/a_bad.err"
+{ [ $? != 0 ] && grep -q 'pass is not true' "$T/a_bad.err"; } && ok "archive refuses a non-passing report" || bad "archive pass gate"
+L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" > /dev/null 2> "$T/a_dup.err"
+{ [ $? != 0 ] && grep -q 'append-only' "$T/a_dup.err"; } && ok "duplicate archive refused (append-only, never rewrites)" || bad "archive dup guard"
+check "archive refuses unknown session" 1 L archive --session no-such-session --passage "$T/passage.md" --report "$T/rep_ok.json"
+# counted sessions must not archive either
+L confirm --session "$SID_A" --score 2/3 --feel ok > /dev/null 2>&1
+L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" > /dev/null 2> "$T/a_cnt.err"
+grep -q 'only pending' "$T/a_cnt.err" && ok "archive refuses already-counted session" || bad "archive status gate"
 
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1

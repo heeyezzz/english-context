@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Exposure ledger + dynamic difficulty for english-context.
 // State lives in ~/.english-context/ (override with --state-dir or EC_STATE_DIR).
-// Commands: init | status | pend | confirm | graduate | import-anki | pool | interest
+// Commands: init | status | pend | confirm | void | graduate | import-anki | pool | interest | archive
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -108,7 +109,7 @@ else if (cmd === 'confirm') {
   if (sess.status === 'counted') { console.error('already counted'); process.exit(2); }
   sess.status = 'counted'; sess.date_confirmed = today;
   const score = arg('score', null); // "3/3"
-  const feel = arg('feel', null);   // easy|ok|hard
+  const feel = arg('feel', null);   // flow|ok|wordy|dense
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
   if (feel) sess.feel = feel;
   // One exposure per word per day: a second same-day appearance is still read, but not
@@ -216,7 +217,7 @@ else if (cmd === 'pool') {
   // and never on a day it already counted (same-day lock) — binge days fill with fresh words instead
   const eligible = inFlight.filter(([, e]) => e.last !== today && daysSince(e.last) >= (COOLDOWN_DAYS[e.exposures] || 1));
   const mustReuse = eligible
-    .sort((a, b) => (daysSince(a[1].last) - daysSince(b[1].last)) || (b[1].exposures - a[1].exposures))
+    .sort((a, b) => (daysSince(b[1].last) - daysSince(a[1].last)) || (b[1].exposures - a[1].exposures))
     .slice(0, 8)
     .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}${e.last ? `, ${daysSince(e.last)}d unseen` : ''})`);
   // deterministic rotation by date so the same day shows the same sample
@@ -239,7 +240,48 @@ else if (cmd === 'pool') {
   }, null, 2));
 }
 
+else if (cmd === 'archive') {
+  // Step-6 archiving, fully scripted: the agent never hand-writes frontmatter, never copies
+  // validatedBy from memory, and the sha256 anchor proves archive == what the gate approved.
+  const s = load();
+  const id = arg('session', null);
+  const sess = s.sessions.find((x) => x.id === id);
+  const rej = (why) => { console.error('ARCHIVE REJECTED: ' + why); process.exit(2); };
+  if (!sess) rej(`no such session: ${id}`);
+  if (sess.status !== 'pending') rej(`session ${id} is ${sess.status} — only pending sessions archive`);
+  const passagePathA = arg('passage', null); const reportPath = arg('report', null);
+  if (!passagePathA || !reportPath) rej('--passage and --report are required');
+  let report; try { report = JSON.parse(readFileSync(reportPath, 'utf8')); } catch (e) { rej('report unreadable: ' + e.message); }
+  if (report.pass !== true) rej('report.pass is not true');
+  if (!report.validatedBy) rej('report lacks validatedBy — rerun with a current passage-check');
+  const body = readFileSync(passagePathA, 'utf8');
+  if (createHash('sha256').update(body).digest('hex') !== report.passageSha256)
+    rej('passage bytes changed after validation (sha256 mismatch) — re-check, then archive the approved file');
+  const dest = join(stateDir, 'passages', id + '.md');
+  if (existsSync(dest)) rej('append-only: ' + dest + ' already exists');
+  const quiz = arg('quiz', null);
+  const fm = [
+    '---',
+    `session: ${sess.id}`,
+    `date: ${sess.date}`,
+    `topic: ${sess.topic}`,
+    `targets: [${sess.targets.join(', ')}]`,
+    `reunion: [${(sess.reunion || []).join(', ')}]`,
+    `metrics: { words: ${report.words}, aboveLevelRate: ${report.aboveLevelRate}, maxSentence: ${report.maxSentence}, avgSentence: ${report.avgSentence} }`,
+    ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
+    `validatedBy: ${report.validatedBy}`,
+    '---',
+    '',
+  ].join('\n');
+  mkdirSync(join(stateDir, 'passages'), { recursive: true });
+  writeFileSync(dest, fm + body);
+  // archive never touches state.json (no save()): the passage file rides its own push.
+  const r = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts', 'state-git.mjs'), 'push', '--message', `passage ${id}`, '--state-dir', stateDir], { encoding: 'utf8' });
+  let sync = null; try { sync = JSON.parse(r.stdout.trim().split('\n').pop()); } catch { sync = { pushed: false, note: 'sync unavailable' }; }
+  console.log(JSON.stringify({ archived: id, path: dest, validatedBy: report.validatedBy, sync }, null, 2));
+}
+
 else {
-  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel ok] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | interest [--add x|--remove x]');
+  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel ok] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
   process.exit(cmd ? 2 : 0);
 }
