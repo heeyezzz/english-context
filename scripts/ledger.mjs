@@ -226,6 +226,10 @@ else if (cmd === 'pool') {
   const pick = () => { seed = (seed * 9301 + 49297) % 233280; return Math.floor((seed / 233280) * pool.length); };
   const seen = new Set();
   while (idx.length < Math.min(limit, pool.length) && seen.size < pool.length) { const i = pick(); if (!seen.has(i)) { seen.add(i); idx.push(i); } }
+  // Anti-repeat exposure: the last 5 non-void sessions are the memory the agent must not
+  // rely on goodwill for — pool is the mandatory pre-draft call, so the history lands there.
+  const recent = s.sessions.filter((x) => x.status !== 'void').slice(-5).reverse()
+    .map((x) => ({ session: x.id, date: x.date, topic: x.topic, targets: x.targets }));
   console.log(JSON.stringify({
     tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, syntaxCalm: s.difficulty.syntaxCalm || 0,
     poolSize: pool.length,
@@ -233,10 +237,11 @@ else if (cmd === 'pool') {
     sleeping: inFlight.length - eligible.length,
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
+    recent,
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；三档统一总数 4–5（不得 3+3），照旧过硬闸',
+    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；三档统一总数 4–5（不得 3+3），照旧过硬闸。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）',
   }, null, 2));
 }
 

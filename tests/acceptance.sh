@@ -157,6 +157,9 @@ grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-
 L interest --add "urban trains" > /dev/null 2>&1 && grepj "urban trains" "$STATE/state.json" && ok "interest add" || bad "interest add"
 L pool --limit 6 > "$T/pool.json" 2>/dev/null
 grepj 'mustReuse' "$T/pool.json" && grepj 'fresh' "$T/pool.json" && ok "pool returns mustReuse + fresh" || bad "pool"
+# anti-repeat exposure (v1.9.0): pool must carry the last <=5 non-void sessions, topic+targets included
+node -e "const r=JSON.parse(require('fs').readFileSync('$T/pool.json','utf8')).recent||[];process.exit(r.length>0&&r.length<=5&&r.every((x)=>Array.isArray(x.targets)&&typeof x.topic==='string')?0:1)" \
+  && ok "pool exposes recent history (<=5 non-void sessions with topic+targets)" || bad "recent exposure shape"
 grepj '"mustReuse": \[\]' "$T/pool.json" && ok "no returnee leaks: everything is locked today or at threshold" || bad "mustReuse leaks"
 python3 - "$T" "$STATE" <<'PY'
 import json, sys

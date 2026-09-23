@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.8.0
+version: 1.9.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -41,11 +41,18 @@ alive in fresh contexts.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
    `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
-4. **Targets:** `ledger.mjs pool --limit 12` returns two lists. Fill the quota — **4–5 words total
+   **Anti-repeat (hard read-first):** compare against `pool`'s `recent` (last 5 non-void sessions).
+   If the new topic/scene rhymes with a recent one, change the angle, setting or outcome — a
+   different cast of the same story does not count. Learner-forced topics proceed, but the angle
+   must still differ from `recent`.
+4. **Targets:** `ledger.mjs pool --limit 12` returns `mustReuse`, `fresh`, and `recent`. Fill the
+   quota — **4–5 words total
    at every tier** (never 3+3): **2–3 words from
    `mustReuse`** (in-progress words whose cooldown has passed and that were not counted today —
    longest-unseen first; skip one only if the topic truly cannot host it) + **2–3 words from `fresh`**
-   (never-used tier-level candidates). On a binge day `mustReuse` empties out (everything counted today
+   (never-used tier-level candidates). **Anti-repeat:** the chosen target set must not exactly equal
+   any `recent` entry's targets (partial overlap is fine) — on an exact hit, redraw from `fresh`.
+   On a binge day `mustReuse` empties out (everything counted today
    sleeps) — then fill the whole quota from `fresh`; never refuse to generate, and mention
    `inFlight`/`sleeping` when the learner is reading several passages in one day.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
