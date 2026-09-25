@@ -255,6 +255,26 @@ L confirm --session "$SID_A" --score 2/3 --feel ok > /dev/null 2>&1
 L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" > /dev/null 2> "$T/a_cnt.err"
 grep -q 'only pending' "$T/a_cnt.err" && ok "archive refuses already-counted session" || bad "archive status gate"
 
+echo "== bookshelf (read-only local view) =="
+BS="$STATE/bookshelf.html"
+L pend --meta "$T/meta.json" > "$T/b_p1.json" 2>/dev/null
+SID_C=$(python3 -c "import json;print(json.load(open('$T/b_p1.json'))['session'])")
+L archive --session "$SID_C" --passage "$T/passage.md" --report "$T/rep_ok.json" > /dev/null 2>&1
+node "$S/bookshelf.mjs" --state-dir "$STATE" > "$T/b_b1.json" 2>/dev/null
+grepj '"passages":' "$T/b_b1.json" && ! grep -q "$SID_C" "$BS" && ok "pending passage stays off the wall (quiz-answer leak guard)" || bad "bookshelf pending filter"
+L confirm --session "$SID_C" --score 2/3 --feel ok > "$T/b_cf.json" 2>/dev/null
+grepj '"bookshelf":' "$T/b_cf.json" && ok "confirm reports the bookshelf rebuild" || bad "confirm hook missing"
+grep -q "$SID_C" "$BS" && ok "counted passage appears on the wall after confirm" || bad "confirm publish hook"
+# injection guard: a counted passage containing a real script-close must not break the page
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.sessions.push({id:'x-evil',date:'2026-09-25',topic:'evil',targets:[],reunion:[],status:'counted'});require('fs').writeFileSync(f,JSON.stringify(s))"
+printf -- '---\nsession: x-evil\ndate: 2026-09-25\ntopic: evil\n---\nBoom </script><script>alert(1)</script>\n' > "$STATE/passages/x-evil.md"
+node "$S/bookshelf.mjs" --state-dir "$STATE" > /dev/null 2>&1
+[ "$(grep -o '</script' "$BS" | wc -l | tr -d ' ')" = "2" ] && ok "embedded data cannot close the script tag early (2 benign closes)" || bad "bookshelf injection guard"
+node -e "const html=require('fs').readFileSync('$BS','utf8');const m=/<script id=\"ec-data\" type=\"application\/json\">([\s\S]*?)<\/script>/.exec(html);const d=JSON.parse(m[1]);process.exit(d.passages.some(p=>p.session==='x-evil'&&p.body.includes('</script>'))?0:1)" \
+  && ok "embedded JSON round-trips and escapes intact" || bad "bookshelf data round-trip"
+L void --session "$SID_C" > /dev/null 2>&1
+! grep -q "$SID_C" "$BS" && ok "void rebuild drops the passage from the wall" || bad "void hook"
+
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1
 if [ -f "$T/anki-live.json" ]; then

@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.10.0
+version: 1.11.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -38,6 +38,11 @@ alive in fresh contexts.
    last-synced file and say so — never fail a reading session over a missing endpoint.
    `status`/`pool` also print `skillUpdate` (is the skill itself behind GitHub?) — see the
    self-update check section for what to do with each shape.
+   Then refresh the reading wall unconditionally:
+   `node "$SKILL_DIR/scripts/bookshelf.mjs"` — it rebuilds `$STATE/bookshelf.html` from whatever
+   the pull brought in (counted passages only; pending never appear so quiz answers can't leak).
+   `confirm` and `void` also rebuild it themselves; their JSON carries the `bookshelf` path to
+   mention to the learner. The bookshelf is a view, never a source of truth, and never blocks.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
    `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
@@ -195,6 +200,7 @@ scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
 scripts/state-git.mjs             台账跨机同步：pull(会话开始)/push(会话结束)，分叉时停下问人
 scripts/skill-update.mjs          会话必过路径上的 skill 落后检查（24h 节流、软失败、只读）
+scripts/bookshelf.mjs             只读本地书架：passages→内嵌单文件 HTML（counted-only、原子写、钩子软失败）
 scripts/ship.mjs                  唯一发布路径：绿测试 + 版本联动 lint + 远端移动守卫，fail-closed
 scripts/lib-layers.mjs            rule 层定义（scripts/SKILL.md/references/assets），lint 与 check 共用
 assets/cefr-j-words.tsv           CEFR-J/Octanove 词表（拷贝自 anki-flashcard，独立演化）
@@ -207,3 +213,5 @@ State (survives skill reinstall): `$STATE/state.json`, `$STATE/known-words.txt`,
 `$STATE/anki-words.json`, `$STATE/passages/<session-id>.md`（展示过的每篇正文档案：pend 时写入、
 void 时删除；append-only 唯一文件名，git 永不冲突，随 ledger 写操作的自动推送跨机同步）。
 `$STATE/.local/` holds the `skillUpdate` throttle stamp — gitignored, never synced.
+`$STATE/bookshelf.html` is the local reading view (rebuilt per session + on confirm/void) —
+gitignored, never synced, deletable at any time.

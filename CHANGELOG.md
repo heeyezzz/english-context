@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.11.0 — 2026-09-25
+
+v1.11.0: bookshelf — read-only offline local view of the passage archive (single HTML, data baked in, counted-only so pending quiz answers can never leak; tmp+rename atomic write; confirm/void soft-fail hooks + unconditional session-start rebuild; hash-routed list/detail, substring search over body+targets+reunion, click-to-reveal answers; zero external deps)
+
 ## 1.10.0 — 2026-09-24
 
 v1.10.0: CHANGELOG.md now script-owned — every successful ship auto-prepends an entry (version+date+message); 28 historical entries backfilled from git log; agents never hand-edit the changelog
