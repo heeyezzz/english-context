@@ -43,6 +43,11 @@ check "trial passage passes all hard rules" 0 PC "$T/passage.md" "$T/meta.json"
 sed 's/and I know what to do/and I know where it goes/' "$T/passage.md" > "$T/goes.md"
 PC "$T/goes.md" "$T/meta.json" > "$T/goes.json" 2>/dev/null
 grepj '"pass": true' "$T/goes.json" && ok "4-letter -es form 'goes' lemmatizes to go (guard fixed)" || bad "goes lemma guard regression"
+# quiz option letters are structural markers, not vocabulary (v1.11.4): a finished-material
+# passage with A)/B)/C) lines must validate clean
+printf '\n### 理解题\n1. Why do people trust the screen? A) It is always right. B) The numbers arrive early. C) It shows their own words.\n' >> "$T/goes.md"
+PC "$T/goes.md" "$T/meta.json" > "$T/quiz.json" 2>/dev/null
+grepj '"pass": true' "$T/quiz.json" && ok "quiz A)/B)/C) letters do not count as undeclared words" || bad "quiz option letters flagged"
 
 sed 's/before the trains must stop/before the trains must depart permanently on the way/' "$T/passage.md" > "$T/undeclared.md"
 PC "$T/undeclared.md" "$T/meta.json" > "$T/r1.json" 2>/dev/null

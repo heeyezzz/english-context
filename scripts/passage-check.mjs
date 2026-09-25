@@ -95,7 +95,8 @@ const sentences = protectedText
   .filter(Boolean);
 
 const WORD_RE = /[A-Za-z][A-Za-z'’-]*|[0-9][0-9:.,]*/g;
-const tokens = prose.match(WORD_RE) || [];
+// single letters are quiz option markers (A) B) C)), not vocabulary — except a/i, which are words
+const tokens = (prose.match(WORD_RE) || []).filter((t) => t.length > 1 || /^[aAiI]$/.test(t));
 const totalWords = tokens.length;
 
 // ---------- lemma expansion ----------
