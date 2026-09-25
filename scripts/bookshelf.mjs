@@ -94,8 +94,10 @@ const inline=t=>esc(t).replace(/\\*\\*([^*]+)\\*\\*/g,'<strong>$1</strong>');
 function render(p){
   const lines=p.body.split(/\\n+/).map(x=>x.trim()).filter(Boolean);
   const title=(lines[0]||'').replace(/^#\\s*/,'');
-  const paras=lines.slice(1).map(l=>inline(l)).map(h=>'<p>'+h+'</p>').join('');
-  const quiz=lines.filter(l=>/^\\d+[\\.、]/.test(l));
+  const isQuiz=l=>/^\\d+[\\.、]/.test(l);
+  const rest=lines.slice(1).filter(l=>!isQuiz(l)&&!/^#{2,3}\\s/.test(l)); // quiz lines render below; ## subheads replaced by our 题目 heading
+  const paras=rest.map(l=>inline(l)).map(h=>'<p>'+h+'</p>').join('');
+  const quiz=lines.filter(isQuiz);
   return '<div class="art"><h2>'+esc(title)+'</h2>'+paras
    +(quiz.length?'<h3 style="margin:22px 0 6px;font-size:16px">题目</h3>'+quiz.map(l=>'<p>'+inline(l)+'</p>').join('')
      +(p.quizAnswers&&p.quizAnswers.length?'<button class="rev" onclick="this.nextElementSibling.classList.remove(\\'hide\\')">看答案</button><div class="answers hide">答案：'+esc(p.quizAnswers.join(' 、 '))+'</div>':''):'')
