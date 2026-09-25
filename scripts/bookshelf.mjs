@@ -127,7 +127,7 @@ function route(){
   const p=D.passages.find(x=>x.session===decodeURIComponent(m[1]));
   if(!p){location.hash='#/';return;}
   $('#list').style.display='none';
-  $('#detail').style.display='';
+  $('#detail').style.display='block'; // 'none' lives in CSS — an empty inline value would fall back to it
   $('#detail').innerHTML='<span class="back" onclick="location.hash=\\'#/\\'">← 返回书架</span>'+badges(p,true)+render(p);
 }
 $('#n').textContent=D.passages.length+' 篇';

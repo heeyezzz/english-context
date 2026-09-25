@@ -274,6 +274,10 @@ node -e "const html=require('fs').readFileSync('$BS','utf8');const m=/<script id
   && ok "embedded JSON round-trips and escapes intact" || bad "bookshelf data round-trip"
 L void --session "$SID_C" > /dev/null 2>&1
 ! grep -q "$SID_C" "$BS" && ok "void rebuild drops the passage from the wall" || bad "void hook"
+# detail visibility guard: #detail is hidden via CSS, so the router must set display=block
+# (an empty inline value falls back to the CSS none — real bug caught by screenshot dogfood)
+node "$S/bookshelf.mjs" --state-dir "$STATE" > /dev/null 2>&1
+! grep -qF "\$('#detail').style.display=''" "$BS" && grep -qF "detail').style.display='block'" "$BS" && ok "router shows detail with explicit block display" || bad "detail display fallback bug"
 
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1
