@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.12.0 — 2026-09-26
+
+v1.12.0: bookshelf feature fully removed per learner decision (script, confirm/void hooks, SKILL/format mentions, 7 suite assertions, data-repo artifact + ignore line) — quiz option-letter gate fix and complete-material rule stay, they stand on their own
+
 ## 1.11.4 — 2026-09-25
 
 v1.11.4: passage-check skips single-letter tokens (quiz A)/B)/C) option markers are structural, not vocabulary) — found dogfooding the complete-finished-material flow; regression test appends a quiz block to the fixture

@@ -49,11 +49,6 @@ function save(s) {
   }
 }
 function out(obj) { if (lastSync) obj.sync = lastSync; console.log(JSON.stringify(obj, null, 2)); }
-// Bookshelf is a view, never a blocker: rebuild failures downgrade to a field in the output.
-function rebuildBookshelf() {
-  const b = spawnSync(process.execPath, [join(SKILL_DIR, 'scripts', 'bookshelf.mjs'), '--state-dir', stateDir], { encoding: 'utf8', timeout: 15000 });
-  try { return JSON.parse(b.stdout.trim().split('\n').pop()).bookshelf; } catch { return 'rebuild failed'; }
-}
 function knownSet(s) {
   const set = new Set();
   if (existsSync(knownFile)) for (const l of readFileSync(knownFile, 'utf8').split('\n')) { const w = l.trim().toLowerCase(); if (w && !w.startsWith('#')) set.add(w); }
@@ -158,7 +153,6 @@ else if (cmd === 'confirm') {
     exposures: Object.fromEntries(sess.targets.map((t) => [t, `${s.words[t].exposures}/${GRADUATE_AT}`])),
     lockedToday: lockedToday.length ? lockedToday.map((w) => `${w} — already counted today, no increment`) : undefined,
     graduationNominations: nominations.map((w) => `${w} — run: graduate --word ${w} (then optionally hand it to anki-flashcard for a permanent SRS card)`),
-    bookshelf: rebuildBookshelf(), // counted = on the wall; confirm is the passage's publish moment
   });
 }
 
@@ -170,7 +164,7 @@ else if (cmd === 'void') {
   let passageRemoved = false;
   try { unlinkSync(join(stateDir, 'passages', sess.id + '.md')); passageRemoved = true; } catch {}
   save(s); // unlink first: the deletion must ride THIS push, not a later write
-  out({ session: sess.id, status: 'void', note: 'no exposures counted', passageRemoved, bookshelf: rebuildBookshelf() });
+  out({ session: sess.id, status: 'void', note: 'no exposures counted', passageRemoved });
 }
 
 else if (cmd === 'graduate') {
