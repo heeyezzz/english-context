@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.11.2
+version: 1.11.3
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -64,7 +64,9 @@ alive in fresh contexts.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
-   write passage + `meta.json` (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns)
+   write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
+   1:1（题目行以 `1. ` 编号，书架的“看答案”靠它们渲染；只存正文 = 归档残缺）— plus `meta.json`
+   (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns)
    to temp files and run
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json>`.
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th

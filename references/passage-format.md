@@ -49,7 +49,8 @@ quizAnswers: [B, A, C]
 validatedBy: 1.6.1 (sha256:ab12cd34)   # 由 archive 从 passage-check 报告程序化复制
 ---
 
-（正文、生词表、重逢词、题目——与展示内容 1:1，题目可含选项但答案只写在 frontmatter）
+（正文、生词表、重逢词、题目——与展示内容 1:1，题目可含选项但答案只写在 frontmatter。
+第 5 步送检与第 6 步 `archive --passage` 用的就是这个完整成品文件——只存正文会让书架的题目区无题可显）
 ```
 
 价值：重读旧篇、`grep -l strain passages/` 查一个词的全部历史语境、
