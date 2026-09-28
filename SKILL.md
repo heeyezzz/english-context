@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.12.0
+version: 1.13.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -58,15 +58,20 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
+   **定负荷画像（起草前必做）：** 读 `pool` 输出的 `calibration`（最近的预测 vs 实际对账），对照
+   [难度量规](references/difficulty-rubric.md) 给本篇定下四维目标画像
+   （vocab/syntax/discourse/background 各 1–3）。本版本画像只记录、不改变任何生成参数
+   （tier/syntaxCalm/配额逻辑照旧）——它的用途是让你事后的判断可对账。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
-   (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns)
+   (`{"topic","targets":[],"reunion":[],"names":[],"predicted":{"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3}}` — names = proper nouns)
    to temp files and run
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json>`.
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th
    failure report the structural blocker honestly instead of shipping a bad passage. Keep the exact
    passage file — step 6 archives those bytes and the report's `passageSha256` pins them.
+   **passage-check 对 predicted 缺失或越界直接 FAIL**——成稿自评分必须与起草目标一致地写死在 meta 里，送检后不可改。
 6. **Pending entry + archive:** after a PASS, ① `ledger.mjs pend --meta <json>` (note the returned
    session id; exposures are NOT counted yet); ② `ledger.mjs archive --session <id> --passage <md>
    --report <report.json> [--quiz "B,A,C"]` — the script writes `$STATE/passages/<id>.md` (frontmatter
@@ -76,9 +81,9 @@ alive in fresh contexts.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
    one gentle line — never nag twice about the same one.
 8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
-   a 体感 in one prompt — always present the four-level load scale so it is one tap to answer:
-   「① 太简单(flow) ② 刚好(ok) ③ 生词太多(wordy) ④ 句子太难(dense)」(→ `flow` / `ok` / `wordy` /
-   `dense`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
+   a 体感 in one prompt — always present the five-level load scale so it is one tap to answer:
+   「① 太简单(flow) ② 刚好(ok) ③ 生词太多(wordy) ④ 句子太难(dense) ⑤ 背景/话题陌生(context)」(→ `flow` / `ok` /
+   `wordy` / `dense` / `context`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
    --score a/b --feel ...` (feel absent and unanswered once → ask once more; still absent → omit the
    flag, never guess). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
    --session <id>`; zero accounting, and void also deletes the archived `$STATE/passages/<id>.md`
@@ -176,7 +181,10 @@ the learner explicitly asks for.
 | ok ②（甜区，i+1） | **保持**（甜区就是目标态，不是超标信号）；连击清零 | 不变 |
 | wordy ③（生词太多） | 立即 −1 档（下限 1）；连击清零 | 不变 |
 | dense ④（句子太难） | **不变**（词汇达标）；连击清零 | `syntaxCalm = 2` |
+| context ⑤（背景/话题陌生） | **保持**（纯诊断记录，本版本不调档）；连击清零 | 不变 |
 | 正确率 <60% | −1 档；连击清零 | `syntaxCalm = 2` |
+
+> **负荷画像与校准回路（v1.13.0）**：predicted 在 pend 时落盘、archive 时进 frontmatter、confirm 时与 feel/score 并排记账；`pool` 的 `calibration` 字段把最近 8 条对账喂回起草环节。Phase 纪律：**画像只记录、只校准判断，不驱动任何参数**——画像驱动补偿调档（Phase 2）需 ≥8 条校准数据 + 学习者显式批准。
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
 tier 1→3 只控制候选池（B1 → B1+B2 → B2）；目标词数三档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。
@@ -192,6 +200,7 @@ SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
 BOOTSTRAP.md                      新机器/新 agent 的一句话记忆：发布只走 ship.mjs
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
+references/difficulty-rubric.md   四维难度量规（大模型自评打分用，脚本只校验形状）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate|import-anki|pool|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）

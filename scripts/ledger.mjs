@@ -93,7 +93,7 @@ else if (cmd === 'pend') {
     let n = 2;
     while (s.sessions.some((x) => x.id === id)) id = `${today}-${slug || 'session'}-${n++}`; // CJK topics slug to '' — keep same-day sessions unique
   }
-  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', words: meta.words || null });
+  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', words: meta.words || null, predicted: meta.predicted || null });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
     s.words[t] = s.words[t] || { exposures: 0, first: null, last: null, status: 'active', source: 'pool' };
   }
@@ -109,7 +109,7 @@ else if (cmd === 'confirm') {
   if (sess.status === 'counted') { console.error('already counted'); process.exit(2); }
   sess.status = 'counted'; sess.date_confirmed = today;
   const score = arg('score', null); // "3/3"
-  const feel = arg('feel', null);   // flow|ok|wordy|dense
+  const feel = arg('feel', null);   // flow|ok|wordy|dense|context（context=背景/语篇型负荷：纯诊断记录，路由同 ok——hold tier、清零连击、不武装 syntaxCalm）
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
   if (feel) sess.feel = feel;
   // One exposure per word per day: a second same-day appearance is still read, but not
@@ -230,6 +230,12 @@ else if (cmd === 'pool') {
   // rely on goodwill for — pool is the mandatory pre-draft call, so the history lands there.
   const recent = s.sessions.filter((x) => x.status !== 'void').slice(-5).reverse()
     .map((x) => ({ session: x.id, date: x.date, topic: x.topic, targets: x.targets }));
+  // Calibration exposure (v1.13.0): past predicted-vs-actual pairs, rendered without verdict —
+  // the agent reads its own estimation bias; the script only keeps the ledger.
+  const calibration = s.sessions
+    .filter((x) => x.status === 'counted' && x.predicted)
+    .slice(-8).reverse()
+    .map((x) => ({ session: x.id, predicted: x.predicted, feel: x.feel ?? null, score: x.score ?? null }));
   console.log(JSON.stringify({
     tier: s.difficulty.tier, tierLabel: tier.label, targetsRange: tier.targets, syntaxCalm: s.difficulty.syntaxCalm || 0,
     poolSize: pool.length,
@@ -238,10 +244,11 @@ else if (cmd === 'pool') {
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]})`),
     recent,
+    calibration,
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；三档统一总数 4–5（不得 3+3），照旧过硬闸。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）',
+    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；三档统一总数 4–5（不得 3+3），照旧过硬闸。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）；校准（起草前必读 calibration）：这是最近 counted 篇的"你预测的四维负荷 vs 学习者实际体感"对账——连续估偏同一维度同一方向，下次画像时把锚点反向调',
   }, null, 2));
 }
 
@@ -273,6 +280,7 @@ else if (cmd === 'archive') {
     `targets: [${sess.targets.join(', ')}]`,
     `reunion: [${(sess.reunion || []).join(', ')}]`,
     `metrics: { words: ${report.words}, aboveLevelRate: ${report.aboveLevelRate}, maxSentence: ${report.maxSentence}, avgSentence: ${report.avgSentence} }`,
+    ...(sess.predicted ? [`predicted: { vocab: ${sess.predicted.vocab}, syntax: ${sess.predicted.syntax}, discourse: ${sess.predicted.discourse}, background: ${sess.predicted.background} }`] : []),
     ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
     `validatedBy: ${report.validatedBy}`,
     '---',

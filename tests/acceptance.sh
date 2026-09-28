@@ -31,7 +31,7 @@ Passengers notice the difference. At Shinjuku Station, people used to stand in l
 
 The team behind the program says **accurate** numbers are only the start. It now wants passengers to volunteer for the next one. What they really want is trust. When people trust the information, they use it. When they use it, the trains can **measure** more, and tomorrow can be better than today. For Mei, the change is small but sweet. "I used to hate Monday mornings," she says. "Now I look at my phone, and I know what to do."
 EOF
-META='{"topic":"trains","targets":["service","measure","update","accurate","platform"],"reunion":["schedule","allocate","volunteer"],"names":["mei","tokyo","shinjuku","sato","japan"]}'
+META='{"topic":"trains","targets":["service","measure","update","accurate","platform"],"reunion":["schedule","allocate","volunteer"],"names":["mei","tokyo","shinjuku","sato","japan"],"predicted":{"vocab":2,"syntax":2,"discourse":2,"background":1}}'
 echo "$META" > "$T/meta.json"
 PC() { node "$S/passage-check.mjs" --passage "$1" --meta "$2" --state-dir "$STATE"; }
 
@@ -86,7 +86,7 @@ L import-anki --file "$T/anki.json" > /dev/null 2>&1 && ok "import-anki" || bad 
 cat > "$T/knownforms.md" <<'KF'
 He **cannot** **whistle** near the **candle**; the **tremble** and the **sore** finger end by morning. She **allocates** wax to the **candle**, and the **whistle** returns when the **tremble** ends. He **cannot** sing, so the **sore** throat waits, and the **whistle** sleeps.
 KF
-echo '{"topic":"kf","targets":["whistle","candle","tremble","sore"],"reunion":["allocate"],"names":[]}' > "$T/knownforms.json"
+echo '{"topic":"kf","targets":["whistle","candle","tremble","sore"],"reunion":["allocate"],"names":[],"predicted":{"vocab":2,"syntax":1,"discourse":1,"background":1}}' > "$T/knownforms.json"
 node "$S/passage-check.mjs" --passage "$T/knownforms.md" --meta "$T/knownforms.json" --state-dir "$STATE" --min-words 1 --max-words 9999 --max-rate 100 > "$T/kf.json" 2>/dev/null
 python3 -c "
 import json,sys
@@ -232,6 +232,48 @@ git -C "$SHIPR" add -A && git -C "$SHIPR" -c user.name=t -c user.email=t@t commi
 echo y > "$SHIPR/scripts/another-rule.mjs"
 SHIPW "origin-baseline" > "$T/s5.out" 2> "$T/s5.err"
 grep -q '"shipped": true' "$T/s5.out" && ok "ship version-leg compares to origin/main (unpushed bump honored)" || bad "version-leg baseline: $(cat "$T/s5.err")"
+
+echo "== predicted load profile (v1.13.0) =="
+# missing predicted -> hard FAIL
+python3 -c "import json;m=json.load(open('$T/meta.json'));del m['predicted'];json.dump(m,open('$T/meta-nopredict.json','w'))"
+PC "$T/passage.md" "$T/meta-nopredict.json" > "$T/np.json" 2>/dev/null
+grepj 'meta.predicted required' "$T/np.json" && ok "missing predicted rejected" || bad "predicted requirement missing"
+# out-of-range dimension -> hard FAIL
+python3 -c "import json;m=json.load(open('$T/meta.json'));m['predicted']['vocab']=5;json.dump(m,open('$T/meta-badpredict.json','w'))"
+PC "$T/passage.md" "$T/meta-badpredict.json" > "$T/bp.json" 2>/dev/null
+grepj 'predicted.vocab must be an integer 1-3' "$T/bp.json" && ok "out-of-range predicted dimension rejected" || bad "predicted range check missing"
+# pend stores predicted on the session
+L pend --meta "$T/meta.json" > "$T/pp.json" 2>/dev/null
+PPSID=$(python3 -c "import json;print(json.load(open('$T/pp.json'))['session'])")
+python3 -c "
+import json
+s = json.load(open('$STATE/state.json'))
+sess = [x for x in s['sessions'] if x['id'] == '$PPSID'][0]
+assert sess['predicted'] == {'vocab':2,'syntax':2,'discourse':2,'background':1}, sess.get('predicted')
+" && ok "pend stores predicted on session" || bad "pend predicted passthrough"
+# archive writes predicted into frontmatter
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/pp_rep.json" > /dev/null 2>&1
+L archive --session "$PPSID" --passage "$T/passage.md" --report "$T/pp_rep.json" > /dev/null 2>&1
+grepj '^predicted: { vocab: 2, syntax: 2, discourse: 2, background: 1 }$' "$STATE/passages/$PPSID.md" && ok "archive frontmatter carries predicted" || bad "archive predicted line"
+# context feel: hold tier, no syntaxCalm arm, streak reset — record only
+# (spec wrote "tier": 1; at this point the suite's tier is 2 from the flow-promotion test,
+#  so we assert the invariant confirm must NOT move: tier unchanged from before)
+TIER_BEFORE=$(python3 -c "import json;print(json.load(open('$STATE/state.json'))['difficulty']['tier'])")
+L pend --meta "$T/meta.json" > "$T/pp2.json" 2>/dev/null
+PPSID2=$(python3 -c "import json;print(json.load(open('$T/pp2.json'))['session'])")
+L confirm --session "$PPSID2" --score 3/3 --feel context > "$T/ctx.json" 2>/dev/null
+grepj "\"tier\": $TIER_BEFORE" "$T/ctx.json" && grepj '"syntaxCalm": 0' "$T/ctx.json" && grepj '"streakGood": 0' "$T/ctx.json" \
+  && ok "context feel holds tier, arms no syntaxCalm (record-only)" || bad "context routing"
+# pool calibration: counted sessions with predicted appear with feel+score
+L pool --limit 4 > "$T/pool_cal.json" 2>/dev/null
+python3 -c "
+import json
+d = json.load(open('$T/pool_cal.json'))
+cal = d.get('calibration')
+assert isinstance(cal, list) and len(cal) >= 1, 'calibration missing'
+hit = [c for c in cal if c['session'] == '$PPSID2']
+assert hit and hit[0]['feel'] == 'context' and hit[0]['predicted']['vocab'] == 2, hit
+" && ok "pool exposes calibration pairs (predicted + feel + score)" || bad "calibration exposure"
 
 echo "== archive (scripted step-6) =="
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/rep_ok.json" > /dev/null 2>&1

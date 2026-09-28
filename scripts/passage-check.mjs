@@ -75,6 +75,7 @@ const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
 const targets = (meta.targets || []).map((w) => w.toLowerCase());
 const reunion = new Set((meta.reunion || []).map((w) => w.toLowerCase()));
 const names = new Set((meta.names || []).map((w) => w.toLowerCase()));
+const DIMS = ['vocab', 'syntax', 'discourse', 'background'];
 
 // strip markdown structure but keep bold spans for the highlight check
 const boldSpans = [...raw.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].toLowerCase());
@@ -245,6 +246,18 @@ for (const t of targets) {
 }
 const reunionUsed = [...reunion].filter((r) => candidates0(r) && tokens.some((t) => candidates0(t.toLowerCase().replace(/['’].*$/, '')) === candidates0(r)));
 if (reunion.size && !reunionUsed.length) warn.push('declared reunion words never appeared in prose');
+
+// predicted load profile (v1.13.0): the agent's pre-registered self-assessment against
+// references/difficulty-rubric.md. Script checks SHAPE only — the score is judgment, not measurement.
+const p = meta.predicted;
+if (!p || typeof p !== 'object') {
+  fail.push('meta.predicted required: {"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3} — see references/difficulty-rubric.md');
+} else {
+  for (const d of DIMS) {
+    if (!Number.isInteger(p[d]) || p[d] < 1 || p[d] > 3)
+      fail.push(`meta.predicted.${d} must be an integer 1-3, got ${JSON.stringify(p[d])}`);
+  }
+}
 
 // ---------- report ----------
 const report = {
