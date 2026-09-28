@@ -123,6 +123,13 @@ node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f))
 L pool --limit 4 > "$T/pool_sort.json" 2>/dev/null
 node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_sort.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('service ') ? 0 : 1)" \
   && ok "mustReuse sorts longest-unseen first (6d beats 3d)" || bad "mustReuse sort direction"
+# v1.14.0 graduation-priority: 2/6 seen 3d ago must outrank 1/6 seen 6d ago (exposure beats recency;
+# the line above stays green because there all depths tie and longest-unseen is the tiebreaker)
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=2;require('fs').writeFileSync(f,JSON.stringify(s))"
+L pool --limit 4 > "$T/pool_grad.json" 2>/dev/null
+node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_grad.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('measure ') ? 0 : 1)" \
+  && ok "mustReuse puts closest-to-graduation first (2/6@3d beats 1/6@6d)" || bad "graduation-priority sort"
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=1;require('fs').writeFileSync(f,JSON.stringify(s))"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")

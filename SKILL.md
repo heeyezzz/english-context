@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.13.0
+version: 1.14.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -47,10 +47,12 @@ alive in fresh contexts.
    must still differ from `recent`.
 4. **Targets:** `ledger.mjs pool --limit 12` returns `mustReuse`, `fresh`, and `recent`. Fill the
    quota — **4–5 words total
-   at every tier** (never 3+3): **2–3 words from
-   `mustReuse`** (in-progress words whose cooldown has passed and that were not counted today —
-   longest-unseen first; skip one only if the topic truly cannot host it) + **2–3 words from `fresh`**
-   (never-used tier-level candidates). **Anti-repeat:** the chosen target set must not exactly equal
+   at every tier**: **3–4 words from
+   `mustReuse`** (in-progress words past their cooldown and not counted today — **graduation-priority:
+   closest to 6/6 first, longest-unseen breaks ties** (v1.14.0, learner-approved: the queue must
+   drain, 12 passages had produced 0 graduations); skip one only if the topic truly cannot host it) + **1–2 words from `fresh`**
+   (never-used tier-level candidates; tightened from 2–3 — new words wait while near-graduation words
+   are harvested). **Anti-repeat:** the chosen target set must not exactly equal
    any `recent` entry's targets (partial overlap is fine) — on an exact hit, redraw from `fresh`.
    On a binge day `mustReuse` empties out (everything counted today
    sleeps) — then fill the whole quota from `fresh`; never refuse to generate, and mention

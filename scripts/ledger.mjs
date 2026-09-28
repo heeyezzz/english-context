@@ -217,7 +217,10 @@ else if (cmd === 'pool') {
   // and never on a day it already counted (same-day lock) — binge days fill with fresh words instead
   const eligible = inFlight.filter(([, e]) => e.last !== today && daysSince(e.last) >= (COOLDOWN_DAYS[e.exposures] || 1));
   const mustReuse = eligible
-    .sort((a, b) => (daysSince(b[1].last) - daysSince(a[1].last)) || (b[1].exposures - a[1].exposures))
+    // v1.14.0 graduation-priority (learner-approved after the backlog math showed
+    // 12 passages -> 0 graduations under fair rotation): closest-to-6 first,
+    // longest-unseen only breaks ties (so same-depth words still starve-proof).
+    .sort((a, b) => (b[1].exposures - a[1].exposures) || (daysSince(b[1].last) - daysSince(a[1].last)))
     .slice(0, 8)
     .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}${e.last ? `, ${daysSince(e.last)}d unseen` : ''})`);
   // deterministic rotation by date so the same day shows the same sample
@@ -248,7 +251,7 @@ else if (cmd === 'pool') {
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：2–3 个 mustReuse（主题装不下的可跳过，但整篇至少带 1 个）+ 2–3 个 fresh；三档统一总数 4–5（不得 3+3），照旧过硬闸。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）；校准（起草前必读 calibration）：这是最近 counted 篇的"你预测的四维负荷 vs 学习者实际体感"对账——连续估偏同一维度同一方向，下次画像时把锚点反向调',
+    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；三档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）；校准（起草前必读 calibration）：这是最近 counted 篇的"你预测的四维负荷 vs 学习者实际体感"对账——连续估偏同一维度同一方向，下次画像时把锚点反向调',
   }, null, 2));
 }
 
