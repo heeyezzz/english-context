@@ -566,15 +566,16 @@ for(const [axis,v] of Object.entries({词汇:4,句子:1,衔接:2,话题:1})){
 
 # the panel must be rendered from a FIXED template, not improvised per agent (v1.26.0): the file
 # has to exist, be linked from SKILL.md, cover all four axes, name every fill source, and keep the
-# two hard rules (state the inverted 句法 direction; never read gateFlags aloud).
+# hard rules (state the inverted 句法 direction; never read gateFlags aloud; the panel is
+# rendered markdown — 代码块 must stay named in the file so nobody re-fences the table).
 TPL="$SKILL_DIR/references/panel-templates.md"
 [ -f "$TPL" ] && ok "panel template file exists" || bad "panel-templates.md missing"
 grepj 'references/panel-templates.md' "$SKILL_DIR/SKILL.md" && ok "SKILL.md links the panel template" || bad "template not linked"
 miss=""
-for k in 词汇 句子 衔接 话题 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 相反 不念; do
+for k in 词汇 句子 衔接 话题 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 相反 不念 代码块; do
   grepj "$k" "$TPL" || miss="$miss $k"
 done
-[ -z "$miss" ] && ok "template covers all four axes, every fill source, and both hard rules" || bad "template missing:$miss"
+[ -z "$miss" ] && ok "template covers all four axes, every fill source, and its hard rules" || bad "template missing:$miss"
 
 
 echo "== archive (scripted step-6) =="
