@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.24.0
+version: 1.25.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -61,13 +61,16 @@ alive in fresh contexts.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做）：** 读 `pool` 的 `menu` —— 那是完整的多维多档选择面，
-   每个轴列出**全部档位及其含义**，标了 `current: true` 的那一档就是**默认值**
+   每个轴列出**全部档位及其含义**、`set`（可复制的命令）、`direction`（**方向提示：句法那条是反的，
+   必须照着念**），标了 `current: true` 的那一档就是**默认值**
    （= 学习者上次的选择；四轴存在 state.json 里，跨会话、跨机器自动保留，不需要另存）。
+   `pool` 另给 `fixedLimits` —— 不可调的固定红线（篇长/目标词/超纲率/加粗/重逢词），
+   连同四轴一起才构成完整的难度契约，别只念可调的那半。
    把菜单念给学习者听（至少念各轴当前那一行），然后：
    - 他说「句法 3」「语篇松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地
    - 他说「就按默认」→ 什么都不用改
-   - 想确认自动反馈有没有偷偷改过他的选择：`pool` 的 `lastUsed` 是上一篇实际用的档位快照，
-     **与 `menu` 的 current 不同就说明被体感反馈降过档** —— 照实告诉他，别让他以为自己选的值还在。
+   - 每个轴都带 `lastUsed` 与 `driftedSinceLastDraft`：漂移=true 只说明**他改过档、但还没在任何成篇里用过**
+     （v1.22.0 起体感不再调档，所以漂移**不可能**是自动发生的）—— 照实说，别让他以为自己选的值已经生效过。
    冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧）；
    若学习者要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于常规），**以那个更紧的档为准**——愿望不覆盖受挫证据。
    **难度变动 100% 由学习者决定（v1.19.0；v1.22.0 删净余下的自动路由）：** agent **不顶档、不调档、不猜**。

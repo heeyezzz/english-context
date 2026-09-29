@@ -476,13 +476,38 @@ for(const [axis,n] of Object.entries(want)){
 const sizes=m.词汇.rungs.map(r=>+(r.detail.match(/(\d+) 词/)||[])[1]);
 if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("tier rungs not ascending: "+sizes);
 if(!m.背景.note) throw new Error("the unmeasured axis must carry an honesty note");
+// v1.25.0: every axis must state its direction (the index convention is not uniform!), offer a
+// copy-pasteable command, and carry its own lastUsed/drift so no hand-diffing is needed
+for(const [axis,a] of Object.entries(m)){
+  if(!a.direction) throw new Error(axis+" has no direction marker");
+  if(!/^axes --[a-z]+ <\d+–\d+>$/.test(a.set)) throw new Error(axis+" set string malformed: "+a.set);
+  if(!("lastUsed" in a)||!("driftedSinceLastDraft" in a)) throw new Error(axis+" missing drift fields");
+  const vals=a.rungs.map(r=>r.value);
+  if(String(vals[0])!==a.set.match(/<(\d+)/)[1]) throw new Error(axis+" set range disagrees with rungs: "+a.set);
+}
+if(!/相反/.test(m.句法.direction)) throw new Error("句法 direction must flag that it is inverted vs the other axes");
+if(!/越难/.test(m.词汇.direction)||!/越难/.test(m.语篇.direction)||!/越难/.test(m.背景.direction))
+  throw new Error("the three ascending axes must say 数字越大越难");
+if(!/越易/.test(m.句法.direction)) throw new Error("句法 must say 数字越大越易");
+// fixedLimits must describe the non-adjustable contract, and its numbers must MATCH the
+// passage-check LIMITS defaults -- the panel lied once (v1.24.0); this guards against a repeat.
+if(!o.fixedLimits||Object.keys(o.fixedLimits).length<4) throw new Error("fixedLimits missing from the panel");
+const pc=fs.readFileSync(S+"/scripts/passage-check.mjs","utf8");
+const Q=String.fromCharCode(39);
+const def=(k)=>{ const i=pc.indexOf(k+Q); if(i<0) return NaN; const m=pc.slice(i).match(/,\s*(\d+)\)/); return m?+m[1]:NaN; };
+const flat=Object.values(o.fixedLimits).join(" | ");
+for(const k of ["min-words","max-words","max-rate","min-targets","max-targets","min-target-hits"]){
+  const n=def(k);
+  if(!Number.isFinite(n)) throw new Error("could not read LIMITS default for "+k);
+  if(!flat.includes(String(n))) throw new Error("fixedLimits omits the passage-check "+k+" default "+n+" -- the panel would lie");
+}
 // a fresh state must pre-select the defaults, not a stale value
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const d=JSON.parse(L("pool","--limit","1")).menu;
 for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
-' "$SKILL_DIR" "$T3" && ok "menu offers every rung of all four axes, marks one current per axis, default == live state" || bad "diet menu"
+' "$SKILL_DIR" "$T3" && ok "menu: all rungs + one current + direction + set + drift per axis, and fixedLimits matches passage-check LIMITS" || bad "diet menu"
 
 
 echo "== archive (scripted step-6) =="

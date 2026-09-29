@@ -133,38 +133,65 @@ function tierPool(tier) {
 // literally the learner's last choice, carried across sessions and machines for free.
 // The menu is a READOUT that can be acted on: the learner answers with an axis + rung and the
 // agent runs `axes --<axis> <rung>`.
-const menuOut = (s) => {
+// v1.25.0: the menu now states, per axis, (a) which way difficulty runs — the index convention is
+// NOT uniform: 词汇/语篇/背景 are "bigger number = harder" while 句法 is the reverse (it inherited
+// syntaxCalm's "0 = normal, higher = calmer" direction), and without a marker a learner who learns
+// one convention gets the other axis backwards; (b) the copy-pasteable command; (c) lastUsed and
+// whether this axis has drifted since the last draft, so the agent no longer has to diff by hand.
+const lastUsedAxes = (s) => {
+  const c = s.sessions.filter((x) => x.status === 'counted');
+  for (let i = c.length - 1; i >= 0; i--) if (c[i].axes) return c[i].axes;
+  return null;
+};
+const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
   const cur = {
     tier: s.difficulty.tier,
     syntax: clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX),
     cohesion: clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION),
     background: clamp(s.difficulty.background ?? 1, MAX_BACKGROUND),
   };
-  const ladder = (key, rungs) => ({
+  const entry = (key, rungs, direction, extra = {}) => ({
     flag: `--${key}`,
+    set: `axes --${key} <${rungs[0].value}–${rungs[rungs.length - 1].value}>`,
+    direction,
     current: cur[key],
-    rungs: rungs.map((r, i) => ({ value: i, label: r.label, detail: r.detail ?? null, current: cur[key] === i })),
+    lastUsed: lastUsed ? (lastUsed[key] ?? null) : null,
+    driftedSinceLastDraft: lastUsed ? lastUsed[key] !== cur[key] : false,
+    rungs: rungs.map((r) => ({ ...r, current: cur[key] === r.value })),
+    ...extra,
   });
   return {
-    词汇: {
-      flag: '--tier',
-      current: cur.tier,
-      note: '只能手动点菜（v1.22.0 起没有自动升档）。词池的过滤规则本身仍在脚本闸门内',
-      rungs: Object.entries(TIERS).map(([n, t]) => ({ value: +n, label: t.label, detail: `${tierPool(t).size} 词`, current: cur.tier === +n })),
-    },
-    句法: ladder('syntax', SYNTAX_LADDER.map((r) => ({
-      label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}`,
-    }))),
-    语篇: ladder('cohesion', COHESION_LADDER.map((r) => ({
-      label: r.label,
-      detail: r.minOverlap || r.minConnectives
-        ? `重叠≥${r.minOverlap} 连接词≥${r.minConnectives}`
-        : (r.maxOverlap !== 1 || r.maxConnectives !== 99
-          ? `重叠≤${r.maxOverlap} 连接词≤${r.maxConnectives}`
-          : '无约束'),
-    }))),
-    背景: { ...ladder('background', BACKGROUND_LADDER.map((label) => ({ label }))), note: '无硬闸：靠选题兑现，脚本量不到。体感也只记录、不再调档（v1.22.0 删安全阀后此轴同样只由点菜改变）' },
+    词汇: entry('tier',
+      Object.entries(TIERS).map(([n, t]) => ({ value: +n, label: t.label, detail: `${tierPool(t).size} 词` })),
+      '数字越大越难（词池越大，允许出现的生僻词越多）',
+      { note: '只能手动点菜（v1.22.0 起没有自动升档）。词池的过滤规则本身仍在脚本闸门内' }),
+    句法: entry('syntax',
+      SYNTAX_LADDER.map((r, i) => ({ value: i, label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}` })),
+      '⚠️ 数字越大「越易」（句子越短、小句越少）—— 与本面板其他三轴相反'),
+    语篇: entry('cohesion',
+      COHESION_LADDER.map((r, i) => ({
+        value: i, label: r.label,
+        detail: r.minOverlap || r.minConnectives
+          ? `重叠≥${r.minOverlap} 连接词≥${r.minConnectives}`
+          : (r.maxOverlap !== 1 || r.maxConnectives !== 99
+            ? `重叠≤${r.maxOverlap} 连接词≤${r.maxConnectives}`
+            : '无约束'),
+      })),
+      '数字越大越难（衔接越少，越要自己补关系）'),
+    背景: entry('background',
+      BACKGROUND_LADDER.map((label, i) => ({ value: i, label })),
+      '数字越大越难（话题越陌生）',
+      { note: '无硬闸：靠选题兑现，脚本量不到。体感也只记录、不再调档（v1.22.0 删安全阀后此轴同样只由点菜改变）' }),
   };
+};
+// 不可调的固定红线。数值的**真源是 passage-check.mjs 的 LIMITS 默认值**——这里只是把它念出来，
+// 好让 agent 不必去翻 SKILL.md。测试会断言两边的数字一致，防止面板又说谎（v1.24.0 的教训）。
+const FIXED_LIMITS = {
+  篇长: '250–350 词',
+  目标词: '4–5 个，每个复现 ≥2 次，且每个至少加粗一次',
+  超纲率: '≤4%（targets 才算；重逢词/白名单/已学词不占额度）',
+  未申报超纲词: '0（任何超 A2 的词都必须是 target / 重逢词 / 白名单 / 已知词）',
+  声明的重逢词: '必须至少出现一次',
 };
 
 // One-time migration of pre-v1.15.0 tier numbers (state.version < 2). Old tier 1 was
@@ -417,8 +444,11 @@ else if (cmd === 'pool') {
     // The default the menu pre-selects is the live state, i.e. the learner's last choice; when
     // feedback-driven drift has since moved an axis, lastUsed shows what the last DRAFT actually
     // ran with, so a silent softening is visible instead of surprising.
-    lastUsed: history.find((x) => x.axes)?.axes ?? null,
+    lastUsed: lastUsedAxes(s),
     menu: menuOut(s),
+    // Non-adjustable red lines, so the panel is self-contained instead of sending the agent to
+    // SKILL.md for the half of the difficulty contract that no axis controls.
+    fixedLimits: FIXED_LIMITS,
     // v1.23.0: throttled only (24h). This used to force a fetch on every call because pool is the
     // last checkpoint before drafting — but that put an 8s-timeout network request on the drafting
     // path for a benefit (seeing the other machine's push one passage sooner) that a daily reading
