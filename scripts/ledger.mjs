@@ -38,7 +38,7 @@ const TIERS = {
 const MAX_TIER = 8;
 // v1.16.0 — 句式档 5 档（v1.15.0 是 4 档，且只卡句长）。句长轴过去是饱和的：实测 13 篇
 // 存量档平均句长 8.8 词而上限是 12，几乎没有咬合；真正的难度藏在「小句密度」里
-// （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句法包」：
+// （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句子包」：
 // 句长 + 每句小句数 + 全篇被动句数一起收紧。索引 1 = 常规（默认，各项均不咬合存量档），
 // 0 是放宽档（双向）。clauses/passives 的上限取自 13 篇存档的实测分布，不是猜的。
 const SYNTAX_LADDER = [
@@ -50,7 +50,7 @@ const SYNTAX_LADDER = [
 ];
 const MAX_SYNTAX = SYNTAX_LADDER.length - 1;
 const SANE_SYNTAX = 1; // 常规：新台账的起点、旧 syntaxCalm=0 的映射目标、以及台账缺字段时的读取兜底（v1.22.0 起不再有任何自动衰减）
-// v1.16.0 — 语篇档 4 档，**双向**：易端设衔接下限，难端设衔接上限。
+// v1.16.0 — 衔接档 4 档，**双向**：易端设衔接下限，难端设衔接上限。
 // 只设下限是不行的：实测邻句实词重叠率中位仅 0.035（区间 0.006–0.133），任何有意义的默认
 // 下限都会否掉一半存量档，等于偷偷改了校准过的默认行为。所以默认档（2）不设约束，
 // 「更难」= 主动少用显性衔接（重叠 ≤0.03、连接词 ≤0.30），让读者自己补关系；
@@ -100,9 +100,9 @@ const difficultyOut = (s) => {
     tier: s.difficulty.tier,
     axes: {
       词汇: `tier ${s.difficulty.tier}/8 · ${t.label}`,
-      句法: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
-      语篇: `cohesion ${s.difficulty.cohesion ?? SANE_COHESION}/3 · ${co.label} · ${cohesionText(co)}`,
-      背景: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
+      句子: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
+      衔接: `cohesion ${s.difficulty.cohesion ?? SANE_COHESION}/3 · ${co.label} · ${cohesionText(co)}`,
+      话题: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
     },
     gateFlags: gateFlags(s),
   };
@@ -134,7 +134,7 @@ function tierPool(tier) {
 // The menu is a READOUT that can be acted on: the learner answers with an axis + rung and the
 // agent runs `axes --<axis> <rung>`.
 // v1.25.0: the menu now states, per axis, (a) which way difficulty runs — the index convention is
-// NOT uniform: 词汇/语篇/背景 are "bigger number = harder" while 句法 is the reverse (it inherited
+// NOT uniform: 词汇/衔接/话题 are "bigger number = harder" while 句子 is the reverse (it inherited
 // syntaxCalm's "0 = normal, higher = calmer" direction), and without a marker a learner who learns
 // one convention gets the other axis backwards; (b) the copy-pasteable command; (c) lastUsed and
 // whether this axis has drifted since the last draft, so the agent no longer has to diff by hand.
@@ -165,10 +165,10 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
       Object.entries(TIERS).map(([n, t]) => ({ value: +n, label: t.label, detail: `${tierPool(t).size} 词` })),
       '数字越大越难（词池越大，允许出现的生僻词越多）',
       { note: '只能手动点菜（v1.22.0 起没有自动升档）。词池的过滤规则本身仍在脚本闸门内' }),
-    句法: entry('syntax',
+    句子: entry('syntax',
       SYNTAX_LADDER.map((r, i) => ({ value: i, label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}` })),
       '⚠️ 数字越大「越易」（句子越短、小句越少）—— 与本面板其他三轴相反'),
-    语篇: entry('cohesion',
+    衔接: entry('cohesion',
       COHESION_LADDER.map((r, i) => ({
         value: i, label: r.label,
         detail: r.minOverlap || r.minConnectives
@@ -178,7 +178,7 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
             : '无约束'),
       })),
       '数字越大越难（衔接越少，越要自己补关系）'),
-    背景: entry('background',
+    话题: entry('background',
       BACKGROUND_LADDER.map((label, i) => ({ value: i, label })),
       '数字越大越难（话题越陌生）',
       { note: '无硬闸：靠选题兑现，脚本量不到。体感也只记录、不再调档（v1.22.0 删安全阀后此轴同样只由点菜改变）' }),

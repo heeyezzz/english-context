@@ -61,7 +61,7 @@
 
 | 面板上写的 | 取自 |
 |---|---|
-| 词汇 / 句子 / 衔接 / 话题 | `menu.词汇` / `menu.句法` / `menu.语篇` / `menu.背景` |
+| 词汇 / 句子 / 衔接 / 话题 | 就是 `menu` 的四个键名（已改成白话；底层存储字段仍是 `tier/syntax/cohesion/background`） |
 | 现在 | `menu[项].current`（档名取 `rungs[].label` 里 `current: true` 那条） |
 | 数字越大… | `menu[项].direction` |
 | 上次实际用的 | `menu[项].lastUsed`；与 `current` 相同就写「一样」。是否不同看 `menu[项].driftedSinceLastDraft` |
@@ -70,8 +70,8 @@
 | 固定要求 | `fixedLimits`（**五项都要，别只念一半**） |
 | （**不念**） | `gateFlags` —— 只给 passage-check，**不念给学习者**（念了是噪声） |
 
-**注意：面板上四个名字是给人看的白话，`menu` 里仍是 `词汇/句法/语篇/背景`。** 别把 `句法` 念出来、
-也别把 `句子` 当字段名去取。
+**注意：`menu` 的键名已经是白话了**（词汇 / 句子 / 衔接 / 话题），念出来和取字段用同一套词，
+不再需要翻译。底层存储字段名仍是英文（`tier/syntax/cohesion/background`），那是数据层、不经面板。
 
 ## 三条硬规矩
 

@@ -103,7 +103,7 @@ grepj '"pending"' "$T/st.json" && ok "pool lists pending sessions (status was fo
 check "confirm unknown id refused" 1 L confirm --session definitely-not-here
 L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
 grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
-grepj '"句法": "syntax 1/4' "$T/cf.json" && ok "ok feedback leaves the syntax rung at 常规 (1/4)" || bad "syntax rung on ok"
+grepj '"句子": "syntax 1/4' "$T/cf.json" && ok "ok feedback leaves the syntax rung at 常规 (1/4)" || bad "syntax rung on ok"
 grepj '"tier": 4' "$T/cf.json" && ok "single good session does not promote (tier stays at the v1.16.0 start of 4)" || bad "premature promotion"
 # ok = i+1 equilibrium: it holds the tier and never accumulates a promotion streak
 L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
@@ -134,12 +134,12 @@ node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f))
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
 L confirm --session "$SID2" --score 3/3 --feel dense > "$T/cf2.json" 2>/dev/null
-grepj '"tier": 4' "$T/cf2.json" && grepj '"句法": "syntax 1/4' "$T/cf2.json" && ok "dense changes NOTHING (v1.22.0: no auto-routing; feel is pure record)" || bad "dense routing"
+grepj '"tier": 4' "$T/cf2.json" && grepj '"句子": "syntax 1/4' "$T/cf2.json" && ok "dense changes NOTHING (v1.22.0: no auto-routing; feel is pure record)" || bad "dense routing"
 # wordy: vocabulary overload never RE-ARMS the calmer; it only consumes the calm budget (dense's 2 -> 1)
 L pend --meta "$T/meta.json" > /dev/null 2>&1
 SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
 L confirm --session "$SID3" --score 3/3 --feel wordy > "$T/cf3.json" 2>/dev/null
-grepj '"tier": 4' "$T/cf3.json" && grepj '"句法": "syntax 1/4' "$T/cf3.json" && ok "wordy changes NOTHING either — no axis is demoted automatically" || bad "wordy routing"
+grepj '"tier": 4' "$T/cf3.json" && grepj '"句子": "syntax 1/4' "$T/cf3.json" && ok "wordy changes NOTHING either — no axis is demoted automatically" || bad "wordy routing"
 L confirm --session "$SID2" --state-dir "$STATE" >/dev/null 2>&1 && bad "double confirm accepted" || ok "double confirm refused"
 # void also removes the archived passage file (pend 写、void 删)
 L pend --meta "$T/meta.json" > "$T/p_v.json" 2>/dev/null
@@ -376,7 +376,7 @@ for(const [old,want] of Object.entries({1:4,2:8,3:8})){
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:2,difficulty:{tier:3,syntaxCalm:2,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 if(o.tier!==4) throw new Error("v1.15.0 tier 3 -> "+o.tier+", want 4");
-if(!/syntax 3\/4/.test(o.axes.句法)) throw new Error("syntaxCalm 2 did not become rung 3: "+o.axes.句法);
+if(!/syntax 3\/4/.test(o.axes.句子)) throw new Error("syntaxCalm 2 did not become rung 3: "+o.axes.句子);
 ' "$SKILL_DIR" "$T2" && ok "pre-v1.16.0 state migrates (old 1->4, 2/3->8; syntaxCalm 2 -> rung 3)" || bad "tier migration"
 
 # v1.22.0 invariant: NO feel value and NO score moves an axis. This is the whole contract —
@@ -411,7 +411,7 @@ const syn=[
 syn.forEach(([flags,label],i)=>{
   const o=L("axes","--syntax",String(i));
   if(!o.gateFlags.startsWith(flags)) throw new Error("syntax "+i+" gateFlags: "+o.gateFlags);
-  if(!o.axes.句法.startsWith(label)) throw new Error("syntax "+i+" label: "+o.axes.句法);
+  if(!o.axes.句子.startsWith(label)) throw new Error("syntax "+i+" label: "+o.axes.句子);
 });
 const coh=[
  ["--min-overlap 0.07 --min-connectives 0.48 --max-overlap 1 --max-connectives 99","cohesion 0/3"],
@@ -422,7 +422,7 @@ const coh=[
 coh.forEach(([flags,label],i)=>{
   const o=L("axes","--cohesion",String(i));
   if(!o.gateFlags.endsWith(flags)) throw new Error("cohesion "+i+" gateFlags: "+o.gateFlags);
-  if(!o.axes.语篇.startsWith(label)) throw new Error("cohesion "+i+" label: "+o.axes.语篇);
+  if(!o.axes.衔接.startsWith(label)) throw new Error("cohesion "+i+" label: "+o.axes.衔接);
 });
 ' "$SKILL_DIR" "$T3" && ok "every syntax/cohesion rung emits its documented gate flags (manual ladder is the only path)" || bad "rung table"
 
@@ -431,7 +431,7 @@ node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
-for(const k of ["词汇","句法","语篇","背景"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
+for(const k of ["词汇","句子","衔接","话题"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
 if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99")
   throw new Error("gateFlags mismatch at the default rung: "+o.gateFlags);
 ' "$SKILL_DIR" "$T3" && ok "four axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
@@ -443,9 +443,9 @@ const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-di
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(L("axes","--tier","6","--cohesion","3","--background","0"));
 if(o.changed.tier!==6||o.changed.cohesion!==3||o.changed.background!==0) throw new Error("changed "+JSON.stringify(o.changed));
-if(!/cohesion 3\/3/.test(o.axes.语篇)) throw new Error(o.axes.语篇);
+if(!/cohesion 3\/3/.test(o.axes.衔接)) throw new Error(o.axes.衔接);
 if(!/max-overlap 0.03/.test(o.gateFlags)) throw new Error(o.gateFlags);
-if(o.axes.句法.match(/syntax (\d)/)[1]!=="1") throw new Error("untouched axis moved");
+if(o.axes.句子.match(/syntax (\d)/)[1]!=="1") throw new Error("untouched axis moved");
 const bad=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--tier","9","--state-dir",dir,"--no-sync"],{encoding:"utf8"});
 if(bad.status===0) throw new Error("out-of-range tier accepted");
 const empty=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--state-dir",dir,"--no-sync"],{encoding:"utf8"});
@@ -461,8 +461,8 @@ fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:5,
 const o=JSON.parse(L("pool","--limit","1"));
 const m=o.menu;
 if(!m) throw new Error("menu missing from pool");
-const want={词汇:8,句法:5,语篇:4,背景:3};
-const live={词汇:5,句法:3,语篇:1,背景:0};
+const want={词汇:8,句子:5,衔接:4,话题:3};
+const live={词汇:5,句子:3,衔接:1,话题:0};
 for(const [axis,n] of Object.entries(want)){
   const a=m[axis];
   if(!a) throw new Error("axis missing from menu: "+axis);
@@ -475,7 +475,7 @@ for(const [axis,n] of Object.entries(want)){
 }
 const sizes=m.词汇.rungs.map(r=>+(r.detail.match(/(\d+) 词/)||[])[1]);
 if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("tier rungs not ascending: "+sizes);
-if(!m.背景.note) throw new Error("the unmeasured axis must carry an honesty note");
+if(!m.话题.note) throw new Error("the unmeasured axis must carry an honesty note");
 // v1.25.0: every axis must state its direction (the index convention is not uniform!), offer a
 // copy-pasteable command, and carry its own lastUsed/drift so no hand-diffing is needed
 for(const [axis,a] of Object.entries(m)){
@@ -485,10 +485,10 @@ for(const [axis,a] of Object.entries(m)){
   const vals=a.rungs.map(r=>r.value);
   if(String(vals[0])!==a.set.match(/<(\d+)/)[1]) throw new Error(axis+" set range disagrees with rungs: "+a.set);
 }
-if(!/相反/.test(m.句法.direction)) throw new Error("句法 direction must flag that it is inverted vs the other axes");
-if(!/越难/.test(m.词汇.direction)||!/越难/.test(m.语篇.direction)||!/越难/.test(m.背景.direction))
+if(!/相反/.test(m.句子.direction)) throw new Error("句法 direction must flag that it is inverted vs the other axes");
+if(!/越难/.test(m.词汇.direction)||!/越难/.test(m.衔接.direction)||!/越难/.test(m.话题.direction))
   throw new Error("the three ascending axes must say 数字越大越难");
-if(!/越易/.test(m.句法.direction)) throw new Error("句法 must say 数字越大越易");
+if(!/越易/.test(m.句子.direction)) throw new Error("句法 must say 数字越大越易");
 // fixedLimits must describe the non-adjustable contract, and its numbers must MATCH the
 // passage-check LIMITS defaults -- the panel lied once (v1.24.0); this guards against a repeat.
 if(!o.fixedLimits||Object.keys(o.fixedLimits).length<4) throw new Error("fixedLimits missing from the panel");
@@ -504,7 +504,7 @@ for(const k of ["min-words","max-words","max-rate","min-targets","max-targets","
 // a fresh state must pre-select the defaults, not a stale value
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const d=JSON.parse(L("pool","--limit","1")).menu;
-for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1})){
+for(const [axis,v] of Object.entries({词汇:4,句子:1,衔接:2,话题:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
 ' "$SKILL_DIR" "$T3" && ok "menu: all rungs + one current + direction + set + drift per axis, and fixedLimits matches passage-check LIMITS" || bad "diet menu"
@@ -516,7 +516,7 @@ TPL="$SKILL_DIR/references/panel-templates.md"
 [ -f "$TPL" ] && ok "panel template file exists" || bad "panel-templates.md missing"
 grepj 'references/panel-templates.md' "$SKILL_DIR/SKILL.md" && ok "SKILL.md links the panel template" || bad "template not linked"
 miss=""
-for k in 词汇 句法 语篇 背景 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 相反 不念; do
+for k in 词汇 句子 衔接 话题 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 相反 不念; do
   grepj "$k" "$TPL" || miss="$miss $k"
 done
 [ -z "$miss" ] && ok "template covers all four axes, every fill source, and both hard rules" || bad "template missing:$miss"
