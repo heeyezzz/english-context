@@ -68,9 +68,10 @@ const COHESION_LADDER = [
 const MAX_COHESION = COHESION_LADDER.length - 1;
 const SANE_COHESION = 2;
 // 背景档不由脚本测量（需要读者模型），只由 agent 在选题时兑现，并在 archive 时进 frontmatter
-// 让人事后看得到。它有一条真实的反馈回路：context 体感 → 背景档 −1。
-// v1.20.0 删掉了题型档（quiz）：它同样没有硬闸，但**连反馈回路都没有**——5 轴里唯一
-// 「既不能自动纠偏、也不能验证」的。而且研究里题型对题目难度的预测力很弱
+// 让人事后看得到。它**没有硬闸**——而 v1.22.0 删安全阀之后，它连"体感自动纠偏"这条软回路
+// 也没有了：四根轴一律只由 `axes` 手动改变。
+// v1.20.0 删掉了题型档（quiz）：它当时是 5 轴里唯一「既不能自动纠偏、也不能验证」的，
+// 而且研究里题型对题目难度的预测力很弱
 // （Spencer et al. 2018：题目处理需求对 item difficulty 预测力弱，genre 才是头号 passage 特征）。
 const BACKGROUND_LADDER = ['兴趣内话题', '通识话题', '新领域话题'];
 const MAX_BACKGROUND = BACKGROUND_LADDER.length - 1;
@@ -162,7 +163,7 @@ const menuOut = (s) => {
           ? `重叠≤${r.maxOverlap} 连接词≤${r.maxConnectives}`
           : '无约束'),
     }))),
-    背景: { ...ladder('background', BACKGROUND_LADDER.map((label) => ({ label }))), note: '无硬闸：靠选题兑现，但有反馈回路（context 体感 → 背景档 −1）' },
+    背景: { ...ladder('background', BACKGROUND_LADDER.map((label) => ({ label }))), note: '无硬闸：靠选题兑现，脚本量不到。体感也只记录、不再调档（v1.22.0 删安全阀后此轴同样只由点菜改变）' },
   };
 };
 
