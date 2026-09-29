@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.30.0
+version: 1.31.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -46,18 +46,18 @@ alive in fresh contexts.
    different cast of the same story does not count. Learner-forced topics proceed, but the angle
    must still differ from `recent`.
 4. **Targets:** `ledger.mjs pool --limit 12` returns `mustReuse`, `fresh`, and `recent`. Fill the
-   quota — **4–5 words total
-   at every tier**: **3–4 words from
-   `mustReuse`** (in-progress words past their cooldown and not counted today — **graduation-priority:
-   closest to 6/6 first, longest-unseen breaks ties** (v1.14.0, learner-approved: the queue must
-   drain, 12 passages had produced 0 graduations); skip one only if the topic truly cannot host it) + **1–2 words from `fresh`**
-   (never-used tier-level candidates; tightened from 2–3 — new words wait while near-graduation words
-   are harvested). **Anti-repeat:** the chosen target set must not exactly equal
-   any `recent` entry's targets (partial overlap is fine) — on an exact hit, redraw from `fresh`.
-   On a binge day `mustReuse` empties out (everything counted today
-   sleeps) — then fill the whole quota from `fresh`; never refuse to generate, and mention
-   `inFlight`/`sleeping` when the learner is reading several passages in one day.
-   Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
+   quota — **read `quota` from pool, don't hardcode it**: normally `{mustReuse:[3,4], fresh:[1,2]}`
+   (total **4–5 at every tier**); once the queue saturates, pool returns
+   `{mustReuse:[4,5], fresh:[0,0]}` and you take **no new words at all**.
+   `mustReuse` words are **graduation-priority: closest to 6/6 first, longest-unseen breaks ties**
+   (v1.14.0, learner-approved: the queue must drain); skip one only if the topic truly cannot host it,
+   but keep at least 1 in the passage. `fresh` words are never-used tier-level candidates.
+   **Binge reading no longer empties `mustReuse`** — since v1.31.0 the gap is in hours, so a word can
+   come back the same day. If `mustReuse` genuinely runs short, fill from `fresh`; never refuse to
+   generate, and mention `inFlight`/`sleeping`/`saturated` when several passages run in one day.
+   **Anti-repeat:** the chosen target set must not exactly equal any `recent` entry's targets
+   (partial overlap is fine) — on an exact hit, redraw from `fresh`.
+   Learner-specified words always win and count toward the quota, and are subject to the hour gap.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做）：** 读 `pool` 的 `menu`（四轴全部档位 + `direction` + `set`
@@ -176,10 +176,12 @@ the learner explicitly asks for.
 
 | Rule | Value |
 |---|---|
-| Cooldown ladder | a word may return only after `1/6→1d, 2/6→1d, 3/6→2d, 4/6→3d, 5/6→4d` since its last exposure |
-| Same-day lock | **max one exposure per word per calendar day** — a second same-day appearance is still read (and can be a reunion word) but does not increment |
-| Consequence | graduation inherently spans ≥6 distinct days; binge reading fills with fresh words instead of massing the same ones |
-| Reporting | `confirm` returns `lockedToday` for words that did not count; `pool` returns `inFlight` (words 1–5/6) and `sleeping` (in cooldown or counted today) |
+| Cooldown ladder | a word may return only after `1/6→6h, 2/6→6h, 3/6→12h, 4/6→24h, 5/6→36h` since its last exposure |
+| Same-day lock | **retired in v1.31.0** — any sub-24h gap is inert while "one exposure per calendar day" stands, so the two rules were merged into the hour ladder above. A word may now count twice in one day once its gap has elapsed |
+| Consequence | shortest first-to-sixth span is **3.5 days** (was 11 calendar days, which is why nothing graduated in the ledger's first week) |
+| Reporting | `confirm` returns `tooSoon` (with hours remaining) for words that did not count; `pool` returns `inFlight`, `sleeping`, and `saturated` |
+| Saturation valve | when `inFlight > 25`, `pool` emits `saturated: true` and `quota: {mustReuse:[4,5], fresh:[0,0]}` — **stop taking new words so the queue can drain**. Deferred by the learner in v1.13.0, switched on in v1.31.0 when the backlog data arrived (35 in flight, 0 exits) |
+| Legacy values | old `last` values are bare dates; they are read as that day 00:00 local, so the first run after upgrading cools every word slightly earlier than the day-based rule did |
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 

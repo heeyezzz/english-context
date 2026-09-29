@@ -20,6 +20,19 @@ const stateFile = join(stateDir, 'state.json');
 const knownFile = join(stateDir, 'known-words.txt');
 const ankiFile = join(stateDir, 'anki-words.json');
 const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD, not UTC
+const nowStamp = () => { // local YYYY-MM-DDTHH:MM — the exposure clock is hour-granular (v1.31.0)
+  const d = new Date(), p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+// A legacy `last` is a bare YYYY-MM-DD: read it as that day at 00:00 local. (Consequence stated in
+// the changelog: the first run after upgrading cools every old word from midnight, i.e. slightly
+// earlier than the day-based rule did.)
+const hoursSince = (v) => {
+  if (!v) return Infinity;
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v + 'T00:00' : v;
+  return (Date.now() - new Date(iso).getTime()) / 3600000;
+};
+const humanGap = (h) => (!isFinite(h) ? '' : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
 
 // v1.16.0 — 8 档单调阶梯（v1.15.0 是 6 档，按纯词频分带）。
 // 词池改按「复合稀有度」分档：assets/word-bands.tsv 里的 band 由 词频 + AoA + 具体性
@@ -108,9 +121,19 @@ const difficultyOut = (s) => {
   };
 };
 const GRADUATE_AT = 6; // graduation threshold; was a --graduate-at flag nothing ever passed (v1.19.0)
-// Reading is recognition, not SRS retrieval: a short ladder beats Anki-style curves
-// (a 14-day top rung would strand words in the queue forever — see backlog math).
-const COOLDOWN_DAYS = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 4 };
+// v1.31.0 — SPACING IS NOW HOUR-GRANULAR (was whole days: 1/1/2/3/4).
+// Why: the day-based ladder made the shortest first-to-sixth-exposure span 11 calendar days, so
+// nothing could graduate in the 7 days the ledger had actually run. The learner chose the
+// aggressive rung: 6/6/12/24/36h → shortest span 3.5 days, and the same-day lock had to go with
+// it (any gap shorter than 24h is inert while "one exposure per calendar day" still stands).
+// Reading is recognition, not SRS retrieval (v1.4.0) — frequent short returns fit that better
+// than long day-rungs anyway. The shape stays increasing: later rungs are still far apart.
+const COOLDOWN_HOURS = { 1: 6, 2: 6, 3: 12, 4: 24, 5: 36 };
+// Saturation valve — the learner's own deferred design (v1.13.0: "④ free-reading mode when
+// inFlight > ~25"), finally switched on when real backlog data arrived: 35 in flight, 0 exits.
+// Above this, pool stops offering fresh words so the queue can drain (inflow 1.5/passage was
+// structurally outrunning graduation capacity ~0.7/passage).
+const SATURATION_AT = 25;
 
 // word -> [level, band]; only B1/B2 appear (A1/A2 are always free words, never banded)
 const BANDS = new Map();
@@ -295,11 +318,19 @@ else if (cmd === 'confirm') {
   if (feel) sess.feel = feel;
   // One exposure per word per day: a second same-day appearance is still read, but not
   // counted — otherwise a binge day fakes the spacing that acquisition needs.
-  const lockedToday = [];
+  // v1.31.0: the same-day lock became a MINIMUM GAP IN HOURS (COOLDOWN_HOURS). Any gap shorter
+  // than 24h is inert while "one exposure per calendar day" still stands, so the two rules were
+  // merged: a word may only count again once its depth's hour-gap has elapsed.
+  const tooSoon = [];
   for (const t of sess.targets) {
     const e = s.words[t] || { exposures: 0, last: null, status: 'active' };
-    if (e.last === today) { lockedToday.push(t); s.words[t] = e; continue; }
-    e.exposures++; e.last = today; e.status = 'active';
+    const need = COOLDOWN_HOURS[e.exposures] || COOLDOWN_HOURS[1];
+    if (e.last && hoursSince(e.last) < need) {
+      tooSoon.push(`${t} (还需 ${Math.ceil(need - hoursSince(e.last))}h)`);
+      s.words[t] = e;
+      continue;
+    }
+    e.exposures++; e.last = nowStamp(); e.status = 'active';
     s.words[t] = e;
   }
   // v1.22.0 — NO automatic difficulty routing. The skill's only job is to generate material that
@@ -322,7 +353,7 @@ else if (cmd === 'confirm') {
   out({
     session: id, ...difficultyOut(s),
     exposures: Object.fromEntries(sess.targets.map((t) => [t, `${s.words[t].exposures}/${GRADUATE_AT}`])),
-    lockedToday: lockedToday.length ? lockedToday.map((w) => `${w} — already counted today, no increment`) : undefined,
+    tooSoon: tooSoon.length ? tooSoon.map((w) => `${w} — not enough gap yet, no increment`) : undefined,
     graduationNominations: nominations.map((w) => `${w} — run: graduate --word ${w} (then optionally hand it to anki-flashcard for a permanent SRS card)`),
   });
 }
@@ -398,19 +429,22 @@ else if (cmd === 'pool') {
   const pool = [...tierPool(tier)]
     .filter((w) => !known.has(w) && (s.words[w]?.exposures || 0) === 0)
     .map((w) => [w, ...BANDS.get(w)]); // [word, level, band]
-  const daysSince = (d) => d ? Math.round((Date.now() - new Date(d + 'T00:00:00')) / 86400000) : 999;
+  // Saturation (v1.31.0): the learner's own deferred valve. While the queue is above the
+  // threshold, fresh intake stops so the returnee slots can actually drain it — inflow was
+  // structurally outrunning graduation capacity.
+  const saturated = Object.values(s.words).filter((e) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT).length > SATURATION_AT;
+  const q = saturated ? { mustReuse: [4, 5], fresh: [0, 0] } : { mustReuse: [3, 4], fresh: [1, 2] };
   const inFlight = Object.entries(s.words)
     .filter(([, e]) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT);
-  // spacing: a word only re-enters the returnee pool after its ladder cooldown has passed,
-  // and never on a day it already counted (same-day lock) — binge days fill with fresh words instead
-  const eligible = inFlight.filter(([, e]) => e.last !== today && daysSince(e.last) >= (COOLDOWN_DAYS[e.exposures] || 1));
+  // v1.31.0: eligibility is a minimum GAP IN HOURS, not a calendar-day comparison
+  const eligible = inFlight.filter(([, e]) => hoursSince(e.last) >= (COOLDOWN_HOURS[e.exposures] || COOLDOWN_HOURS[1]));
   const mustReuse = eligible
     // v1.14.0 graduation-priority (learner-approved after the backlog math showed
     // 12 passages -> 0 graduations under fair rotation): closest-to-6 first,
     // longest-unseen only breaks ties (so same-depth words still starve-proof).
-    .sort((a, b) => (b[1].exposures - a[1].exposures) || (daysSince(b[1].last) - daysSince(a[1].last)))
+    .sort((a, b) => (b[1].exposures - a[1].exposures) || (hoursSince(b[1].last) - hoursSince(a[1].last)))
     .slice(0, 8)
-    .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}${e.last ? `, ${daysSince(e.last)}d unseen` : ''})`);
+    .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}, ${humanGap(hoursSince(e.last))} unseen)`);
   // deterministic rotation by date so the same day shows the same sample
   let seed = [...today].reduce((a, c) => a + c.charCodeAt(0), 0);
   const idx = [];
@@ -437,6 +471,10 @@ else if (cmd === 'pool') {
     interests: s.interests,
     inFlight: inFlight.length,
     sleeping: inFlight.length - eligible.length,
+    // v1.31.0 saturation valve: above SATURATION_AT the fresh quota is zero and the whole 4–5
+    // goes to returnees. `quota` is machine-readable so the agent never has to re-derive it.
+    saturated,
+    quota: q,
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]}·b${pool[i][2]})`),
     recent,
@@ -454,7 +492,9 @@ else if (cmd === 'pool') {
     // path for a benefit (seeing the other machine's push one passage sooner) that a daily reading
     // routine does not need. The safety net stays; the latency goes.
     skillUpdate: skillUpdate(SKILL_DIR, stateDir),
-    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。难度**只**由学习者点菜改变（v1.22.0 起连安全阀也删了）：agent 不主动顶档、不因体感调档——体感与成绩**纯记录**，没有任何一条会动参数。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」——这是**给学习者自己看**的账：某轴调紧后仍报 ok，说明还有余量；一调紧就抱怨，说明边界在上一档。把它念给他听，让他自己决定下一步。',
+    note: (saturated ? `⚠️ 队列 ${inFlight.length} > ${SATURATION_AT}：本篇**不收新词**，4–5 个名额全部给 mustReuse（饱和阀生效）。` : '')
+      + `每篇目标词配额：${q.mustReuse[0]}–${q.mustReuse[1]} 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）${q.fresh[1] ? ` + ${q.fresh[0]}–${q.fresh[1]} 个 fresh` : '，不收 fresh'}；八档统一总数 4–5，照旧过硬闸。`
+      + '防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。难度**只**由学习者点菜改变（v1.22.0 起连安全阀也删了）：agent 不主动顶档、不因体感调档——体感与成绩**纯记录**，没有任何一条会动参数。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」——这是**给学习者自己看**的账：某轴调紧后仍报 ok，说明还有余量；一调紧就抱怨，说明边界在上一档。把它念给他听，让他自己决定下一步。',
   }, null, 2));
 }
 

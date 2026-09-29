@@ -110,10 +110,49 @@ L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
 SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'])")
 L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
 grepj '"tier": 4' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
-grepj 'already counted today' "$T/cf_ok2.json" && ok "confirm reports same-day locks instead of silently skipping" || bad "lock not reported"
+grepj 'tooSoon' "$T/cf_ok2.json" && ok "confirm reports too-soon words instead of silently skipping (v1.31.0 hour gap)" || bad "tooSoon not reported"
 # same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
-grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.json" && ok "same-day lock: today's words sleep, no returnee offered" || bad "same-day lock"
+grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.json" && ok "hour gap: words counted minutes ago sleep, no returnee offered" || bad "hour gap"
+# v1.31.0: eligibility is measured in HOURS, not calendar days — 6h at 1/6, 36h at 5/6
+TS="$T/spacing"; mkdir -p "$TS"
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const stamp=(h)=>{ const d=new Date(Date.now()-h*3600000), p=(n)=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); };
+const mk=(entries)=>{
+  const words={};
+  for(const [w,h,e] of entries) words[w]={exposures:e,last:stamp(h),status:"active"};
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1},words,sessions:[],interests:[]}));
+  return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
+};
+let o=mk([["alpha",2,1],["beta",8,1]]);
+if(!o.mustReuse.some(x=>x.startsWith("beta "))) throw new Error("8h-old 1/6 word not offered: "+JSON.stringify(o.mustReuse));
+if(o.mustReuse.some(x=>x.startsWith("alpha "))) throw new Error("2h-old word offered despite the 6h gap");
+o=mk([["gamma",30,5],["delta",40,5]]);
+if(!o.mustReuse.some(x=>x.startsWith("delta "))) throw new Error("40h-old 5/6 word not offered");
+if(o.mustReuse.some(x=>x.startsWith("gamma "))) throw new Error("30h-old 5/6 word offered despite the 36h gap");
+' "$SKILL_DIR" "$TS" && ok "hour-gap ladder enforced in hours (6h at 1/6, 36h at 5/6)" || bad "hour gap"
+
+# v1.31.0 saturation valve: above 25 in flight, fresh intake stops and the quota is machine-readable
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const stamp=(h)=>{ const d=new Date(Date.now()-h*3600000), p=(n)=>String(n).padStart(2,"0");
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"+p(d.getHours())+":"+p(d.getMinutes()); };
+const build=(n)=>{
+  const words={};
+  for(let i=0;i<n;i++) words["w"+i]={exposures:1,last:stamp(50),status:"active"};
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1},words,sessions:[],interests:[]}));
+  return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
+};
+const under=build(25), over=build(26);
+if(under.saturated) throw new Error("25 in flight must NOT saturate");
+if(!over.saturated) throw new Error("26 in flight must saturate");
+if(JSON.stringify(over.quota)!==JSON.stringify({mustReuse:[4,5],fresh:[0,0]})) throw new Error("saturated quota: "+JSON.stringify(over.quota));
+if(JSON.stringify(under.quota)!==JSON.stringify({mustReuse:[3,4],fresh:[1,2]})) throw new Error("normal quota: "+JSON.stringify(under.quota));
+if(!/不收新词|不收 fresh/.test(over.note)) throw new Error("saturated note must say fresh intake stopped");
+' "$SKILL_DIR" "$TS" && ok "saturation valve: >25 in flight zeroes the fresh quota and says so in the note" || bad "saturation valve"
+
 # once the cooldown has passed they re-enter the returnee pool
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=new Date(Date.now()-3*86400000).toLocaleDateString('en-CA');for(const w of Object.keys(s.words))if(s.words[w].status==='active'&&s.words[w].exposures>=1)s.words[w].last=d;require('fs').writeFileSync(f,JSON.stringify(s))"
 L pool --limit 4 > "$T/pool2.json" 2>/dev/null
