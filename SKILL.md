@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.22.0
+version: 1.23.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -36,10 +36,10 @@ alive in fresh contexts.
    `node "$SKILL_DIR/scripts/sync-anki-words.mjs" --out "$STATE/anki-words.json"` then
    `node "$SKILL_DIR/scripts/ledger.mjs" import-anki --file "$STATE/anki-words.json"`. If Anki is closed, continue with the
    last-synced file and say so — never fail a reading session over a missing endpoint.
-   `status`/`pool` also print `skillUpdate` (is the skill itself behind GitHub?) — see the
+   `pool` also prints `skillUpdate` (is the skill itself behind GitHub?) — see the
    self-update check section for what to do with each shape.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
-   `ledger.mjs status` interests (offer to add new interests from what they enjoy reading).
+   `ledger.mjs pool` interests (offer to add new interests from what they enjoy reading).
    Genre defaults to news style; honor requests for story/explanation/dialogue.
    **Anti-repeat (hard read-first):** compare against `pool`'s `recent` (last 5 non-void sessions).
    If the new topic/scene rhymes with a recent one, change the angle, setting or outcome — a
@@ -60,7 +60,7 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定档位 + 协商（起草前必做）：** 读 `pool`/`status` 的 `menu` —— 那是完整的多维多档选择面，
+   **定档位 + 协商（起草前必做）：** 读 `pool` 的 `menu` —— 那是完整的多维多档选择面，
    每个轴列出**全部档位及其含义**，标了 `current: true` 的那一档就是**默认值**
    （= 学习者上次的选择；四轴存在 state.json 里，跨会话、跨机器自动保留，不需要另存）。
    把菜单念给学习者听（至少念各轴当前那一行），然后：
@@ -80,7 +80,7 @@ alive in fresh contexts.
    (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns；**没有画像字段要填**)
    to temp files and run
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> <gateFlags>`，
-   其中 `<gateFlags>` **逐字复制** `pool`/`status` 输出的 `gateFlags` 字段（句长/小句/被动/衔接上下限全套），
+   其中 `<gateFlags>` **逐字复制** `pool` 输出的 `gateFlags` 字段（句长/小句/被动/衔接上下限全套），
    别自己拼、也别只在自己记得的时候传。
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th
    failure report the structural blocker honestly instead of shipping a bad passage. Keep the exact
@@ -91,7 +91,7 @@ alive in fresh contexts.
    + validatedBy generated mechanically, archive refused if the bytes drifted from the validated ones)
    and pushes it (output carries `sync`); ③ done — nothing else to write or push by hand. Filenames
    are unique session ids → append-only, never conflicts in git.
-7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
+7. **Show** the formatted passage in chat. If `pool` shows pending sessions older than today, append
    one gentle line — never nag twice about the same one.
 8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
    a 体感 in one prompt — always present the six-level load scale so it is one tap to answer:
@@ -137,7 +137,7 @@ repo itself holds no learner state. On the second machine:
 
 ## Skill self-update check (script-level)
 
-`ledger.mjs status` and `pool` print a `skillUpdate` field, computed by `skill-update.mjs` on the
+`pool` prints a `skillUpdate` field, computed by `skill-update.mjs` on the
 mandatory session-start path (throttled to one `git fetch` per 24h, stored in `$STATE/.local/`;
 `EC_UPDATE_CHECK=0` disables). Soft-fail by design — a network hiccup must never block a reading
 session. Interpret it every session:
@@ -149,11 +149,14 @@ session. Interpret it every session:
 | `{behind:N, ruleLayer:false}` | docs/tests only | keep going, mention at session end |
 | `{offline:true}` / `{check:'recent'}` | fetch failed / already checked within the throttle window | silently continue — a failed fetch retries after ~10 min, a successful one after 24h |
 
-Throttling nuance (Win Hermes findings, v1.6.1/1.6.2): `pool` — the last checkpoint before drafting —
-forces one real fetch whenever its stamp was not written during this command, so a push from the
-other machine is invisible for at most one passage; `status` stays on the 24h throttle. The cache
-stamp is keyed on local HEAD: after any `git pull` the first `status`/`pool` re-fetches, so a stale
-"upToDate" can never survive a version change on this machine.
+**v1.23.0: throttled only.** `pool` used to force a real fetch on every call (so a push from the
+other machine was invisible for at most one passage). That put an 8s-timeout network request on the
+drafting path, for a benefit a daily reading routine does not need — so the forced fetch is gone and
+the check is 24h-throttled like everything else. Consequence, stated honestly: a push from the other
+machine can now be invisible for up to 24h, so **pull before generating on a machine you have not
+used today** (step 2 already does this). The cache stamp stays keyed on local HEAD, so after any
+`git pull` the next `skillUpdate` re-fetches — a stale "upToDate" still cannot survive a version
+change on this machine.
 
 ## Publishing skill changes (Mac = source of truth)
 
@@ -174,11 +177,11 @@ the learner explicitly asks for.
 | Cooldown ladder | a word may return only after `1/6→1d, 2/6→1d, 3/6→2d, 4/6→3d, 5/6→4d` since its last exposure |
 | Same-day lock | **max one exposure per word per calendar day** — a second same-day appearance is still read (and can be a reunion word) but does not increment |
 | Consequence | graduation inherently spans ≥6 distinct days; binge reading fills with fresh words instead of massing the same ones |
-| Reporting | `confirm` returns `lockedToday` for words that did not count; `pool`/`status` return `inFlight` (words 1–5/6) and `pool` also `sleeping` (in cooldown or counted today) |
+| Reporting | `confirm` returns `lockedToday` for words that did not count; `pool` returns `inFlight` (words 1–5/6) and `sleeping` (in cooldown or counted today) |
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
-- 250–350 words。句长 / 小句 / 被动 / 衔接的上下限**全部由四轴档位推出**，`pool`/`status` 会输出一串
+- 250–350 words。句长 / 小句 / 被动 / 衔接的上下限**全部由四轴档位推出**，`pool` 会输出一串
   现成的 `gateFlags` —— 起草后**逐字复制**它去跑 passage-check，别自己拼。
 - 4–5 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
@@ -232,7 +235,7 @@ SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
-scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
+scripts/ledger.mjs                init|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
 scripts/state-git.mjs             台账跨机同步：pull(会话开始)/push(会话结束)，分叉时停下问人
 scripts/skill-update.mjs          会话必过路径上的 skill 落后检查（24h 节流、软失败、只读）

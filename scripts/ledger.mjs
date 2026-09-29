@@ -225,22 +225,6 @@ if (cmd === 'init') {
   console.log('initialized ' + stateFile);
 }
 
-else if (cmd === 'status') {
-  const s = load();
-  const pending = s.sessions.filter((x) => x.status === 'pending');
-  // v1.21.0 dropped three emitted-but-never-consumed fields: poolWords, activeWords and
-  // graduationNominations. The last was a duplicate channel — `confirm` emits the nomination list
-  // and SKILL.md step 9 uses that one; this copy had no reader at all.
-  console.log(JSON.stringify({
-    ...difficultyOut(s),
-    menu: menuOut(s),
-    inFlight: Object.values(s.words).filter((e) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT).length,
-    sessions: { total: s.sessions.length, counted: s.sessions.filter((x) => x.status === 'counted').length, pending: pending.map((p) => ({ id: p.id, topic: p.topic, date: p.date })) },
-    interests: s.interests,
-    skillUpdate: skillUpdate(SKILL_DIR, stateDir),
-  }, null, 2));
-}
-
 else if (cmd === 'pend') {
   const s = load();
   const meta = JSON.parse(readFileSync(arg('meta', null), 'utf8'));
@@ -419,7 +403,10 @@ else if (cmd === 'pool') {
     .map((x) => ({ session: x.id, axes: x.axes ?? null, feel: x.feel ?? null, score: x.score ?? null }));
   console.log(JSON.stringify({
     ...difficultyOut(s),
-    poolSize: pool.length,
+    // v1.23.0: `status` was folded in here — its 8 fields overlapped this command's on 6 of them
+    // (tier/axes/gateFlags/menu/inFlight/skillUpdate) and it added only pending + interests.
+    pending: s.sessions.filter((x) => x.status === 'pending').map((p) => ({ id: p.id, topic: p.topic, date: p.date })),
+    interests: s.interests,
     inFlight: inFlight.length,
     sleeping: inFlight.length - eligible.length,
     mustReuse,
@@ -431,9 +418,11 @@ else if (cmd === 'pool') {
     // ran with, so a silent softening is visible instead of surprising.
     lastUsed: history.find((x) => x.axes)?.axes ?? null,
     menu: menuOut(s),
-    // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
-    // other machine is visible for at most one passage (status stays throttled).
-    skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
+    // v1.23.0: throttled only (24h). This used to force a fetch on every call because pool is the
+    // last checkpoint before drafting — but that put an 8s-timeout network request on the drafting
+    // path for a benefit (seeing the other machine's push one passage sooner) that a daily reading
+    // routine does not need. The safety net stays; the latency goes.
+    skillUpdate: skillUpdate(SKILL_DIR, stateDir),
     note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。难度**只**由学习者点菜改变（v1.22.0 起连安全阀也删了）：agent 不主动顶档、不因体感调档——体感与成绩**纯记录**，没有任何一条会动参数。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」——这是**给学习者自己看**的账：某轴调紧后仍报 ok，说明还有余量；一调紧就抱怨，说明边界在上一档。把它念给他听，让他自己决定下一步。',
   }, null, 2));
 }
@@ -484,6 +473,6 @@ else if (cmd === 'archive') {
 }
 
 else {
-  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
+  console.log('commands: init | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
   process.exit(cmd ? 2 : 0);
 }

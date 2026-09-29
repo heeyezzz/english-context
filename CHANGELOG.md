@@ -2,6 +2,27 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.23.0 — 2026-09-29
+
+v1.23.0: 按「只生成 i+1 材料」重新划范围：合并 status 进 pool、删 poolSize、把网络请求搬离起草路径
+
+这轮换了判据：不再问「有没有人读」，而问「生成 i+1 材料需不需要它」。因为要抓的是范围问题，不是死代码问题。清理前已让学习者逐项确认。
+
+1) status 合并进 pool（学习者确认）。status 的 8 个字段里 6 个与 pool 逐字重复（tier/axes/gateFlags/menu/inFlight/skillUpdate），只多 pending 与 interests，而这两项 pool 也需要（第 3 步选题要用 interests、第 7 步要提醒隔天的 pending）。现在 pool 直接带 pending + interests，status 从命令表下线。命令 11 → 10，工作流少一次调用，SKILL.md 少 10 处引用（剩余一处是 git status，无关）。
+
+2) 删 poolSize。证据更正：我最初说它「0 消费者」，那是不完整的——我只 grep 了 SKILL.md，没查 tests，而我自己写的 tier-ladder 测试正在用它。更正后的理由更硬：菜单里词汇轴每一档已经写了「2178 词」，poolSize 是重复信息，agent 从不读它。测试改为在干净状态下用 `fresh.length`（无 known、无 exposures 时它恒等于池子大小，用 --limit 99999 取全量）推导，因此不为了迁就测试而保留一个死字段。
+
+3) pool 去掉强制 git fetch（学习者在「skill-update 怎么处理」里选了「保留，只降费」，而我把降费定义为本条，故一并实施；若他在前一组里排除 A3 是有意的，本条可回退）。原先 pool 作为起草前最后一个检查点，每次调用都强制 fetch，好让另一台机器的推送最多只隐没一篇；代价是把一个超时 8 秒的网络请求放在了起草必经路径上——而每日阅读节奏并不需要这个精度。现在只走 24h 节流，安全网保留、延迟移走。
+   诚实标注后果：另一台机器的推送现在最多可能隐没 24 小时，所以**在一台今天没用过的机器上生成之前先 pull**（第 2 步本来就是这么做的）。缓存戳仍以本地 HEAD 为键，pull 后下一次 skillUpdate 会重新 fetch，陈旧的 upToDate 依然活不过一次版本变化。
+
+4) skill-update 自检本身保留（学习者选「保留」）。它是跨机版本漂移的唯一防线——我自己就撞过 tier 重编号被旧代码读成完全不同词池的危险。SKILL.md 的自检章节改写为节流版并把新的隐没窗口写明。
+
+明确不动并说明理由（写进 SKILL.md 与项目记忆）：archive 逐篇归档（确实无读者——唯一读者 bookshelf 已在 v1.12.0 退役——但学习者当时明确保留过，不重提已定的决定）；Anki 链 sync/import/重逢词（它定义「什么算 i」，Anki 牌组就是学习者的词汇存量 → 服务核心）；state-git（跨机 i+1 完整性）；graduate + known-words（known 集维护）；interests（选题便利）。
+
+附带说明：最大的非生成区块仍是跨机基础设施（state-git + skill-update + lib-layers + ship ≈ 236 行代码 + 43 行文档），它服务真实的两机需求，不算多余，所以只优化了它在关键路径上的网络请求。
+
+套件 71 条全绿。真实台账副本验证：pool 带 pending（1 条）与 interests（12 条）、无 poolSize、status 已下线（返回命令表）、skillUpdate 走节流返回缓存、pend→confirm→pool 全流程正常。
+
 ## 1.22.0 — 2026-09-29
 
 v1.22.0: 删净体感路由（安全阀），skill 只生成 i+1 材料，难度升降 100% 由学习者控制

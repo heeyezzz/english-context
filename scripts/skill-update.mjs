@@ -14,8 +14,9 @@ function git(repo, ...a) {
   return spawnSync('git', ['-C', repo, ...a], { encoding: 'utf8', timeout: 8000 });
 }
 
-// force=true (used by `pool`, the last checkpoint before drafting): fetch even inside the
-// throttle window, so a push from the other machine mid-session is at most one passage old.
+// force=true fetches even inside the throttle window. Nothing calls it that way any more:
+// v1.23.0 dropped pool's forced fetch (it put an 8s-timeout network request on the drafting
+// path). The parameter survives for the offline-retry below, which re-fetches after 10 minutes.
 export function skillUpdate(skillDir, stateDir, { force = false } = {}) {
   if (process.env.EC_UPDATE_CHECK === '0') return { check: 'disabled' };
   const stampFile = join(stateDir, '.local', 'skill-update.json');

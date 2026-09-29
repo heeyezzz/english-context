@@ -98,8 +98,8 @@ assert 'allocate' in r['reunionUsed'], 'allocate not counted as reunion word'
 L pend --meta "$T/meta.json" > "$T/pend.json" 2>/dev/null
 SID=$(python3 -c "import json;print(json.load(open('$T/pend.json'))['session'])")
 grepj '"status": "pending"' "$STATE/state.json" && ok "pend records session as pending (no exposure yet)" || bad "pend status"
-L status > "$T/st.json" 2>/dev/null
-grepj '"pending"' "$T/st.json" && ok "status lists pending session" || bad "status pending"
+L pool --limit 1 > "$T/st.json" 2>/dev/null
+grepj '"pending"' "$T/st.json" && ok "pool lists pending sessions (status was folded in, v1.23.0)" || bad "pending listing"
 check "confirm unknown id refused" 1 L confirm --session definitely-not-here
 L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
 grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
@@ -198,9 +198,9 @@ assert pool["inFlight"] >= 4, "inFlight not reported"
 PY
 [ $? -eq 0 ] && ok "fresh excludes known and in-progress words" || bad "pool leaks known/in-progress words"
 
-echo "== skillUpdate wiring (status/pool carry the field; soft-fail) =="
-node "$S/ledger.mjs" status --state-dir "$STATE" > "$T/st_up.json" 2>/dev/null
-grepj '"check": "disabled"' "$T/st_up.json" && ok "status output carries skillUpdate" || bad "skillUpdate not wired into status"
+echo "== skillUpdate wiring (pool carries the field; soft-fail) =="
+node "$S/ledger.mjs" pool --limit 1 --state-dir "$STATE" > "$T/st_up.json" 2>/dev/null
+grepj '"check": "disabled"' "$T/st_up.json" && ok "pool output carries skillUpdate" || bad "skillUpdate not wired into pool"
 node "$S/ledger.mjs" pool --state-dir "$STATE" --limit 3 > "$T/pu_up.json" 2>/dev/null
 grepj '"check": "disabled"' "$T/pu_up.json" && ok "pool output carries skillUpdate" || bad "skillUpdate not wired into pool"
 mkdir -p "$T/noorigin" && git -C "$T/noorigin" init -q 2>/dev/null
@@ -350,8 +350,11 @@ const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=proc
 const sizes=[];
 for(let t=1;t<=8;t++){
   fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:t,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
-  const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
-  sizes.push(o.poolSize);
+  // poolSize was removed in v1.23.0 (the menu already lists per-tier word counts). On a clean
+  // state with no known words and no exposures, `fresh` under an unbounded limit IS the pool, so
+  // derive the size from that instead of adding a diagnostic field back.
+  const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","99999"],{encoding:"utf8"}));
+  sizes.push(o.fresh.length);
 }
 if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("not monotone: "+sizes);
 if(new Set(sizes).size!==8) throw new Error("duplicate rungs: "+sizes);
@@ -365,13 +368,13 @@ node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 for(const [old,want] of Object.entries({1:4,2:8,3:8})){
   fs.writeFileSync(dir+"/state.json",JSON.stringify({version:1,difficulty:{tier:+old,streakGood:0},words:{},sessions:[],interests:[]}));
-  const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","status","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+  const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
   if(o.tier!==want) throw new Error("old tier "+old+" -> "+o.tier+", want "+want);
 }
 // v1.15.0 six-tier state must also land correctly (tier 3 = all B1 -> new tier 4) and the
 // retired syntaxCalm counter must convert to the new rung index (+1), never silently vanish
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:2,difficulty:{tier:3,syntaxCalm:2,streakGood:0},words:{},sessions:[],interests:[]}));
-const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","status","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 if(o.tier!==4) throw new Error("v1.15.0 tier 3 -> "+o.tier+", want 4");
 if(!/syntax 3\/4/.test(o.axes.句法)) throw new Error("syntaxCalm 2 did not become rung 3: "+o.axes.句法);
 ' "$SKILL_DIR" "$T2" && ok "pre-v1.16.0 state migrates (old 1->4, 2/3->8; syntaxCalm 2 -> rung 3)" || bad "tier migration"
@@ -427,7 +430,7 @@ coh.forEach(([flags,label],i)=>{
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
-const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","status","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 for(const k of ["词汇","句法","语篇","背景"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
 if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99")
   throw new Error("gateFlags mismatch at the default rung: "+o.gateFlags);
@@ -475,7 +478,7 @@ if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("tier rungs not asc
 if(!m.背景.note) throw new Error("the unmeasured axis must carry an honesty note");
 // a fresh state must pre-select the defaults, not a stale value
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
-const d=JSON.parse(L("status")).menu;
+const d=JSON.parse(L("pool","--limit","1")).menu;
 for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
