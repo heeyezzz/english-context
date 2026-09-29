@@ -2,6 +2,32 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.21.0 — 2026-09-29
+
+v1.21.0: 清掉 7 处「零消费者」输出与死字段；确认冷却阶梯与毕业路径都是工作正常的
+
+第三轮第一性原理审计。这轮先把"看起来可疑但其实在工作"的先证伪，再清真的死代码——避免为清理而误删。
+
+【查过，结论是留着（本次不动）】
+- 冷却阶梯 1/1/2/3/4：实测 33 个在飞词里 18 个被它或同日锁拦住（约 40%），确实在咬合，不是装饰。
+- interests 兴趣列表：12 个话题，真在用。
+- sessions[].reunion：archive 时读它写 frontmatter，有消费方。
+- allow-extra.txt（5 词）/ irregular-forms.txt（161 形）：都在用。
+- pool 的 note：无漂移（里面那处"探针"是 v1.19.0 写的否定句）。
+
+【死字段与零消费者输出（本次清除）】
+- words[].first：四处构造全都是赋值，从无读取 → 停止写入，并删掉 confirm 里那句 if (!e.first) e.first = today。
+- words[].source（'pool'/'anki'）：同样只写不读 → 从四处构造中移除。
+- status.graduationNominations：重复频道 —— 发射两处（status 与 confirm），而 SKILL.md 第 9 步明写用的是 confirm 那份，status 这份零消费者。
+- status.activeWords / poolWords / tierLabel / targetsRange：发出去但 0 处测试断言、0 处 SKILL.md 引用。TARGETS_RANGE 常量随之成为唯一用途消失，一并删除（这推翻了 v1.19.0 那句"输出字段 targetsRange 保留"的决定——当时是为了消除 8 份重复定义，现在连最后一个消费点也没了）。
+旧台账里遗留的 first/source 值保留为惰性历史，不重写。status 从 12 个字段降到 9 个。
+
+【比死代码更值钱的发现：毕业路径从未跑过，而且数学上还不可能跑】
+status=known 词数 = 0、known-words.txt = 0 → graduate 从未被调用，Anki 桥从未发生。原因不是缺陷：冷却阶梯 1/1/2/3/4 = 从第 1 次到第 6 次曝光最少需要 11 个自然日（还叠着同日锁），而台账只有 8 天。队列确实在推进（2 个词到 5/6、6 个到 4/6），首批毕业预计在 11–13 天窗口出现。
+底部积压是真的：44 个词里 29 个停在 ≤1 次曝光（18 个卡在 1/6）——正是 v1.14.0 记录里那个 watch item（深度优先的代价）。学习者决定先不动、等首批毕业后再判断（注意：公平轮转已被明确锁定不得作为主排序键，故未提该方案）。
+
+套件 70 条全绿。真实台账副本验证：status 9 字段、旧词条惰性字段无害、pend→confirm→pool 全流程正常、confirm 仍正常发射毕业提名。
+
 ## 1.20.0 — 2026-09-29
 
 v1.20.0: 删题型轴（5 -> 4 轴），两条 warn 提升为硬闸

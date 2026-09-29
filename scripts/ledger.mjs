@@ -36,9 +36,6 @@ const TIERS = {
   8: { b1: [1, 2, 3, 4], b2: [1, 2, 3, 4], label: 'B1+B2 全量' },
 };
 const MAX_TIER = 8;
-// v1.8.0 unified the target quota at 4–5 for every tier, which left the old per-tier `targets`
-// field as eight byte-identical copies. Collapsed to one constant in v1.19.0.
-const TARGETS_RANGE = [4, 5];
 // v1.16.0 — 句式档 5 档（v1.15.0 是 4 档，且只卡句长）。句长轴过去是饱和的：实测 13 篇
 // 存量档平均句长 8.8 词而上限是 12，几乎没有咬合；真正的难度藏在「小句密度」里
 // （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句法包」：
@@ -99,7 +96,7 @@ const difficultyOut = (s) => {
   const sx = syntaxLevel(s), co = cohesionLevel(s);
   const bg = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
   return {
-    tier: s.difficulty.tier, tierLabel: t.label, targetsRange: TARGETS_RANGE, streakGood: s.difficulty.streakGood,
+    tier: s.difficulty.tier, streakGood: s.difficulty.streakGood,
     axes: {
       词汇: `tier ${s.difficulty.tier}/8 · ${t.label}`,
       句法: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
@@ -231,15 +228,14 @@ if (cmd === 'init') {
 else if (cmd === 'status') {
   const s = load();
   const pending = s.sessions.filter((x) => x.status === 'pending');
-  const nominations = Object.entries(s.words).filter(([, e]) => e.status === 'active' && e.exposures >= GRADUATE_AT);
+  // v1.21.0 dropped three emitted-but-never-consumed fields: poolWords, activeWords and
+  // graduationNominations. The last was a duplicate channel — `confirm` emits the nomination list
+  // and SKILL.md step 9 uses that one; this copy had no reader at all.
   console.log(JSON.stringify({
     ...difficultyOut(s),
-    poolWords: tierPool(TIERS[s.difficulty.tier]).size,
     menu: menuOut(s),
     inFlight: Object.values(s.words).filter((e) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT).length,
     sessions: { total: s.sessions.length, counted: s.sessions.filter((x) => x.status === 'counted').length, pending: pending.map((p) => ({ id: p.id, topic: p.topic, date: p.date })) },
-    activeWords: Object.entries(s.words).filter(([, e]) => e.status === 'active').map(([w, e]) => `${w}:${e.exposures}/${GRADUATE_AT}`).join(' '),
-    graduationNominations: nominations.map(([w, e]) => `${w} (${e.exposures} exposures)`),
     interests: s.interests,
     skillUpdate: skillUpdate(SKILL_DIR, stateDir),
   }, null, 2));
@@ -268,7 +264,7 @@ else if (cmd === 'pend') {
   };
   s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
-    s.words[t] = s.words[t] || { exposures: 0, first: null, last: null, status: 'active', source: 'pool' };
+    s.words[t] = s.words[t] || { exposures: 0, last: null, status: 'active' };
   }
   save(s);
   out({ session: id, status: 'pending', note: 'exposures NOT counted until `confirm`' });
@@ -289,8 +285,7 @@ else if (cmd === 'confirm') {
   // counted — otherwise a binge day fakes the spacing that acquisition needs.
   const lockedToday = [];
   for (const t of sess.targets) {
-    const e = s.words[t] || { exposures: 0, first: today, status: 'active', source: 'pool' };
-    if (!e.first) e.first = today;
+    const e = s.words[t] || { exposures: 0, last: null, status: 'active' };
     if (e.last === today) { lockedToday.push(t); s.words[t] = e; continue; }
     e.exposures++; e.last = today; e.status = 'active';
     s.words[t] = e;
@@ -370,7 +365,7 @@ else if (cmd === 'graduate') {
   const s = load();
   const w = arg('word', null)?.toLowerCase();
   if (!w) { console.error('--word required'); process.exit(2); }
-  const e = s.words[w] || { exposures: 0, status: 'active', source: 'pool' };
+  const e = s.words[w] || { exposures: 0, status: 'active' };
   e.status = 'known'; s.words[w] = e;
   appendFileSync(knownFile, w + '\n');
   save(s);
@@ -410,7 +405,7 @@ else if (cmd === 'import-anki') {
   mkdirSync(stateDir, { recursive: true });
   const s = load();
   const words = (data.words || []).map((w) => w.toLowerCase());
-  for (const w of words) s.words[w] = s.words[w] || { exposures: 0, first: null, last: null, status: 'active', source: 'anki' };
+  for (const w of words) s.words[w] = s.words[w] || { exposures: 0, last: null, status: 'active' };
   writeFileSync(join(stateDir, 'anki-words.json'), JSON.stringify({ synced: today, deck: data.deck || null, words }, null, 2));
   save(s);
   out({ imported: words.length, words, note: 'these are KNOWN words: no annotation, no rate cost; prefer weaving them in as 重逢词' });
