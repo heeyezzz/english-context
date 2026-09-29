@@ -2,6 +2,20 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.17.0 — 2026-09-29
+
+v1.17.0: 砍掉四维负荷画像，改为每篇快照五轴档位（净删 100 行）
+
+从第一性原理审画像，结论是它该退。理由：它记录的是 AI 对自己要写的那篇的猜测，而这条链上真正有话可说的是 A（档位设置）→ D（材料真实负荷）→ feel（学习者体感）。画像在链上但不被任何下游消费；四格里三格（vocab/syntax/discourse）与脚本直接测到的值重复——tier 决定用词、句法有硬指标、衔接有重叠/连接词可量；只剩 background 一格独有，却又缺了 quiz 那格。而它的代价是每篇必填 + 一个硬 FAIL + 一次口头仪式。
+
+逐条否掉它声称的用途：① 当探针触发条件——用 feel 就够了（ok 本身就是甜区定义），加上 predicted 之和只会否决行为信号，是负价值；② 防事后合理化——下游没人读 AI 的说法（feel 来自学习者、闸门来自脚本），保护的是一个没人用的记录；③ 量 AI 的手准不准——一旦标尺被校准（知道 cohesion=3 读起来什么感觉）就不需要 AI 猜，价值随标尺校准衰减到 0，是带自毁定时器的脚手架；④ 当 Phase 2 门票——但 Phase 2 要的是 A→feel，不是 P→?。
+
+真正的缺口在这里：state 里每条 session 存的是 id/date/topic/targets/reunion/status/words/score/feel/predicted/requested，**没有档位快照**。所以无法从台账重建「我把 cohesion 设成 1 而你报了 choppy」——A→feel 这条链是断的，而它才是校准的唯一依据。画像在旁边记了一堆 AI 对自己的看法，就是不记「我到底调了什么」。
+
+改动：① pend 快照五轴档位进 session（含 background/quiz），不再写 predicted/requested；② pool 的 calibration 字段换成 history，输出最近 8 条 {axes, feel, score}；③ archive frontmatter 的 difficulty 行改读 pend 时的快照（可证明等于起草用的档位，而非归档时的实时状态），并删掉 predicted/requested 两行；④ passage-check 删掉画像形状校验与 DIMS；⑤ 删除 references/difficulty-rubric.md——该文件唯一用途就是给画像打分，画像退役后它只剩一个失效的打分表；⑥ 协商保留但改为对着真参数谈（axes 命令），探针触发条件从「predicted 之和 ≤7 且全 ok」简化为「连续 3 篇全 ok」。
+
+旧台账里遗留的 predicted/requested 行保留为惰性历史，不重写、不影响任何逻辑（history 里显示 axes:null）。套件 73 -> 69 条（删 4 条画像断言，加 7 条档位快照/A→feel 断言），全绿。已在真实台账副本上验证：history 正常、无 calibration 字段、遗留行 axes 为 null。
+
 ## 1.16.0 — 2026-09-29
 
 v1.16.0: 难度轴 2 -> 5（词汇 8 档 / 句法包 5 档 / 语篇 4 档 / 背景 / 题型）

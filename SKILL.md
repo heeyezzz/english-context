@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.16.0
+version: 1.17.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -60,25 +60,21 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定负荷画像 + 事前协商（起草前必做）：** 读 `pool`/`status` 输出的 `axes`（五轴当前档位）与
-   `calibration`（最近的对账），对照 [难度量规](references/difficulty-rubric.md) 给本篇定下四维画像
-   （vocab/syntax/discourse/background 各 1–3）。
-   然后**把画像用一句人话讲给学习者听**（例：「今天这篇我打算：词略生、句子常规、衔接紧、话题熟」），
-   等他点头或否决 —— 他否决/点菜就照他说的改，改完的那份写 `meta.requested`；你自己原来那份**照旧写 `meta.predicted`**，
-   两个都要写。画像仍然**不驱动任何生成参数**（五轴档位/配额逻辑照旧），
-   但 `requested` 让这次协商可对账：`predicted→requested` 量你的手估值不值钱，`requested→feel` 量这一篇交得合不合意。
-   **五轴可点菜（v1.16.0）：** 学习者可以直接点名要哪个轴紧/松（「今天想读衔接松一点的」「句子可以长」「换个陌生话题」）——
-   照他说的改 `ledger.mjs axes`（见下方五轴表），这不影响 `predicted` 的独立判断。
-   **探针（同一处顺带判）：** 若 `calibration` 里**最近连续 3 篇** predicted 四维之和 ≤7 且 feel 全为 `ok`，
-   说明一直待在无聊区、传感器没有信号 —— 本篇按轮转把**一个轴顶到最紧/最难档**
-   （顺序：语篇 → 背景 → 句法 → 词汇 → 题型），其余轴压住不动。
-   探针也是先协商再动手：告诉学习者「这篇我故意在 X 上加码」，他不想就直接跳过。
-   冲突规则：**点菜不能突破硬闸**（生词率/句长/小句/衔接上下限照旧），**不能动词汇档**（词池是测量问题，归脚本闸门）；
-   若点菜要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于 1），**以那个更紧的档为准**——愿望不覆盖受挫证据。
+   **定档位 + 协商（起草前必做）：** 读 `pool`/`status` 的 `axes`（五轴当前档位）与 `history`
+   （最近 8 篇的「档位 → 体感」对账），定下本篇的轴向安排，然后**用一句人话讲给学习者听**
+   （例：「今天词池到 tier 6、衔接调松、话题换新的」），等他点头或否决 —— 他想改就直接跑
+   `ledger.mjs axes --cohesion 3 --syntax 2`（任一轴）落地，改完再说一遍。
+   协商的对象是**真参数**，没有别的数字要填。**先协商再动手**，别写完才问。
+   **探针（同一处顺带判）：** 若 `history` 里**最近连续 3 篇** feel 全为 `ok`，说明一直待在无聊区、
+   传感器没有信号 —— 本篇按轮转把一个轴顶到**最紧/最难档**（顺序：语篇 → 背景 → 句法 → 词汇 → 题型），
+   同样先告诉学习者再动手，他不想就跳过。
+   冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧），**不能动词汇档**
+   （词池是测量问题，归脚本闸门）；若学习者要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于常规），
+   **以那个更紧的档为准**——愿望不覆盖受挫证据。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
-   (`{"topic","targets":[],"reunion":[],"names":[],"quizMix":{"literal":n,"inference":n},"predicted":{"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3},"requested":{…同形状，学习者点菜后的那份…}}` — names = proper nouns)
+   (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns；**没有画像字段要填**)
    to temp files and run
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> <gateFlags>`，
    其中 `<gateFlags>` **逐字复制** `pool`/`status` 输出的 `gateFlags` 字段（句长/小句/被动/衔接上下限全套），
@@ -86,7 +82,6 @@ alive in fresh contexts.
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th
    failure report the structural blocker honestly instead of shipping a bad passage. Keep the exact
    passage file — step 6 archives those bytes and the report's `passageSha256` pins them.
-   **passage-check 对 predicted 缺失或越界直接 FAIL**——成稿自评分必须与起草目标一致地写死在 meta 里，送检后不可改。
 6. **Pending entry + archive:** after a PASS, ① `ledger.mjs pend --meta <json>` (note the returned
    session id; exposures are NOT counted yet); ② `ledger.mjs archive --session <id> --passage <md>
    --report <report.json> [--quiz "B,A,C"]` — the script writes `$STATE/passages/<id>.md` (frontmatter
@@ -200,10 +195,12 @@ the learner explicitly asks for.
 | choppy ⑥（接不上/读着跳） | 保持 | −1 | **−1** | 不变 |
 | 正确率 <60% | −1 | **至少跳到 3**（同上） | 不变 | 不变 |
 
-> **负荷画像与校准回路（v1.13.0；v1.15.0 加 requested）**：`predicted`（你自己的判断）与 `requested`（协商后学习者要的）
-> 在 pend 时落盘、archive 时进 frontmatter、confirm 时与 feel/score 并排记账；`pool` 的 `calibration` 字段把最近 8 条喂回起草环节。
-> 两条对账线：`predicted→requested` 量你的手估值不值钱，`requested→feel` 量这一篇交得合不合意。
-> Phase 纪律：**画像只记录、只校准判断，不驱动任何参数**——画像驱动补偿调档（Phase 2）需 ≥8 条校准数据 + 学习者显式批准。
+> **台账记的是「档位 → 体感」（v1.17.0）**：每篇 `pend` 时把当时的五轴档位快照进 session，
+> `pool` 的 `history` 字段输出最近 8 条的 `{axes, feel, score}` 对账，archive 时同一份档位写进 frontmatter。
+> 这就是校准的全部依据：**某个轴向调紧之后体感变了没有**。
+> 四维 `predicted`/`requested` 画像已在 v1.17.0 **退役**——它记的是 AI 对自己的猜测，下游没人消费，
+> 且四格里三格与脚本直接测到的值重复（tier 决定用词、句法有硬指标、衔接有重叠/连接词）。
+> 旧台账里遗留的 predicted/requested 行是惰性历史，不影响任何逻辑。
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
 **语篇档与题型档没有自动漂移**——只由体感、点菜、探针驱动。不发明没校准过的动力学。
@@ -234,7 +231,6 @@ SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
 BOOTSTRAP.md                      新机器/新 agent 的一句话记忆：发布只走 ship.mjs
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
-references/difficulty-rubric.md   四维难度量规（大模型自评打分用，脚本只校验形状）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）

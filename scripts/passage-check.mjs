@@ -86,7 +86,6 @@ const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
 const targets = (meta.targets || []).map((w) => w.toLowerCase());
 const reunion = new Set((meta.reunion || []).map((w) => w.toLowerCase()));
 const names = new Set((meta.names || []).map((w) => w.toLowerCase()));
-const DIMS = ['vocab', 'syntax', 'discourse', 'background'];
 
 // strip markdown structure but keep bold spans for the highlight check
 const boldSpans = [...raw.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].toLowerCase());
@@ -308,23 +307,12 @@ for (const t of targets) {
 const reunionUsed = [...reunion].filter((r) => candidates0(r) && tokens.some((t) => candidates0(t.toLowerCase().replace(/['’].*$/, '')) === candidates0(r)));
 if (reunion.size && !reunionUsed.length) warn.push('declared reunion words never appeared in prose');
 
-// predicted load profile (v1.13.0): the agent's pre-registered self-assessment against
-// references/difficulty-rubric.md. Script checks SHAPE only — the score is judgment, not measurement.
-// requested (v1.15.0) is the profile the learner actually asked for at the pre-draft
-// negotiation; optional, but if present it must be well-formed so the two calibration
-// loops (requested→feel, predicted→requested) compare like with like.
-const shapeCheck = (obj, field, required) => {
-  if (!obj || typeof obj !== 'object') {
-    if (required) fail.push(`meta.${field} required: {"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3} — see references/difficulty-rubric.md`);
-    return;
-  }
-  for (const d of DIMS) {
-    if (!Number.isInteger(obj[d]) || obj[d] < 1 || obj[d] > 3)
-      fail.push(`meta.${field}.${d} must be an integer 1-3, got ${JSON.stringify(obj[d])}`);
-  }
-};
-shapeCheck(meta.predicted, 'predicted', true);
-shapeCheck(meta.requested, 'requested', false);
+// The four-dimension predicted/requested profile was RETIRED in v1.17.0. It recorded the agent's
+// own guess about the passage's load, which nothing downstream consumed, and three of its four
+// cells duplicated what this script already measures directly (tier/syntax/cohesion). What the
+// ledger needs instead is the axis SETTINGS used to draft — snapshotted by ledger.mjs `pend`.
+// Old sessions in an existing ledger keep their historical predicted/requested rows; they are
+// inert history, not a schema this script accepts or requires.
 
 // ---------- report ----------
 const report = {

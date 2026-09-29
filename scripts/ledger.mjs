@@ -214,11 +214,18 @@ else if (cmd === 'pend') {
     let n = 2;
     while (s.sessions.some((x) => x.id === id)) id = `${today}-${slug || 'session'}-${n++}`; // CJK topics slug to '' — keep same-day sessions unique
   }
-  // `requested` = the profile the learner actually asked for at the pre-draft negotiation (v1.15.0).
-  // Kept separate from `predicted` on purpose: predicted must stay the agent's own unaided
-  // judgement, otherwise the calibration loop measures nothing. Two loops, two comparisons:
-  // requested→feel = did this passage land right; predicted→requested = is my judgement worth anything.
-  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', words: meta.words || null, predicted: meta.predicted || null, requested: meta.requested || null });
+  // v1.17.0: snapshot the axis settings this passage is drafted at. This is the record that
+  // actually calibrates the scales — with it every ledger row reads `A -> feel`. The retired
+  // predicted/requested profile recorded the agent's own guess about the passage instead, which
+  // nothing consumed and which duplicated three cells the gate already measures directly.
+  const axes = {
+    tier: s.difficulty.tier,
+    syntax: s.difficulty.syntax ?? SANE_SYNTAX,
+    cohesion: s.difficulty.cohesion ?? SANE_COHESION,
+    background: s.difficulty.background ?? 1,
+    quiz: s.difficulty.quiz ?? 1,
+  };
+  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', words: meta.words || null, axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
     s.words[t] = s.words[t] || { exposures: 0, first: null, last: null, status: 'active', source: 'pool' };
   }
@@ -330,8 +337,8 @@ else if (cmd === 'graduate') {
 }
 
 else if (cmd === 'axes') {
-  // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。任何后续 confirm 仍可继续微调，
-  // 且不动 predicted（那是 agent 的独立判断）。
+  // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。这是协商的落点——
+  // 点菜改的是真参数，不是某个记录用的数字。后续 confirm 仍会据此继续微调。
   const s = load();
   const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND], quiz: [0, MAX_QUIZ] };
   const changed = {};
@@ -401,14 +408,14 @@ else if (cmd === 'pool') {
   // rely on goodwill for — pool is the mandatory pre-draft call, so the history lands there.
   const recent = s.sessions.filter((x) => x.status !== 'void').slice(-5).reverse()
     .map((x) => ({ session: x.id, date: x.date, topic: x.topic, targets: x.targets }));
-  // Calibration exposure (v1.13.0; v1.15.0 adds requested): past profile pairs, rendered without
-  // verdict — the agent reads its own estimation bias; the script only keeps the ledger.
-  // Two comparisons: requested→feel (did the passage land right) and predicted→requested
-  // (is my unaided judgement worth anything — the number Phase 2 actually needs).
-  const calibration = s.sessions
-    .filter((x) => x.status === 'counted' && x.predicted)
+  // A→feel history (v1.17.0, replaces the retired predicted/requested calibration feed): the
+  // axis settings each recent passage was drafted at, next to how it actually landed. This is
+  // the pairing that calibrates the scales. Legacy counted rows have axes:null — they predate the
+  // snapshot and their predicted/requested fields are inert history, not a live signal.
+  const history = s.sessions
+    .filter((x) => x.status === 'counted')
     .slice(-8).reverse()
-    .map((x) => ({ session: x.id, predicted: x.predicted, requested: x.requested ?? null, feel: x.feel ?? null, score: x.score ?? null }));
+    .map((x) => ({ session: x.id, axes: x.axes ?? null, feel: x.feel ?? null, score: x.score ?? null }));
   console.log(JSON.stringify({
     ...difficultyOut(s),
     poolSize: pool.length,
@@ -417,11 +424,11 @@ else if (cmd === 'pool') {
     mustReuse,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]}·b${pool[i][2]})`),
     recent,
-    calibration,
+    history,
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；六档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商与探针（v1.15.0，起草前必做）：① 把打算定的四维画像用一句人话讲给学习者，他可否决或点菜——他改过的写进 meta.requested，你自己那份判断照写 meta.predicted，两者都要写；② 若最近连续 3 篇 predicted 四维之和 ≤7 且 feel 全为 ok，本篇按探针规则把一维顶到 3（轮转 discourse→background→syntax→vocab，其余维压到合计 ≤5）。校准（起草前必读 calibration）：predicted→requested 看你的手估值不值钱，requested→feel 看这一篇交得合不合意——连续估偏同一维度同一方向，把该维锚点反向调',
+    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。探针（同一处顺带判）：若最近连续 3 篇 feel 全为 ok，说明一直待在无聊区、传感器没信号——本篇按轮转把一个轴顶到最紧/最难档（顺序 语篇→背景→句法→词汇→题型），先告诉学习者再动手。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」；连续在某个轴向调紧却仍报 ok，说明那一档还没到边界，继续走；某轴一调紧就报 wordy/dense/choppy/context，边界就在上一档。',
   }, null, 2));
 }
 
@@ -452,10 +459,11 @@ else if (cmd === 'archive') {
     `topic: ${sess.topic}`,
     `targets: [${sess.targets.join(', ')}]`,
     `reunion: [${(sess.reunion || []).join(', ')}]`,
-    `metrics: { words: ${report.words}, aboveLevelRate: ${report.aboveLevelRate}, maxSentence: ${report.maxSentence}, avgSentence: ${report.avgSentence} }`,
-    `difficulty: { tier: ${s.difficulty.tier}, syntax: ${s.difficulty.syntax ?? SANE_SYNTAX}, cohesion: ${s.difficulty.cohesion ?? SANE_COHESION}, background: ${s.difficulty.background ?? 1}, quiz: ${s.difficulty.quiz ?? 1} }`,
-    ...(sess.predicted ? [`predicted: { vocab: ${sess.predicted.vocab}, syntax: ${sess.predicted.syntax}, discourse: ${sess.predicted.discourse}, background: ${sess.predicted.background} }`] : []),
-    ...(sess.requested ? [`requested: { vocab: ${sess.requested.vocab}, syntax: ${sess.requested.syntax}, discourse: ${sess.requested.discourse}, background: ${sess.requested.background} }`] : []),
+    `metrics: { words: ${report.words}, aboveLevelRate: ${report.aboveLevelRate}, maxSentence: ${report.maxSentence}, avgSentence: ${report.avgSentence}, maxClauses: ${report.maxClauses}, passives: ${report.passives}, contentOverlap: ${report.contentOverlap}, connectivesPerSentence: ${report.connectivesPerSentence} }`,
+    // The five axis settings this passage was drafted at — read from the pend-time snapshot, so
+    // the frontmatter provably matches the axes `pool` handed the draft, not whatever the live
+    // state happens to be at archive time.
+    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1}, quiz: ${(sess.axes || s.difficulty).quiz ?? 1} }`,
     ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
     `validatedBy: ${report.validatedBy}`,
     '---',

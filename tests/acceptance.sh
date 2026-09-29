@@ -251,52 +251,64 @@ echo y > "$SHIPR/scripts/another-rule.mjs"
 SHIPW "origin-baseline" > "$T/s5.out" 2> "$T/s5.err"
 grep -q '"shipped": true' "$T/s5.out" && ok "ship version-leg compares to origin/main (unpushed bump honored)" || bad "version-leg baseline: $(cat "$T/s5.err")"
 
-echo "== predicted load profile (v1.13.0) =="
-# missing predicted -> hard FAIL
+echo "== axis snapshot + A->feel history (v1.17.0; replaces the retired profile) =="
+# the retired four-dim profile must no longer be required, and a stale predicted block must not
+# be mistaken for something the gate still reads
 python3 -c "import json;m=json.load(open('$T/meta.json'));del m['predicted'];json.dump(m,open('$T/meta-nopredict.json','w'))"
 PC "$T/passage.md" "$T/meta-nopredict.json" > "$T/np.json" 2>/dev/null
-grepj 'meta.predicted required' "$T/np.json" && ok "missing predicted rejected" || bad "predicted requirement missing"
-# out-of-range dimension -> hard FAIL
-python3 -c "import json;m=json.load(open('$T/meta.json'));m['predicted']['vocab']=5;json.dump(m,open('$T/meta-badpredict.json','w'))"
+grepj '"pass": true' "$T/np.json" && ok "passage-check no longer requires meta.predicted (profile retired)" || bad "stale predicted requirement"
+python3 -c "import json;m=json.load(open('$T/meta.json'));m['predicted']={'vocab':9};json.dump(m,open('$T/meta-badpredict.json','w'))"
 PC "$T/passage.md" "$T/meta-badpredict.json" > "$T/bp.json" 2>/dev/null
-grepj 'predicted.vocab must be an integer 1-3' "$T/bp.json" && ok "out-of-range predicted dimension rejected" || bad "predicted range check missing"
-# pend stores predicted on the session
-L pend --meta "$T/meta.json" > "$T/pp.json" 2>/dev/null
-PPSID=$(python3 -c "import json;print(json.load(open('$T/pp.json'))['session'])")
-python3 -c "
-import json
-s = json.load(open('$STATE/state.json'))
-sess = [x for x in s['sessions'] if x['id'] == '$PPSID'][0]
-assert sess['predicted'] == {'vocab':2,'syntax':2,'discourse':2,'background':1}, sess.get('predicted')
-" && ok "pend stores predicted on session" || bad "pend predicted passthrough"
-# archive writes predicted into frontmatter
-node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/pp_rep.json" > /dev/null 2>&1
+grepj '"pass": true' "$T/bp.json" && ok "a malformed legacy predicted block is ignored, not validated" || bad "legacy predicted still validated"
+# pend snapshots the five axis settings — this is the record that calibrates the scales
+node -e '
+const fs=require("fs"), p=process.argv[1];
+const s=JSON.parse(fs.readFileSync(p,"utf8"));
+s.difficulty={tier:6,syntax:2,cohesion:1,background:2,quiz:0,streakGood:0};
+fs.writeFileSync(p,JSON.stringify(s));
+' "$STATE/state.json"
+L pend --meta "$T/meta-nopredict.json" > "$T/pp.json" 2>/dev/null
+PPSID=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/pp.json")
+node -e '
+const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+const x=s.sessions.find(y=>y.id===process.argv[2]);
+if(!x.axes) throw new Error("no axes snapshot on the session");
+if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2,quiz:0})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
+if("predicted" in x || "requested" in x) throw new Error("retired profile fields are still being written");
+' "$STATE/state.json" "$PPSID" && ok "pend snapshots all five axes and writes no profile fields" || bad "axis snapshot"
+# archive frontmatter carries the pend-time axis snapshot (not whatever the live state became)
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta-nopredict.json" --state-dir "$STATE" --report "$T/pp_rep.json" > /dev/null 2>&1
 L archive --session "$PPSID" --passage "$T/passage.md" --report "$T/pp_rep.json" > /dev/null 2>&1
-grepj '^predicted: { vocab: 2, syntax: 2, discourse: 2, background: 1 }$' "$STATE/passages/$PPSID.md" && ok "archive frontmatter carries predicted" || bad "archive predicted line"
+grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2, quiz: 0 }$' "$STATE/passages/$PPSID.md" \
+  && ! grepj '^predicted:' "$STATE/passages/$PPSID.md" \
+  && ok "archive frontmatter carries the axis snapshot and no predicted line" || bad "archive axis snapshot"
 # context feel (v1.16.0): no longer record-only — it now pulls the background axis down one rung.
 # Tier must NOT move (unknown background is not a vocabulary verdict).
-TIER_BEFORE=$(python3 -c "import json;print(json.load(open('$STATE/state.json'))['difficulty']['tier'])")
+TIER_BEFORE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).difficulty.tier)' "$STATE/state.json")
 L pend --meta "$T/meta.json" > "$T/pp2.json" 2>/dev/null
-PPSID2=$(python3 -c "import json;print(json.load(open('$T/pp2.json'))['session'])")
+PPSID2=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/pp2.json")
 L confirm --session "$PPSID2" --score 3/3 --feel context > "$T/ctx.json" 2>/dev/null
-grepj "\"tier\": $TIER_BEFORE" "$T/ctx.json" && grepj '"background 0/2' "$T/ctx.json" && grepj '"streakGood": 0' "$T/ctx.json" \
-  && ok "context feel holds tier and drops the background axis to 0/2" || bad "context routing"
-# choppy feel (v1.16.0, new 6th tap): pulls the discourse axis down one rung, nothing else
+grepj "\"tier\": $TIER_BEFORE" "$T/ctx.json" && grepj '"background 1/2' "$T/ctx.json" && grepj '"streakGood": 0' "$T/ctx.json" \
+  && ok "context feel holds tier and drops the background axis one rung (2 -> 1)" || bad "context routing"
+# choppy feel (v1.16.0, the 6th tap): pulls the discourse axis down one rung, nothing else
 L pend --meta "$T/meta.json" > "$T/pp3.json" 2>/dev/null
-PPSID3=$(python3 -c "import json;print(json.load(open('$T/pp3.json'))['session'])")
+PPSID3=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/pp3.json")
 L confirm --session "$PPSID3" --score 3/3 --feel choppy > "$T/chp.json" 2>/dev/null
-grepj "\"tier\": $TIER_BEFORE" "$T/chp.json" && grepj '"cohesion 1/3' "$T/chp.json" \
-  && ok "choppy feel holds tier and drops the cohesion axis to 1/3" || bad "choppy routing"
-# pool calibration: counted sessions with predicted appear with feel+score
-L pool --limit 4 > "$T/pool_cal.json" 2>/dev/null
-python3 -c "
-import json
-d = json.load(open('$T/pool_cal.json'))
-cal = d.get('calibration')
-assert isinstance(cal, list) and len(cal) >= 1, 'calibration missing'
-hit = [c for c in cal if c['session'] == '$PPSID2']
-assert hit and hit[0]['feel'] == 'context' and hit[0]['predicted']['vocab'] == 2, hit
-" && ok "pool exposes calibration pairs (predicted + feel + score)" || bad "calibration exposure"
+grepj "\"tier\": $TIER_BEFORE" "$T/chp.json" && grepj '"cohesion 0/3' "$T/chp.json" \
+  && ok "choppy feel holds tier and drops the cohesion axis one rung (1 -> 0)" || bad "choppy routing"
+# pool history: every counted session must surface its axes next to how it actually landed
+L pool --limit 4 > "$T/pool_hist.json" 2>/dev/null
+node -e '
+const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+const h=d.history;
+if(!Array.isArray(h)||!h.length) throw new Error("history missing");
+for(const k of ["session","axes","feel","score"]) if(!(k in h[0])) throw new Error("history field missing: "+k);
+if("calibration" in d) throw new Error("retired calibration field still emitted");
+const hit=h.find(c=>c.session===process.argv[2]);
+if(!hit) throw new Error("newest counted session absent from history");
+if(hit.feel!=="context") throw new Error("feel wrong: "+hit.feel);
+if(hit.axes===null) throw new Error("axes snapshot missing for the newest row");
+' "$T/pool_hist.json" "$PPSID2" && ok "pool history pairs each passage's axes with its feel (no calibration field)" || bad "A->feel history"
 
 echo "== difficulty ladder v1.15.0 (word bands / 6 tiers / 4 sentence rungs / negotiation) =="
 # asset integrity: every B1/B2 word carries exactly one band, and no other word carries any
@@ -407,37 +419,6 @@ const empty=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--state-dir",di
 if(empty.status===0) throw new Error("empty axes call accepted");
 ' "$SKILL_DIR" "$T3" && ok "axes command sets a subset, rejects out-of-range and empty calls" || bad "axes command"
 
-# requested: optional and shape-checked; carried through pend, calibration and archive frontmatter
-node -e '
-const fs=require("fs");
-const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-m.requested={vocab:1,syntax:1,discourse:3,background:1};
-fs.writeFileSync(process.argv[2],JSON.stringify(m));
-const b=JSON.parse(JSON.stringify(m)); b.requested.vocab=9;
-fs.writeFileSync(process.argv[3],JSON.stringify(b));
-' "$T/meta.json" "$T/req.json" "$T/req-bad.json"
-node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/req.json" --state-dir "$STATE" > "$T/req_res.json" 2>/dev/null
-grepj '"pass": true' "$T/req_res.json" && ok "meta.requested accepted when well-formed (optional field)" || bad "valid requested rejected"
-node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/req-bad.json" --state-dir "$STATE" > "$T/req_bad_res.json" 2>/dev/null
-grepj 'meta.requested.vocab must be an integer 1-3' "$T/req_bad_res.json" && ok "out-of-range meta.requested rejected" || bad "requested range check missing"
-L pend --meta "$T/req.json" > "$T/req_p.json" 2>/dev/null
-REQSID=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/req_p.json")
-L confirm --session "$REQSID" --score 3/3 --feel ok > /dev/null 2>&1
-L pool --limit 4 > "$T/pool_req.json" 2>/dev/null
-node -e '
-const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
-const hit=(d.calibration||[]).find(c=>c.session===process.argv[2]);
-if(!hit) throw new Error("no calibration row for the session");
-if(!hit.requested||hit.requested.discourse!==3) throw new Error("requested not carried: "+JSON.stringify(hit));
-if(hit.predicted.discourse!==2) throw new Error("predicted was overwritten by requested: "+JSON.stringify(hit));
-' "$T/pool_req.json" "$REQSID" && ok "calibration carries requested beside an untouched predicted (two loops stay separate)" || bad "requested passthrough"
-L pend --meta "$T/req.json" > "$T/req_p2.json" 2>/dev/null
-REQSID2=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/req_p2.json")
-node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/req.json" --state-dir "$STATE" --report "$T/req_rep.json" > /dev/null 2>&1
-L archive --session "$REQSID2" --passage "$T/passage.md" --report "$T/req_rep.json" > /dev/null 2>&1
-grepj '^requested: { vocab: 1, syntax: 1, discourse: 3, background: 1 }$' "$STATE/passages/$REQSID2.md" \
-  && grepj '^difficulty: { tier: ' "$STATE/passages/$REQSID2.md" \
-  && ok "archive frontmatter carries requested + the difficulty used to draft it" || bad "archive requested/difficulty line"
 
 echo "== archive (scripted step-6) =="
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/rep_ok.json" > /dev/null 2>&1
