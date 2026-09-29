@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.14.0
+version: 1.15.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -60,16 +60,24 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定负荷画像（起草前必做）：** 读 `pool` 输出的 `calibration`（最近的预测 vs 实际对账），对照
-   [难度量规](references/difficulty-rubric.md) 给本篇定下四维目标画像
-   （vocab/syntax/discourse/background 各 1–3）。本版本画像只记录、不改变任何生成参数
-   （tier/syntaxCalm/配额逻辑照旧）——它的用途是让你事后的判断可对账。
+   **定负荷画像 + 事前协商（起草前必做）：** 读 `pool` 输出的 `calibration`（最近的对账）与
+   [难度量规](references/difficulty-rubric.md)，给本篇定下四维画像（vocab/syntax/discourse/background 各 1–3）。
+   然后**把画像用一句人话讲给学习者听**（例：「今天这篇我打算：词略生、句子常规、衔接紧、话题熟」），
+   等他点头或否决 —— 他否决/点菜就照他说的改，改完的那份写 `meta.requested`；你自己原来那份**照旧写 `meta.predicted`**，
+   两个都要写。画像仍然**不驱动任何生成参数**（tier/syntaxCalm/配额逻辑照旧），
+   但 `requested` 让这次协商可对账：`predicted→requested` 量你的手估值不值钱，`requested→feel` 量这一篇交得合不合意。
+   **探针（同一处顺带判）：** 若 `calibration` 里**最近连续 3 篇** predicted 四维之和 ≤7 且 feel 全为 `ok`，
+   说明一直待在无聊区、传感器没有信号 —— 本篇按轮转把**一维顶到 3**（顺序 discourse → background → syntax → vocab），
+   其余维压到合计 ≤5 保住总负荷守恒。探针也是先协商再动手：告诉学习者「这篇我故意在 X 上加码」，他不想就直接跳过。
+   冲突规则：**点菜不能突破硬闸**（生词率/句长上限照旧），也**不能动 tier**（词池是测量问题，归脚本闸门）；
+   若点菜要加负荷而 `syntaxCalm > 0`（有实际受挫证据），**以 `syntaxCalm` 为准**——愿望不覆盖受挫证据。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
-   (`{"topic","targets":[],"reunion":[],"names":[],"predicted":{"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3}}` — names = proper nouns)
+   (`{"topic","targets":[],"reunion":[],"names":[],"predicted":{"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3},"requested":{…同形状，学习者点菜后的那份…}}` — names = proper nouns)
    to temp files and run
-   `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json>`.
+   `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> --max-sentence <n> --avg-sentence <n>`，
+   句长上限取 `pool` 输出的 `sentenceCaps`（句式档 0–3 对应 20/12 · 18/11 · 16/10 · 13/8），**每篇都显式传**，别只在自己记得的时候传。
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th
    failure report the structural blocker honestly instead of shipping a bad passage. Keep the exact
    passage file — step 6 archives those bytes and the report's `passageSha256` pins them.
@@ -165,8 +173,8 @@ the learner explicitly asks for.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
-- 250–350 words; longest sentence ≤20, average ≤12 words (tightened to ≤16 / ≤10, via
-  `--max-sentence 16 --avg-sentence 10`, while `difficulty.syntaxCalm > 0`).
+- 250–350 words；句长上限由**句式档**决定（0 常规 ≤20/≤12 · 1 偏静 ≤18/≤11 · 2 冷静 ≤16/≤10 · 3 最静 ≤13/≤8），
+  每篇按 `pool` 输出的 `sentenceCaps` 显式传 `--max-sentence <n> --avg-sentence <n>`。
 - 4–5 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
 - Zero undeclared above-level words: anything above CEFR A2 must be a declared target, reunion word,
@@ -177,22 +185,30 @@ the learner explicitly asks for.
 
 体感 is a **load-type diagnosis**, and each answer pulls a different lever:
 
-| 体感 / 成绩 | 词汇档 tier | 句式 |
+| 体感 / 成绩 | 词汇档 tier（1–6） | 句式档（0–3） |
 |---|---|---|
 | flow ① + 正确率 ≥80% | `streakGood++`，**连续 2 次**才 +1 档 | 不变 |
-| ok ②（甜区，i+1） | **保持**（甜区就是目标态，不是超标信号）；连击清零 | 不变 |
-| wordy ③（生词太多） | 立即 −1 档（下限 1）；连击清零 | 不变 |
-| dense ④（句子太难） | **不变**（词汇达标）；连击清零 | `syntaxCalm = 2` |
-| context ⑤（背景/话题陌生） | **保持**（纯诊断记录，本版本不调档）；连击清零 | 不变 |
-| 正确率 <60% | −1 档；连击清零 | `syntaxCalm = 2` |
+| ok ②（甜区，i+1） | **保持**（甜区就是目标态，不是超标信号）；连击清零 | −1 档（下限 0） |
+| wordy ③（生词太多） | 立即 −1 档（下限 1）；连击清零 | −1 档 |
+| dense ④（句子太难） | **不变**（词汇达标）；连击清零 | **+1 档**（从 0 起跳到 2，已在 2 以上再紧一档，封顶 3） |
+| context ⑤（背景/话题陌生） | **保持**（纯诊断记录，本版本不调档）；连击清零 | −1 档 |
+| 正确率 <60% | −1 档；连击清零 | **+1 档**（同上） |
 
-> **负荷画像与校准回路（v1.13.0）**：predicted 在 pend 时落盘、archive 时进 frontmatter、confirm 时与 feel/score 并排记账；`pool` 的 `calibration` 字段把最近 8 条对账喂回起草环节。Phase 纪律：**画像只记录、只校准判断，不驱动任何参数**——画像驱动补偿调档（Phase 2）需 ≥8 条校准数据 + 学习者显式批准。
+> **负荷画像与校准回路（v1.13.0；v1.15.0 加 requested）**：`predicted`（你自己的判断）与 `requested`（协商后学习者要的）
+> 在 pend 时落盘、archive 时进 frontmatter、confirm 时与 feel/score 并排记账；`pool` 的 `calibration` 字段把最近 8 条喂回起草环节。
+> 两条对账线：`predicted→requested` 量你的手估值不值钱，`requested→feel` 量这一篇交得合不合意。
+> Phase 纪律：**画像只记录、只校准判断，不驱动任何参数**——画像驱动补偿调档（Phase 2）需 ≥8 条校准数据 + 学习者显式批准。
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
-tier 1→3 只控制候选池（B1 → B1+B2 → B2）；目标词数三档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。
-`syntaxCalm > 0` 时（由 `status`/`pool`/`confirm` 输出的 `syntaxCalm` 字段读出）：起草按单句 ≤16 词、
-平均 ≤10 词执行，并且第 5 步的 passage-check 必须带 `--max-sentence 16 --avg-sentence 10` 运行；
-每 confirm 一篇自动 −1，归零后恢复常规句式。每次 confirm 至多 ±1 档，不存在连跳。
+
+**词汇档 1–6（v1.15.0，旧版 3 档）** 只控制候选池，按 Google N-Gram 词频把 B1/B2 各切三段、逐档并入
+（726 / 1452 / 2178 / 3010 / 3842 / 4675 词，见 `assets/word-bands.tsv`）：档越高，允许出现的生僻词越多。
+旧档位映射：旧 1（全部 B1）= 新 3，旧 2/3 = 新 6（`state.version < 2` 时自动迁移，见 `load()`）。
+目标词数六档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。
+
+**句式档 0–3（v1.15.0，旧版只有 0/1 两态）**：由 `status`/`pool`/`confirm` 输出的 `syntaxCalm` 与 `sentenceCaps` 读出。
+单次 dense/低分至少跳到 2 档（= 旧的 16/10，首篇效果与旧版一致），反复受挫会累积到 3 档（旧版做不到）；
+平稳篇每 confirm 松开一档（下限 0），恢复是渐进的而非开关。每次 confirm 词汇档至多 ±1 档，不存在连跳。
 起始参数由 2026-09-22 试炼校准（5 词、2.5–3.5%、3/3、"偶尔吃力"）。
 
 ## Files
@@ -211,6 +227,7 @@ scripts/skill-update.mjs          会话必过路径上的 skill 落后检查（
 scripts/ship.mjs                  唯一发布路径：绿测试 + 版本联动 lint + 远端移动守卫，fail-closed
 scripts/lib-layers.mjs            rule 层定义（scripts/SKILL.md/references/assets），lint 与 check 共用
 assets/cefr-j-words.tsv           CEFR-J/Octanove 词表（拷贝自 anki-flashcard，独立演化）
+assets/word-bands.tsv             B1/B2 的词频三段（Google N-Gram，MIT 源）——6 档词池的过滤依据
 assets/allow-extra.txt            白名单（已知专业词：sensors 等）
 assets/irregular-forms.txt        不规则变化不算超纲
 tests/acceptance.sh               验收套件

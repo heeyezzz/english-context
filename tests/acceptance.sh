@@ -104,12 +104,12 @@ check "confirm unknown id refused" 1 L confirm --session definitely-not-here
 L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
 grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
 grepj '"syntaxCalm": 0' "$T/cf.json" && ok "ok feedback leaves syntaxCalm at 0" || bad "syntaxCalm on ok"
-grepj '"tier": 1' "$T/cf.json" && ok "single good session does not promote" || bad "premature promotion"
+grepj '"tier": 3' "$T/cf.json" && ok "single good session does not promote (tier stays at the v1.15.0 start of 3)" || bad "premature promotion"
 # ok = i+1 equilibrium: it holds the tier and never accumulates a promotion streak
 L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
 SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'])")
 L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
-grepj '"tier": 1' "$T/cf_ok2.json" && grepj '"streakGood": 0' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
+grepj '"tier": 3' "$T/cf_ok2.json" && grepj '"streakGood": 0' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
 grepj 'already counted today' "$T/cf_ok2.json" && ok "confirm reports same-day locks instead of silently skipping" || bad "lock not reported"
 # same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
@@ -134,7 +134,7 @@ node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f))
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
 L confirm --session "$SID2" --score 3/3 --feel dense > "$T/cf2.json" 2>/dev/null
-grepj '"tier": 1' "$T/cf2.json" && grepj '"syntaxCalm": 2' "$T/cf2.json" && ok "dense keeps tier, arms syntaxCalm=2" || bad "dense routing"
+grepj '"tier": 3' "$T/cf2.json" && grepj '"syntaxCalm": 2' "$T/cf2.json" && ok "dense keeps tier, arms syntaxCalm=2" || bad "dense routing"
 # wordy: vocabulary overload never RE-ARMS the calmer; it only consumes the calm budget (dense's 2 -> 1)
 L pend --meta "$T/meta.json" > /dev/null 2>&1
 SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
@@ -147,13 +147,21 @@ SIDV=$(python3 -c "import json;print(json.load(open('$T/p_v.json'))['session'])"
 mkdir -p "$STATE/passages"; echo "# archived draft" > "$STATE/passages/$SIDV.md"
 L void --session "$SIDV" > "$T/vt.json" 2>/dev/null
 grepj '"passageRemoved": true' "$T/vt.json" && [ ! -f "$STATE/passages/$SIDV.md" ] && ok "void deletes the archived passage" || bad "void archive removal"
-# regression (win bug): a voided session must strand no 0/6 ghosts outside both pools
+# regression (win bug): a voided session must strand no 0/6 ghosts outside both pools.
+# Own state at the top rung: since v1.15.0 the ladder narrows mid-tier pools on purpose
+# (whistle is B1 band 3, so it is legitimately absent at tier 2) — asserting it inside the
+# main flow would test the current rung's width, not the ghost invariant.
+TG="$T/ghost"; mkdir -p "$TG"
+node "$S/ledger.mjs" init --state-dir "$TG" --no-sync > /dev/null 2>&1
+node -e 'const fs=require("fs"),p=process.argv[1];const s=JSON.parse(fs.readFileSync(p));s.difficulty.tier=6;fs.writeFileSync(p,JSON.stringify(s))' "$TG/state.json"
+LG() { node "$S/ledger.mjs" "$@" --state-dir "$TG"; }
 echo '{"topic":"ghost","targets":["whistle"],"reunion":[],"names":[]}' > "$T/ghost.json"
-L pend --meta "$T/ghost.json" > "$T/ghost_p.json" 2>/dev/null
-GID=$(python3 -c "import json;print(json.load(open('$T/ghost_p.json'))['session'])")
-L void --session "$GID" > /dev/null 2>&1
-L pool --limit 3000 > "$T/ghost_pool.json" 2>/dev/null
-python3 -c "import json;d=json.load(open('$T/ghost_pool.json'));assert any(c.startswith('whistle ') for c in d['fresh'])" && ok "voided word returns to fresh (no 0/6 ghost lost)" || bad "void strands ghosts out of both pools"
+LG pend --meta "$T/ghost.json" > "$T/ghost_p.json" 2>/dev/null
+GID=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/ghost_p.json")
+LG void --session "$GID" > /dev/null 2>&1
+LG pool --limit 9999 > "$T/ghost_pool.json" 2>/dev/null
+node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));if(!d.fresh.some(c=>c.startsWith("whistle ")))throw new Error("whistle missing from fresh")' "$T/ghost_pool.json" && ok "voided word returns to fresh (no 0/6 ghost lost)" || bad "void strands ghosts out of both pools"
+TIER_PRE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).difficulty.tier)' "$STATE/state.json")
 for i in 2 3; do
   L pend --meta "$T/meta.json" > /dev/null 2>&1
   SID2=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
@@ -161,7 +169,10 @@ for i in 2 3; do
   L confirm --session "$SID2" --score 3/3 --feel flow > /dev/null 2>&1 || \
   { node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=s.sessions.filter(x=>x.status==='pending').pop();d.id+='-$i';require('fs').writeFileSync(f,JSON.stringify(s))"; L confirm --session "$SID2-$i" --score 3/3 --feel flow > /dev/null 2>&1; }
 done
-grepj '"tier": 2' "$STATE/state.json" && ok "two more good (flow) sessions promote tier 1->2" || bad "promotion rule"
+# v1.15.0: assert the DELTA, not a literal — the absolute rung now depends on where the flow
+# was sitting (wordy just demoted it), which is the ladder working as designed
+node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(s.difficulty.tier===+process.argv[2]+1?0:1)' "$STATE/state.json" "$TIER_PRE" \
+  && ok "two more good (flow) sessions promote exactly one rung ($TIER_PRE -> $((TIER_PRE+1)))" || bad "promotion rule"
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.exposures=6;require('fs').writeFileSync(f,JSON.stringify(s))"
 L graduate --word service > "$T/gr.json" 2>/dev/null
 grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" || bad "bridge missing"
@@ -281,6 +292,112 @@ assert isinstance(cal, list) and len(cal) >= 1, 'calibration missing'
 hit = [c for c in cal if c['session'] == '$PPSID2']
 assert hit and hit[0]['feel'] == 'context' and hit[0]['predicted']['vocab'] == 2, hit
 " && ok "pool exposes calibration pairs (predicted + feel + score)" || bad "calibration exposure"
+
+echo "== difficulty ladder v1.15.0 (word bands / 6 tiers / 4 sentence rungs / negotiation) =="
+# asset integrity: every B1/B2 word carries exactly one band, and no other word carries any
+node -e '
+const fs=require("fs"), S=process.argv[1];
+const lv=new Map();
+for(const l of fs.readFileSync(S+"/assets/cefr-j-words.tsv","utf8").split("\n")){
+  if(l.startsWith("#")||!l.trim()) continue;
+  const [w,x]=l.split("\t"); lv.set(w.trim().toLowerCase(),x.trim());
+}
+const bands=new Map();
+for(const l of fs.readFileSync(S+"/assets/word-bands.tsv","utf8").split("\n")){
+  if(l.startsWith("#")||!l.trim()) continue;
+  const [w,,b]=l.split("\t");
+  if(!["1","2","3"].includes((b||"").trim())) throw new Error("bad band "+JSON.stringify(b));
+  bands.set(w.trim().toLowerCase(),+b);
+}
+const need=[...lv].filter(([,x])=>x==="B1"||x==="B2").map(([w])=>w);
+const missing=need.filter(w=>!bands.has(w));
+const extra=[...bands.keys()].filter(w=>!lv.has(w));
+if(missing.length) throw new Error("B1/B2 words without a band: "+missing.length+" e.g. "+missing.slice(0,5));
+if(extra.length) throw new Error("banded words not in CEFR list: "+extra.length);
+const sizes=[1,2,3].map(b=>[...bands.values()].filter(x=>x===b).length);
+if(sizes.some(n=>n<500)) throw new Error("degenerate band sizes "+sizes);
+' "$SKILL_DIR" && ok "word-bands.tsv covers every B1/B2 word exactly once" || bad "word-bands coverage"
+
+# 6 tiers must be strictly monotone, and tier 3 must equal the old "all B1" pool the learner
+# was actually sitting on — otherwise the v1.14.0 state silently drops to an easier pool
+T2="$T/ladder"; mkdir -p "$T2"
+node "$S/ledger.mjs" init --state-dir "$T2" --no-sync > /dev/null 2>&1
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const sizes=[];
+for(let t=1;t<=6;t++){
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:2,difficulty:{tier:t,streakGood:0,syntaxCalm:0},words:{},sessions:[],interests:[]}));
+  const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+  sizes.push(o.poolSize);
+}
+if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("not monotone: "+sizes);
+if(new Set(sizes).size!==6) throw new Error("duplicate rungs: "+sizes);
+const oldB1=fs.readFileSync(S+"/assets/cefr-j-words.tsv","utf8").split("\n")
+  .filter(l=>l.trim()&&!l.startsWith("#")).filter(l=>l.split("\t")[1].trim()==="B1").length;
+if(sizes[2]!==oldB1) throw new Error("tier 3 = "+sizes[2]+" but old all-B1 pool was "+oldB1);
+' "$SKILL_DIR" "$T2" && ok "tiers 1-6 strictly monotone; tier 3 == old all-B1 pool (726/1452/2178/3010/3842/4675)" || bad "tier ladder"
+
+# v1.14.0 -> v1.15.0 state migration (state.version < 2)
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+for(const [old,want] of Object.entries({1:3,2:6,3:6})){
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:1,difficulty:{tier:+old,streakGood:0},words:{},sessions:[],interests:[]}));
+  const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","status","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+  if(o.tier!==want) throw new Error("old tier "+old+" -> "+o.tier+", want "+want);
+}
+' "$SKILL_DIR" "$T2" && ok "pre-v1.15.0 state migrates (old 1->3, 2->6, 3->6) — no silent difficulty drop" || bad "tier migration"
+
+# sentence rungs: first dense lands on 2 (= old 16/10 exactly), a second climbs to 3, ok relaxes one rung at a time
+T3="$T/rungs"; mkdir -p "$T3"
+node "$S/ledger.mjs" init --state-dir "$T3" --no-sync > /dev/null 2>&1
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:2,difficulty:{tier:3,streakGood:0,syntaxCalm:0},words:{},sessions:[],interests:[]}));
+const run=(feel)=>{
+  fs.writeFileSync(dir+"/m.json",JSON.stringify({topic:"t",targets:["concept"],predicted:{vocab:2,syntax:2,discourse:2,background:1}}));
+  const id="s"+Math.random().toString(36).slice(2,8);
+  cp.execFileSync("node",[S+"/scripts/ledger.mjs","pend","--meta",dir+"/m.json","--id",id,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
+  return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","confirm","--session",id,"--score","3/3","--feel",feel,"--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+};
+const want=[[2,"冷静"],[3,"最静"],[3,"最静"],[2,0],[1,0],[0,0]];
+["dense","dense","dense","ok","ok","ok"].forEach((feel,i)=>{
+  const r=run(feel);
+  if(r.syntaxCalm!==want[i][0]) throw new Error(feel+" #"+(i+1)+" -> rung "+r.syntaxCalm+", want "+want[i][0]);
+  if(want[i][1]&&!r.syntaxLabel.includes(want[i][1])) throw new Error("label "+r.syntaxLabel);
+});
+' "$SKILL_DIR" "$T3" && ok "sentence ladder: dense 2→3 (capped), ok relaxes 3→2→1→0, first dense keeps old 16/10" || bad "sentence ladder"
+
+# requested: optional and shape-checked; carried through pend, calibration and archive frontmatter
+node -e '
+const fs=require("fs");
+const m=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+m.requested={vocab:1,syntax:1,discourse:3,background:1};
+fs.writeFileSync(process.argv[2],JSON.stringify(m));
+const b=JSON.parse(JSON.stringify(m)); b.requested.vocab=9;
+fs.writeFileSync(process.argv[3],JSON.stringify(b));
+' "$T/meta.json" "$T/req.json" "$T/req-bad.json"
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/req.json" --state-dir "$STATE" > "$T/req_res.json" 2>/dev/null
+grepj '"pass": true' "$T/req_res.json" && ok "meta.requested accepted when well-formed (optional field)" || bad "valid requested rejected"
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/req-bad.json" --state-dir "$STATE" > "$T/req_bad_res.json" 2>/dev/null
+grepj 'meta.requested.vocab must be an integer 1-3' "$T/req_bad_res.json" && ok "out-of-range meta.requested rejected" || bad "requested range check missing"
+L pend --meta "$T/req.json" > "$T/req_p.json" 2>/dev/null
+REQSID=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/req_p.json")
+L confirm --session "$REQSID" --score 3/3 --feel ok > /dev/null 2>&1
+L pool --limit 4 > "$T/pool_req.json" 2>/dev/null
+node -e '
+const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
+const hit=(d.calibration||[]).find(c=>c.session===process.argv[2]);
+if(!hit) throw new Error("no calibration row for the session");
+if(!hit.requested||hit.requested.discourse!==3) throw new Error("requested not carried: "+JSON.stringify(hit));
+if(hit.predicted.discourse!==2) throw new Error("predicted was overwritten by requested: "+JSON.stringify(hit));
+' "$T/pool_req.json" "$REQSID" && ok "calibration carries requested beside an untouched predicted (two loops stay separate)" || bad "requested passthrough"
+L pend --meta "$T/req.json" > "$T/req_p2.json" 2>/dev/null
+REQSID2=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/req_p2.json")
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/req.json" --state-dir "$STATE" --report "$T/req_rep.json" > /dev/null 2>&1
+L archive --session "$REQSID2" --passage "$T/passage.md" --report "$T/req_rep.json" > /dev/null 2>&1
+grepj '^requested: { vocab: 1, syntax: 1, discourse: 3, background: 1 }$' "$STATE/passages/$REQSID2.md" \
+  && grepj '^difficulty: { tier: ' "$STATE/passages/$REQSID2.md" \
+  && ok "archive frontmatter carries requested + the difficulty used to draft it" || bad "archive requested/difficulty line"
 
 echo "== archive (scripted step-6) =="
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/rep_ok.json" > /dev/null 2>&1

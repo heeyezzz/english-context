@@ -249,15 +249,21 @@ if (reunion.size && !reunionUsed.length) warn.push('declared reunion words never
 
 // predicted load profile (v1.13.0): the agent's pre-registered self-assessment against
 // references/difficulty-rubric.md. Script checks SHAPE only — the score is judgment, not measurement.
-const p = meta.predicted;
-if (!p || typeof p !== 'object') {
-  fail.push('meta.predicted required: {"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3} — see references/difficulty-rubric.md');
-} else {
-  for (const d of DIMS) {
-    if (!Number.isInteger(p[d]) || p[d] < 1 || p[d] > 3)
-      fail.push(`meta.predicted.${d} must be an integer 1-3, got ${JSON.stringify(p[d])}`);
+// requested (v1.15.0) is the profile the learner actually asked for at the pre-draft
+// negotiation; optional, but if present it must be well-formed so the two calibration
+// loops (requested→feel, predicted→requested) compare like with like.
+const shapeCheck = (obj, field, required) => {
+  if (!obj || typeof obj !== 'object') {
+    if (required) fail.push(`meta.${field} required: {"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3} — see references/difficulty-rubric.md`);
+    return;
   }
-}
+  for (const d of DIMS) {
+    if (!Number.isInteger(obj[d]) || obj[d] < 1 || obj[d] > 3)
+      fail.push(`meta.${field}.${d} must be an integer 1-3, got ${JSON.stringify(obj[d])}`);
+  }
+};
+shapeCheck(meta.predicted, 'predicted', true);
+shapeCheck(meta.requested, 'requested', false);
 
 // ---------- report ----------
 const report = {
