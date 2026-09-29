@@ -52,17 +52,20 @@ const MAX_TIER = 8;
 // v1.16.0 — 句式档 5 档（v1.15.0 是 4 档，且只卡句长）。句长轴过去是饱和的：实测 13 篇
 // 存量档平均句长 8.8 词而上限是 12，几乎没有咬合；真正的难度藏在「小句密度」里
 // （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句子包」：
-// 句长 + 每句小句数 + 全篇被动句数一起收紧。索引 1 = 常规（默认，各项均不咬合存量档），
-// 0 是放宽档（双向）。clauses/passives 的上限取自 13 篇存档的实测分布，不是猜的。
+// 句长 + 每句小句数 + 全篇被动句数一起收紧。clauses/passives 的上限取自 13 篇存档的实测分布，不是猜的。
+// v1.36.0 — **索引整体翻转**：现在「数字越大越难」，与词汇/衔接/话题一致。旧序是 0 常规向上变「静」
+// （继承 syntaxCalm 的 0=常规、越高越静），四轴里只有它反着，学习者按同一套直觉点菜就会读反。
+// 难度包本身一字未动，只是索引反写：新 i = 4 − 旧 i。落盘状态与每篇的档位快照在 load() 里
+// 随 state.version 4 一次性翻转（旧档的 passages 文件不改写，见迁移注释）。
 const SYNTAX_LADDER = [
-  { max: 24, avg: 14, clauses: 5, passives: 4, label: '放宽' },
-  { max: 20, avg: 12, clauses: 4, passives: 2, label: '常规' },
-  { max: 18, avg: 11, clauses: 3, passives: 1, label: '偏静' },
-  { max: 16, avg: 10, clauses: 2, passives: 1, label: '冷静' },
   { max: 13, avg: 8, clauses: 2, passives: 0, label: '最静' },
+  { max: 16, avg: 10, clauses: 2, passives: 1, label: '冷静' },
+  { max: 18, avg: 11, clauses: 3, passives: 1, label: '偏静' },
+  { max: 20, avg: 12, clauses: 4, passives: 2, label: '常规' },
+  { max: 24, avg: 14, clauses: 5, passives: 4, label: '放宽' },
 ];
 const MAX_SYNTAX = SYNTAX_LADDER.length - 1;
-const SANE_SYNTAX = 1; // 常规：新台账的起点、旧 syntaxCalm=0 的映射目标、以及台账缺字段时的读取兜底（v1.22.0 起不再有任何自动衰减）
+const SANE_SYNTAX = 3; // 常规（翻转后 = 旧 1）：新台账的起点、以及台账缺字段时的读取兜底（v1.22.0 起不再有任何自动衰减）
 // v1.16.0 — 衔接档 4 档，**双向**：易端设衔接下限，难端设衔接上限。
 // 只设下限是不行的：实测邻句实词重叠率中位仅 0.035（区间 0.006–0.133），任何有意义的默认
 // 下限都会否掉一半存量档，等于偷偷改了校准过的默认行为。所以默认档（2）不设约束，
@@ -156,11 +159,13 @@ function tierPool(tier) {
 // literally the learner's last choice, carried across sessions and machines for free.
 // The menu is a READOUT that can be acted on: the learner answers with an axis + rung and the
 // agent runs `axes --<axis> <rung>`.
-// v1.25.0: the menu now states, per axis, (a) which way difficulty runs — the index convention is
-// NOT uniform: 词汇/衔接/话题 are "bigger number = harder" while 句子 is the reverse (it inherited
-// syntaxCalm's "0 = normal, higher = calmer" direction), and without a marker a learner who learns
-// one convention gets the other axis backwards; (b) the copy-pasteable command; (c) lastUsed and
-// whether this axis has drifted since the last draft, so the agent no longer has to diff by hand.
+// v1.25.0: the menu now states, per axis, (a) which way difficulty runs — back then the index convention
+// was NOT uniform (词汇/衔接/话题 were "bigger = harder" while 句子 inherited syntaxCalm's reverse
+// direction), and without a marker a learner who learned one convention got the other axis backwards;
+// (b) the copy-pasteable command; (c) lastUsed and whether this axis has drifted since the last draft,
+// so the agent no longer has to diff by hand.
+// v1.36.0: 句子 flipped, so all four axes now read "bigger number = harder". `direction` stays in the
+// output anyway — it is what tells the learner *which* lever the axis actually pulls.
 const lastUsedAxes = (s) => {
   const c = s.sessions.filter((x) => x.status === 'counted');
   for (let i = c.length - 1; i >= 0; i--) if (c[i].axes) return c[i].axes;
@@ -190,7 +195,7 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
       { note: '只能手动点菜（v1.22.0 起没有自动升档）。词池的过滤规则本身仍在脚本闸门内' }),
     句子: entry('syntax',
       SYNTAX_LADDER.map((r, i) => ({ value: i, label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}` })),
-      '⚠️ 数字越大「越易」（句子越短、小句越少）—— 与本面板其他三轴相反'),
+      '数字越大越难（句子越长、小句越多、被动句越多）'),
     衔接: entry('cohesion',
       COHESION_LADDER.map((r, i) => ({
         value: i, label: r.label,
@@ -228,23 +233,35 @@ const TIER_V1 = { 1: 3, 2: 6, 3: 6 };
 // v1.15.0 六档 → v1.16.0 八档：按池子大小就近映射。锚点：旧 3（B1 全量 2178 词）≡ 新 4（2178 词）。
 const TIER_V2 = { 1: 1, 2: 3, 3: 4, 4: 5, 5: 7, 6: 8 };
 const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1 };
+// v1.36.0 — 句子档索引翻转（新 = 4 − 旧）。难度包不变，只有编号反写，所以迁移必须同时改
+// 当前档位和每篇的档位快照：快照不翻的话，`history` 会把旧档读成反方向的难度
+// （旧 syntax 1 = 常规会被读成新的 1 = 冷静），台账就变成假账。
+// 已归档的 $STATE/passages/*.md 里的 frontmatter **不改写**——那是当时展示过的成品记录，
+// 且没有任何脚本回读它做判断；要按新编号重读旧篇，看 ledger 的 sessions 快照即可。
+const flipSyntax = (v) => MAX_SYNTAX - v;
 function load() {
   if (!existsSync(stateFile)) {
     if (cmd !== 'init') { console.error('no state at ' + stateFile + ' — run `ledger.mjs init` first'); process.exit(2); }
-    return { version: 3, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
+    return { version: 4, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
   }
   const s = JSON.parse(readFileSync(stateFile, 'utf8'));
   const v = s.version || 1;
   if (v < 2) { s.difficulty.tier = TIER_V1[s.difficulty.tier] || 3; s.version = 2; }
   if (v < 3) {
     s.difficulty.tier = TIER_V2[s.difficulty.tier] || DEFAULT_AXES.tier;
-    // 旧 syntaxCalm 0/1/2/3 → 新 syntax 1/2/3/4（0 = 常规在两边都成立，只是索引整体后移一格；
-    // v1.16.0 新增的 0 档是"放宽"，旧台账永远不会落在那里，所以不可能静默变难）
+    // 旧 syntaxCalm 0/1/2/3 → 当时的 syntax 1/2/3/4（0 = 常规在两边都成立，只是索引整体后移一格；
+    // v1.16.0 新增的 0 档是"放宽"，旧台账永远不会落在那里，所以不可能静默变难）。
+    // 若台账还旧到 v1.36.0，下面的 v<4 分支会把它一并翻成 新 = 4 − 旧。
     s.difficulty.syntax = clamp((s.difficulty.syntaxCalm ?? 0) + 1, MAX_SYNTAX);
     delete s.difficulty.syntaxCalm;
     s.difficulty.cohesion = DEFAULT_AXES.cohesion;
     s.difficulty.background = DEFAULT_AXES.background;
     s.version = 3;
+  }
+  if (v < 4) {
+    if (typeof s.difficulty.syntax === 'number') s.difficulty.syntax = flipSyntax(clamp(s.difficulty.syntax, MAX_SYNTAX));
+    for (const sess of s.sessions || []) if (sess.axes && typeof sess.axes.syntax === 'number') sess.axes.syntax = flipSyntax(sess.axes.syntax);
+    s.version = 4;
   }
   return s;
 }
@@ -272,7 +289,7 @@ if (cmd === 'init') {
   mkdirSync(join(stateDir, 'passages'), { recursive: true });
   if (!existsSync(knownFile)) writeFileSync(knownFile, '# graduated + explicitly known words, one per line\n');
   const s = load();
-  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 3, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
+  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 4, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
   console.log('initialized ' + stateFile);
 }
 

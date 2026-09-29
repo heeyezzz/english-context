@@ -103,7 +103,7 @@ grepj '"pending"' "$T/st.json" && ok "pool lists pending sessions (status was fo
 check "confirm unknown id refused" 1 L confirm --session definitely-not-here
 L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
 grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
-grepj '"句子": "syntax 1/4' "$T/cf.json" && ok "ok feedback leaves the syntax rung at 常规 (1/4)" || bad "syntax rung on ok"
+grepj '"句子": "syntax 3/4' "$T/cf.json" && ok "ok feedback leaves the syntax rung at 常规 (3/4 after the v1.36.0 flip)" || bad "syntax rung on ok"
 grepj '"tier": 4' "$T/cf.json" && ok "single good session does not promote (tier stays at the v1.16.0 start of 4)" || bad "premature promotion"
 # ok = i+1 equilibrium: it holds the tier and never accumulates a promotion streak
 L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
@@ -139,7 +139,7 @@ const stamp=(h)=>{ const d=new Date(Date.now()-h*3600000), p=(n)=>String(n).padS
 const mk=(entries)=>{
   const words={};
   for(const [w,h,e] of entries) words[w]={exposures:e,last:stamp(h),status:"active"};
-  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1},words,sessions:[],interests:[]}));
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words,sessions:[],interests:[]}));
   return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 };
 let o=mk([["alpha",2,1],["beta",8,1]]);
@@ -158,7 +158,7 @@ const stamp=(h)=>{ const d=new Date(Date.now()-h*3600000), p=(n)=>String(n).padS
 const build=(n)=>{
   const words={};
   for(let i=0;i<n;i++) words["w"+i]={exposures:1,last:stamp(50),status:"active"};
-  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1},words,sessions:[],interests:[]}));
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words,sessions:[],interests:[]}));
   return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 };
 const under=build(25), over=build(26);
@@ -189,12 +189,12 @@ node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f))
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
 L confirm --session "$SID2" --score 3/3 --feel dense > "$T/cf2.json" 2>/dev/null
-grepj '"tier": 4' "$T/cf2.json" && grepj '"句子": "syntax 1/4' "$T/cf2.json" && ok "dense changes NOTHING (v1.22.0: no auto-routing; feel is pure record)" || bad "dense routing"
+grepj '"tier": 4' "$T/cf2.json" && grepj '"句子": "syntax 3/4' "$T/cf2.json" && ok "dense changes NOTHING (v1.22.0: no auto-routing; feel is pure record)" || bad "dense routing"
 # wordy: vocabulary overload never RE-ARMS the calmer; it only consumes the calm budget (dense's 2 -> 1)
 L pend --meta "$T/meta.json" > /dev/null 2>&1
 SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
 L confirm --session "$SID3" --score 3/3 --feel wordy > "$T/cf3.json" 2>/dev/null
-grepj '"tier": 4' "$T/cf3.json" && grepj '"句子": "syntax 1/4' "$T/cf3.json" && ok "wordy changes NOTHING either — no axis is demoted automatically" || bad "wordy routing"
+grepj '"tier": 4' "$T/cf3.json" && grepj '"句子": "syntax 3/4' "$T/cf3.json" && ok "wordy changes NOTHING either — no axis is demoted automatically" || bad "wordy routing"
 L confirm --session "$SID2" --state-dir "$STATE" >/dev/null 2>&1 && bad "double confirm accepted" || ok "double confirm refused"
 # void also removes the archived passage file (pend 写、void 删)
 L pend --meta "$T/meta.json" > "$T/p_v.json" 2>/dev/null
@@ -404,7 +404,7 @@ node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 const sizes=[];
 for(let t=1;t<=8;t++){
-  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:t,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:t,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
   // poolSize was removed in v1.23.0 (the menu already lists per-tier word counts). On a clean
   // state with no known words and no exposures, `fresh` under an unbounded limit IS the pool, so
   // derive the size from that instead of adding a diagnostic field back.
@@ -427,12 +427,41 @@ for(const [old,want] of Object.entries({1:4,2:8,3:8})){
   if(o.tier!==want) throw new Error("old tier "+old+" -> "+o.tier+", want "+want);
 }
 // v1.15.0 six-tier state must also land correctly (tier 3 = all B1 -> new tier 4) and the
-// retired syntaxCalm counter must convert to the new rung index (+1), never silently vanish
+// retired syntaxCalm counter must convert (+1), then the v1.36.0 flip (4 - i) must land it on 1/4
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:2,difficulty:{tier:3,syntaxCalm:2,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 if(o.tier!==4) throw new Error("v1.15.0 tier 3 -> "+o.tier+", want 4");
-if(!/syntax 3\/4/.test(o.axes.句子)) throw new Error("syntaxCalm 2 did not become rung 3: "+o.axes.句子);
-' "$SKILL_DIR" "$T2" && ok "pre-v1.16.0 state migrates (old 1->4, 2/3->8; syntaxCalm 2 -> rung 3)" || bad "tier migration"
+if(!/syntax 1\/4/.test(o.axes.句子)) throw new Error("syntaxCalm 2 did not reach flipped rung 1 (冷静): "+o.axes.句子);
+' "$SKILL_DIR" "$T2" && ok "pre-v1.16.0 state migrates (old 1->4, 2/3->8; syntaxCalm 2 -> flipped rung 1)" || bad "tier migration"
+
+# v1.36.0 syntax-flip migration: the difficulty of every rung must survive the renumbering, the
+# live axis AND the per-session axis snapshots must both flip (snapshots feed `history`, and an
+# unflipped snapshot would read the old 常规 as the new 冷静), and a v4 state must be left alone.
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const L=(...a)=>JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+const OLD_GATE=[
+ "24 14 5 4","20 12 4 2","18 11 3 1","16 10 2 1","13 8 2 0", // pre-flip ladder, index 0..4
+];
+for(let old=0;old<=4;old++){
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:old,cohesion:2,background:1},
+    words:{},sessions:[{id:"s1",date:"2026-09-30",status:"counted",targets:[],axes:{tier:4,syntax:old,cohesion:2,background:1}}],interests:[]}));
+  const o=L("pool","--limit","1");
+  const got=o.gateFlags.match(/--max-sentence (\d+) --avg-sentence (\d+) --max-clauses (\d+) --max-passives (\d+)/).slice(1).join(" ");
+  if(got!==OLD_GATE[old]) throw new Error("old syntax "+old+" meant ["+OLD_GATE[old]+"] but migrated to ["+got+"]");
+  if(o.axes.句子.match(/syntax (\d)/)[1]!==String(4-old)) throw new Error("old "+old+" -> "+o.axes.句子+", want "+(4-old));
+  if(o.menu.句子.current!==4-old) throw new Error("menu current not flipped: "+o.menu.句子.current);
+  // pool is read-mostly and never saves, so force a save to check the snapshot actually flipped on disk
+  L("interest","--add","flip-check");
+  const st=JSON.parse(fs.readFileSync(dir+"/state.json","utf8"));
+  if(st.version!==4) throw new Error("state not stamped v4: "+st.version);
+  if(st.difficulty.syntax!==4-old) throw new Error("saved axis not flipped: "+JSON.stringify(st.difficulty));
+  if(st.sessions[0].axes.syntax!==4-old) throw new Error("session snapshot not flipped: "+JSON.stringify(st.sessions[0].axes));
+}
+// a v4 state must NOT be flipped again (double flip = silently inverted difficulty)
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words:{},sessions:[],interests:[]}));
+if(L("pool","--limit","1").menu.句子.current!==3) throw new Error("v4 state re-flipped");
+' "$SKILL_DIR" "$T2" && ok "v1.36.0 syntax flip migrates rung state + session snapshots, same gates, never twice" || bad "syntax flip migration"
 
 # v1.22.0 invariant: NO feel value and NO score moves an axis. This is the whole contract —
 # difficulty changes only through `axes`. Loop every tap plus a failing and a perfect score.
@@ -440,7 +469,7 @@ T3="$T/rungs"; mkdir -p "$T3"
 node "$S/ledger.mjs" init --state-dir "$T3" --no-sync > /dev/null 2>&1
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:5,syntax:3,cohesion:1,background:2},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:5,syntax:1,cohesion:1,background:2},words:{},sessions:[],interests:[]}));
 const snap=()=>JSON.stringify(JSON.parse(fs.readFileSync(dir+"/state.json","utf8")).difficulty);
 const want=snap();
 for(const [feel,score] of [["flow","3/3"],["ok","3/3"],["wordy","3/3"],["dense","3/3"],["context","3/3"],["choppy","3/3"],["ok","1/3"],["flow","1/3"],["dense","1/3"]]){
@@ -456,12 +485,13 @@ for(const [feel,score] of [["flow","3/3"],["ok","3/3"],["wordy","3/3"],["dense",
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 const L=(...a)=>JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+// v1.36.0: the ladder is indexed 0 = 最静 ... 4 = 放宽, i.e. bigger number = harder, like the other three axes
 const syn=[
- ["--max-sentence 24 --avg-sentence 14 --max-clauses 5 --max-passives 4","syntax 0/4"],
- ["--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2","syntax 1/4"],
+ ["--max-sentence 13 --avg-sentence 8 --max-clauses 2 --max-passives 0","syntax 0/4"],
+ ["--max-sentence 16 --avg-sentence 10 --max-clauses 2 --max-passives 1","syntax 1/4"],
  ["--max-sentence 18 --avg-sentence 11 --max-clauses 3 --max-passives 1","syntax 2/4"],
- ["--max-sentence 16 --avg-sentence 10 --max-clauses 2 --max-passives 1","syntax 3/4"],
- ["--max-sentence 13 --avg-sentence 8 --max-clauses 2 --max-passives 0","syntax 4/4"],
+ ["--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2","syntax 3/4"],
+ ["--max-sentence 24 --avg-sentence 14 --max-clauses 5 --max-passives 4","syntax 4/4"],
 ];
 syn.forEach(([flags,label],i)=>{
   const o=L("axes","--syntax",String(i));
@@ -484,7 +514,7 @@ coh.forEach(([flags,label],i)=>{
 # a fresh init must carry all four axes, and the emitted gate flag string must match the rung tables
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
-require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
+require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 for(const k of ["词汇","句子","衔接","话题"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
 if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99")
@@ -495,12 +525,12 @@ if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-pass
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(L("axes","--tier","6","--cohesion","3","--background","0"));
 if(o.changed.tier!==6||o.changed.cohesion!==3||o.changed.background!==0) throw new Error("changed "+JSON.stringify(o.changed));
 if(!/cohesion 3\/3/.test(o.axes.衔接)) throw new Error(o.axes.衔接);
 if(!/max-overlap 0.03/.test(o.gateFlags)) throw new Error(o.gateFlags);
-if(o.axes.句子.match(/syntax (\d)/)[1]!=="1") throw new Error("untouched axis moved");
+if(o.axes.句子.match(/syntax (\d)/)[1]!=="3") throw new Error("untouched axis moved");
 const bad=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--tier","9","--state-dir",dir,"--no-sync"],{encoding:"utf8"});
 if(bad.status===0) throw new Error("out-of-range tier accepted");
 const empty=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--state-dir",dir,"--no-sync"],{encoding:"utf8"});
@@ -512,12 +542,12 @@ if(empty.status===0) throw new Error("empty axes call accepted");
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:5,syntax:3,cohesion:1,background:0,quiz:2,streakGood:0},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:5,syntax:1,cohesion:1,background:0,quiz:2,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(L("pool","--limit","1"));
 const m=o.menu;
 if(!m) throw new Error("menu missing from pool");
 const want={词汇:8,句子:5,衔接:4,话题:3};
-const live={词汇:5,句子:3,衔接:1,话题:0};
+const live={词汇:5,句子:1,衔接:1,话题:0};
 for(const [axis,n] of Object.entries(want)){
   const a=m[axis];
   if(!a) throw new Error("axis missing from menu: "+axis);
@@ -531,7 +561,7 @@ for(const [axis,n] of Object.entries(want)){
 const sizes=m.词汇.rungs.map(r=>+(r.detail.match(/(\d+) 词/)||[])[1]);
 if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("tier rungs not ascending: "+sizes);
 if(!m.话题.note) throw new Error("the unmeasured axis must carry an honesty note");
-// v1.25.0: every axis must state its direction (the index convention is not uniform!), offer a
+// v1.25.0: every axis must state its direction (v1.36.0 made all four uniform), offer a
 // copy-pasteable command, and carry its own lastUsed/drift so no hand-diffing is needed
 for(const [axis,a] of Object.entries(m)){
   if(!a.direction) throw new Error(axis+" has no direction marker");
@@ -540,10 +570,10 @@ for(const [axis,a] of Object.entries(m)){
   const vals=a.rungs.map(r=>r.value);
   if(String(vals[0])!==a.set.match(/<(\d+)/)[1]) throw new Error(axis+" set range disagrees with rungs: "+a.set);
 }
-if(!/相反/.test(m.句子.direction)) throw new Error("句法 direction must flag that it is inverted vs the other axes");
-if(!/越难/.test(m.词汇.direction)||!/越难/.test(m.衔接.direction)||!/越难/.test(m.话题.direction))
-  throw new Error("the three ascending axes must say 数字越大越难");
-if(!/越易/.test(m.句子.direction)) throw new Error("句法 must say 数字越大越易");
+for(const axis of ["词汇","句子","衔接","话题"]){
+  if(!/越难/.test(m[axis].direction)) throw new Error(axis+" must read 数字越大越难 (v1.36.0 unified the index direction)");
+  if(/相反|越易|越容易/.test(m[axis].direction)) throw new Error(axis+" is still flagged inverted after the v1.36.0 flip");
+}
 // fixedLimits must describe the non-adjustable contract, and its numbers must MATCH the
 // passage-check LIMITS defaults -- the panel lied once (v1.24.0); this guards against a repeat.
 if(!o.fixedLimits||Object.keys(o.fixedLimits).length<4) throw new Error("fixedLimits missing from the panel");
@@ -557,22 +587,22 @@ for(const k of ["min-words","max-words","max-rate","min-targets","max-targets","
   if(!flat.includes(String(n))) throw new Error("fixedLimits omits the passage-check "+k+" default "+n+" -- the panel would lie");
 }
 // a fresh state must pre-select the defaults, not a stale value
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const d=JSON.parse(L("pool","--limit","1")).menu;
-for(const [axis,v] of Object.entries({词汇:4,句子:1,衔接:2,话题:1})){
+for(const [axis,v] of Object.entries({词汇:4,句子:3,衔接:2,话题:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
 ' "$SKILL_DIR" "$T3" && ok "menu: all rungs + one current + direction + set + drift per axis, and fixedLimits matches passage-check LIMITS" || bad "diet menu"
 
 # the panel must be rendered from a FIXED template, not improvised per agent (v1.26.0): the file
 # has to exist, be linked from SKILL.md, cover all four axes, name every fill source, and keep the
-# hard rules (state the inverted 句法 direction; never read gateFlags aloud; the panel is
-# rendered markdown — 代码块 must stay named in the file so nobody re-fences the table).
+# hard rules (state which way the numbers run — v1.36.0 made all four axes 越大越难; never read
+# gateFlags aloud; the panel is rendered markdown, so 代码块 must stay named so nobody re-fences it).
 TPL="$SKILL_DIR/references/panel-templates.md"
 [ -f "$TPL" ] && ok "panel template file exists" || bad "panel-templates.md missing"
 grepj 'references/panel-templates.md' "$SKILL_DIR/SKILL.md" && ok "SKILL.md links the panel template" || bad "template not linked"
 miss=""
-for k in 词汇 句子 衔接 话题 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 相反 不念 代码块; do
+for k in 词汇 句子 衔接 话题 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 越难 不念 代码块; do
   grepj "$k" "$TPL" || miss="$miss $k"
 done
 [ -z "$miss" ] && ok "template covers all four axes, every fill source, and its hard rules" || bad "template missing:$miss"
