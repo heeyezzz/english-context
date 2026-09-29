@@ -2,6 +2,21 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.20.0 — 2026-09-29
+
+v1.20.0: 删题型轴（5 -> 4 轴），两条 warn 提升为硬闸
+
+【题型轴 quiz 删除】它是 5 轴里唯一「既不能自动纠偏、也不能验证」的：既没有硬闸，也没有任何体感会改它（背景轴虽也无硬闸，但有 context → −1 的反馈回路，所以比它强一档）。证据上它也是最弱的一个——Spencer et al. (2018) 发现题目类型的处理需求对题目难度的预测力很弱，而 genre（体裁）才是头号 passage 特征。也就是说：这套系统有一个强杠杆（体裁，可选题但未接成难度轴）没接线，一个弱杠杆（题型）却接了线。删后菜单从 1440 种组合降到 480 种（8×5×4×3）。
+踩坑提醒：archive 的 --quiz "B,A,C" 是**答案键**，与题型轴无关，必须保留——删轴时极易误伤。已经逐处确认保留。旧台账里遗留的 difficulty.quiz 字段保留为惰性历史，不重写；axes --quiz 现在正确地报错拒绝。
+
+【两条 warn 提升为硬闸】起因是审计发现同一条规则有三种强度：SKILL.md 的 Hard rules 写着「each bolded at least once」（硬规则），references/passage-format.md 却写「目标词加粗（warn 级）」，而 passage-check 只 warn。三份真相互相打架。
+- 「target never appears inside **bold**」→ FAIL
+- 「declared reunion words never appeared in prose」→ FAIL（format 指南本就要求每个重逢词至少出现一次）
+两条都提升后 warn 数组永远是空的，所以整个 warn 数组一并删除（const、两处 push、report 字段），passage-format.md 的「warn 级」改为硬要求并补上小句/被动/衔接上下限的说明。
+选择提升而非降级的理由：加粗是 skill 理论契约里「noticed forms（加粗 + 一行语境注释）」的一半，是有教学功能的；把它降级成提示等于放弃这条契约。代价是忘了加粗会多一次返工，但那是机械改动。
+
+套件 70 条全绿（试炼短文在新硬闸下仍通过：目标词全加粗、重逢词全用到）。真实台账副本验证：4 轴、菜单 480 种组合、--quiz 被拒、新 session 快照只含 4 轴、遗留 quiz 字段惰性无害。
+
 ## 1.19.0 — 2026-09-29
 
 v1.19.0: 删掉探针，难度上移完全交给学习者；清理 A 级死代码与两份冗余

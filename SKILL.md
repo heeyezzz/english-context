@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.19.0
+version: 1.20.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -62,7 +62,7 @@ alive in fresh contexts.
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做）：** 读 `pool`/`status` 的 `menu` —— 那是完整的多维多档选择面，
    每个轴列出**全部档位及其含义**，标了 `current: true` 的那一档就是**默认值**
-   （= 学习者上次的选择；五轴存在 state.json 里，跨会话、跨机器自动保留，不需要另存）。
+   （= 学习者上次的选择；四轴存在 state.json 里，跨会话、跨机器自动保留，不需要另存）。
    把菜单念给学习者听（至少念各轴当前那一行），然后：
    - 他说「句法 3」「语篇松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地
    - 他说「就按默认」→ 什么都不用改
@@ -175,7 +175,7 @@ the learner explicitly asks for.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
-- 250–350 words。句长 / 小句 / 被动 / 衔接的上下限**全部由五轴档位推出**，`pool`/`status` 会输出一串
+- 250–350 words。句长 / 小句 / 被动 / 衔接的上下限**全部由四轴档位推出**，`pool`/`status` 会输出一串
   现成的 `gateFlags` —— 起草后**逐字复制**它去跑 passage-check，别自己拼。
 - 4–5 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
@@ -183,7 +183,7 @@ the learner explicitly asks for.
   whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and irregular forms
   are handled; anything else fails.
 
-## Dynamic difficulty（v1.16.0：五轴）
+## Dynamic difficulty（v1.16.0 起五轴；v1.20.0 删题型档 → 四轴）
 
 体感 is a **load-type diagnosis**, and each answer pulls only its own lever:
 
@@ -197,7 +197,7 @@ the learner explicitly asks for.
 | choppy ⑥（接不上/读着跳） | 保持 | −1 | **−1** | 不变 |
 | 正确率 <60% | −1 | **至少跳到 3**（同上） | 不变 | 不变 |
 
-> **台账记的是「档位 → 体感」（v1.17.0）**：每篇 `pend` 时把当时的五轴档位快照进 session，
+> **台账记的是「档位 → 体感」（v1.17.0）**：每篇 `pend` 时把当时的四轴档位快照进 session，
 > `pool` 的 `history` 字段输出最近 8 条的 `{axes, feel, score}` 对账，archive 时同一份档位写进 frontmatter。
 > 这就是校准的全部依据：**某个轴向调紧之后体感变了没有**。
 > 四维 `predicted`/`requested` 画像已在 v1.17.0 **退役**——它记的是 AI 对自己的猜测，下游没人消费，
@@ -205,17 +205,16 @@ the learner explicitly asks for.
 > 旧台账里遗留的 predicted/requested 行是惰性历史，不影响任何逻辑。
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
-**语篇档与题型档没有自动漂移**——只由体感与点菜驱动。不发明没校准过的动力学。
+**语篇档没有自动漂移**——只由体感与点菜驱动。不发明没校准过的动力学。
 
-### 五轴各是什么
+### 四轴各是什么
 
 | 轴 | 档位 | 谁在动它 | 依据 |
 |---|---|---|---|
 | **词汇** tier | 1–8 | wordy / flow×2 | 复合稀有度 = 词频 + AoA + 具体性（见 `assets/word-bands.tsv` 头部）。档越高允许出现的难词越多 |
 | **句法** syntax | 0–4 | dense / 低分 / ok 松档 / 点菜 | 一个「句法包」：句长 + **每句小句数** + 全篇被动数。0 放宽（24/14）· 1 常规（20/12，默认）· 2 偏静（18/11）· 3 冷静（16/10）· 4 最静（13/8） |
 | **语篇** cohesion | 0–3 | choppy / 点菜 | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
-| **背景** background | 0–2 | context / 点菜 | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现 |
-| **题型** quiz | 0–2 | 点菜 | 以事实检索为主 · 各半 · 以推断为主。同样只申报不强检 |
+| **背景** background | 0–2 | context / 点菜 | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现；但有反馈回路（context → −1） |
 
 **改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3`（任一轴，可只给一部分）。
 **为什么句长不再是唯一**：实测 13 篇存量档平均句长 8.8 词而上限 12，句长轴几乎是饱和的；

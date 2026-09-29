@@ -28,8 +28,9 @@ Rules that are format, not script-checked:
 - 重逢词在正文里必须语法自然——一个都塞不进就少声明几个，禁止为复现造怪句。
 - 文末可加一行 metrics（词数/生词率/句长），来自 passage-check 输出。
 
-Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长（最长≤20、均≤12）、
-目标词 4–5 个各≥2 次、纲外 token 率≤4%、未申报纲外词=0、目标词加粗（warn 级）。
+Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长与小句/被动/衔接上下限（由 gateFlags 给出）、
+目标词 4–5 个各≥2 次、纲外 token 率≤4%、未申报纲外词=0、**每个目标词至少加粗一次**、
+声明的重逢词至少出现一次。以上全部为硬闸，任一不满足即 FAIL（v1.20.0 起，加粗与重逢词从 warn 提为硬闸）。
 
 ## 存档文件（$STATE/passages/<session-id>.md）
 

@@ -70,12 +70,13 @@ const COHESION_LADDER = [
 ];
 const MAX_COHESION = COHESION_LADDER.length - 1;
 const SANE_COHESION = 2;
-// 背景档与题型档不由脚本测量（需要读者模型 / 题目语义），只由 agent 在选题和出题时兑现，
-// 并在 meta 里申报、archive 时进 frontmatter，让校准回路能看到有没有兑现。
+// 背景档不由脚本测量（需要读者模型），只由 agent 在选题时兑现，并在 archive 时进 frontmatter
+// 让人事后看得到。它有一条真实的反馈回路：context 体感 → 背景档 −1。
+// v1.20.0 删掉了题型档（quiz）：它同样没有硬闸，但**连反馈回路都没有**——5 轴里唯一
+// 「既不能自动纠偏、也不能验证」的。而且研究里题型对题目难度的预测力很弱
+// （Spencer et al. 2018：题目处理需求对 item difficulty 预测力弱，genre 才是头号 passage 特征）。
 const BACKGROUND_LADDER = ['兴趣内话题', '通识话题', '新领域话题'];
-const QUIZ_LADDER = ['以事实检索为主', '事实+推断各半', '以推断为主'];
 const MAX_BACKGROUND = BACKGROUND_LADDER.length - 1;
-const MAX_QUIZ = QUIZ_LADDER.length - 1;
 
 const clamp = (v, max) => Math.min(max, Math.max(0, v));
 const syntaxLevel = (s) => SYNTAX_LADDER[clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX)];
@@ -97,7 +98,6 @@ const difficultyOut = (s) => {
   const t = TIERS[s.difficulty.tier];
   const sx = syntaxLevel(s), co = cohesionLevel(s);
   const bg = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
-  const qz = clamp(s.difficulty.quiz ?? 1, MAX_QUIZ);
   return {
     tier: s.difficulty.tier, tierLabel: t.label, targetsRange: TARGETS_RANGE, streakGood: s.difficulty.streakGood,
     axes: {
@@ -105,7 +105,6 @@ const difficultyOut = (s) => {
       句法: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
       语篇: `cohesion ${s.difficulty.cohesion ?? SANE_COHESION}/3 · ${co.label} · ${cohesionText(co)}`,
       背景: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
-      题型: `quiz ${qz}/2 · ${QUIZ_LADDER[qz]}`,
     },
     gateFlags: gateFlags(s),
   };
@@ -142,7 +141,6 @@ const menuOut = (s) => {
     syntax: clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX),
     cohesion: clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION),
     background: clamp(s.difficulty.background ?? 1, MAX_BACKGROUND),
-    quiz: clamp(s.difficulty.quiz ?? 1, MAX_QUIZ),
   };
   const ladder = (key, rungs) => ({
     flag: `--${key}`,
@@ -167,8 +165,7 @@ const menuOut = (s) => {
           ? `重叠≤${r.maxOverlap} 连接词≤${r.maxConnectives}`
           : '无约束'),
     }))),
-    背景: { ...ladder('background', BACKGROUND_LADDER.map((label) => ({ label }))), note: '无硬闸：靠选题兑现，脚本量不到' },
-    题型: { ...ladder('quiz', QUIZ_LADDER.map((label) => ({ label }))), note: '无硬闸：靠出题兑现，脚本量不到' },
+    背景: { ...ladder('background', BACKGROUND_LADDER.map((label) => ({ label }))), note: '无硬闸：靠选题兑现，但有反馈回路（context 体感 → 背景档 −1）' },
   };
 };
 
@@ -182,7 +179,7 @@ const menuOut = (s) => {
 const TIER_V1 = { 1: 3, 2: 6, 3: 6 };
 // v1.15.0 六档 → v1.16.0 八档：按池子大小就近映射。锚点：旧 3（B1 全量 2178 词）≡ 新 4（2178 词）。
 const TIER_V2 = { 1: 1, 2: 3, 3: 4, 4: 5, 5: 7, 6: 8 };
-const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1, quiz: 1 };
+const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1 };
 function load() {
   if (!existsSync(stateFile)) {
     if (cmd !== 'init') { console.error('no state at ' + stateFile + ' — run `ledger.mjs init` first'); process.exit(2); }
@@ -199,7 +196,6 @@ function load() {
     delete s.difficulty.syntaxCalm;
     s.difficulty.cohesion = DEFAULT_AXES.cohesion;
     s.difficulty.background = DEFAULT_AXES.background;
-    s.difficulty.quiz = DEFAULT_AXES.quiz;
     s.version = 3;
   }
   return s;
@@ -269,7 +265,6 @@ else if (cmd === 'pend') {
     syntax: s.difficulty.syntax ?? SANE_SYNTAX,
     cohesion: s.difficulty.cohesion ?? SANE_COHESION,
     background: s.difficulty.background ?? 1,
-    quiz: s.difficulty.quiz ?? 1,
   };
   s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
@@ -386,7 +381,7 @@ else if (cmd === 'axes') {
   // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。这是协商的落点——
   // 点菜改的是真参数，不是某个记录用的数字。后续 confirm 仍会据此继续微调。
   const s = load();
-  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND], quiz: [0, MAX_QUIZ] };
+  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND] };
   const changed = {};
   for (const [k, [lo, hi]] of Object.entries(AXES)) {
     const v = arg(k, null);
@@ -395,7 +390,7 @@ else if (cmd === 'axes') {
     if (!Number.isInteger(n) || n < lo || n > hi) { console.error(`${k} must be an integer ${lo}-${hi}, got ${v}`); process.exit(2); }
     s.difficulty[k] = n; changed[k] = n;
   }
-  if (!Object.keys(changed).length) { console.error('nothing to set — pass any of --tier/--syntax/--cohesion/--background/--quiz'); process.exit(2); }
+  if (!Object.keys(changed).length) { console.error('nothing to set — pass any of --tier/--syntax/--cohesion/--background'); process.exit(2); }
   save(s);
   out({ changed, ...difficultyOut(s), menu: menuOut(s) });
 }
@@ -514,7 +509,7 @@ else if (cmd === 'archive') {
     // The five axis settings this passage was drafted at — read from the pend-time snapshot, so
     // the frontmatter provably matches the axes `pool` handed the draft, not whatever the live
     // state happens to be at archive time.
-    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1}, quiz: ${(sess.axes || s.difficulty).quiz ?? 1} }`,
+    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1} }`,
     ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
     `validatedBy: ${report.validatedBy}`,
     '---',
@@ -529,6 +524,6 @@ else if (cmd === 'archive') {
 }
 
 else {
-  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n --quiz n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
+  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
   process.exit(cmd ? 2 : 0);
 }

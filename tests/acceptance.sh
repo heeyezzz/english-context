@@ -72,9 +72,9 @@ PC "$T/short.md" "$T/meta-badcount.json" > "$T/r4.json" 2>/dev/null
 grepj 'passage length' "$T/r4.json" && ok "too-short passage rejected" || bad "length rule missing"
 
 echo '{"targets":["whistle","candle","generate","humanity"],"reunion":[],"names":[]}' > "$T/meta-unbolded.json"
-cp "$T/passage.md" "$T/unbolded.md"  # targets absent → fail anyway, but check bold warn path
+cp "$T/passage.md" "$T/unbolded.md"  # targets absent → fail anyway, but check the bold gate path
 PC "$T/unbolded.md" "$T/meta-unbolded.json" > "$T/r5.json" 2>/dev/null
-grepj 'never appears inside' "$T/r5.json" && ok "unbolded target produces highlight warning" || bad "bold warning missing"
+grepj 'never appears inside' "$T/r5.json" && ok "unbolded target is a hard FAIL (v1.20.0: was a warn)" || bad "bold gate missing"
 
 echo "== ledger =="
 L() { node "$S/ledger.mjs" "$@" --state-dir "$STATE"; }
@@ -264,7 +264,7 @@ grepj '"pass": true' "$T/bp.json" && ok "a malformed legacy predicted block is i
 node -e '
 const fs=require("fs"), p=process.argv[1];
 const s=JSON.parse(fs.readFileSync(p,"utf8"));
-s.difficulty={tier:6,syntax:2,cohesion:1,background:2,quiz:0,streakGood:0};
+s.difficulty={tier:6,syntax:2,cohesion:1,background:2,streakGood:0};
 fs.writeFileSync(p,JSON.stringify(s));
 ' "$STATE/state.json"
 L pend --meta "$T/meta-nopredict.json" > "$T/pp.json" 2>/dev/null
@@ -273,13 +273,13 @@ node -e '
 const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
 const x=s.sessions.find(y=>y.id===process.argv[2]);
 if(!x.axes) throw new Error("no axes snapshot on the session");
-if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2,quiz:0})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
+if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
 if("predicted" in x || "requested" in x) throw new Error("retired profile fields are still being written");
-' "$STATE/state.json" "$PPSID" && ok "pend snapshots all five axes and writes no profile fields" || bad "axis snapshot"
+' "$STATE/state.json" "$PPSID" && ok "pend snapshots all four axes and writes no profile fields" || bad "axis snapshot"
 # archive frontmatter carries the pend-time axis snapshot (not whatever the live state became)
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta-nopredict.json" --state-dir "$STATE" --report "$T/pp_rep.json" > /dev/null 2>&1
 L archive --session "$PPSID" --passage "$T/passage.md" --report "$T/pp_rep.json" > /dev/null 2>&1
-grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2, quiz: 0 }$' "$STATE/passages/$PPSID.md" \
+grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2 }$' "$STATE/passages/$PPSID.md" \
   && ! grepj '^predicted:' "$STATE/passages/$PPSID.md" \
   && ok "archive frontmatter carries the axis snapshot and no predicted line" || bad "archive axis snapshot"
 # context feel (v1.16.0): no longer record-only — it now pulls the background axis down one rung.
@@ -349,7 +349,7 @@ node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 const sizes=[];
 for(let t=1;t<=8;t++){
-  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:t,syntax:1,cohesion:2,background:1,quiz:1,streakGood:0},words:{},sessions:[],interests:[]}));
+  fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:t,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
   const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
   sizes.push(o.poolSize);
 }
@@ -381,7 +381,7 @@ T3="$T/rungs"; mkdir -p "$T3"
 node "$S/ledger.mjs" init --state-dir "$T3" --no-sync > /dev/null 2>&1
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,quiz:1,streakGood:0},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const run=(feel)=>{
   fs.writeFileSync(dir+"/m.json",JSON.stringify({topic:"t",targets:["concept"],predicted:{vocab:2,syntax:2,discourse:2,background:1}}));
   const id="s"+Math.random().toString(36).slice(2,8);
@@ -399,23 +399,23 @@ const want=[[3,"dense #1"],[4,"dense #2"],[4,"dense #3 capped"],[3,"ok 1"],[2,"o
 });
 ' "$SKILL_DIR" "$T3" && ok "5-rung sentence ladder: dense 3→4 (capped), ok relaxes 4→3→2→1→0, first dense keeps 16/10" || bad "sentence ladder"
 
-# a fresh init must carry all five axes, and the emitted gate flag string must match the rung tables
+# a fresh init must carry all four axes, and the emitted gate flag string must match the rung tables
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
-require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,quiz:1,streakGood:0},words:{},sessions:[],interests:[]}));
+require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","status","--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
-for(const k of ["词汇","句法","语篇","背景","题型"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
+for(const k of ["词汇","句法","语篇","背景"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
 if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99")
   throw new Error("gateFlags mismatch at the default rung: "+o.gateFlags);
-' "$SKILL_DIR" "$T3" && ok "five axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
+' "$SKILL_DIR" "$T3" && ok "four axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
 
 # 点菜入口：axes must set any subset, clamp-check every value, and refuse an empty call
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,quiz:1,streakGood:0},words:{},sessions:[],interests:[]}));
-const o=JSON.parse(L("axes","--tier","6","--cohesion","3","--quiz","2"));
-if(o.changed.tier!==6||o.changed.cohesion!==3||o.changed.quiz!==2) throw new Error("changed "+JSON.stringify(o.changed));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
+const o=JSON.parse(L("axes","--tier","6","--cohesion","3","--background","0"));
+if(o.changed.tier!==6||o.changed.cohesion!==3||o.changed.background!==0) throw new Error("changed "+JSON.stringify(o.changed));
 if(!/cohesion 3\/3/.test(o.axes.语篇)) throw new Error(o.axes.语篇);
 if(!/max-overlap 0.03/.test(o.gateFlags)) throw new Error(o.gateFlags);
 if(o.axes.句法.match(/syntax (\d)/)[1]!=="1") throw new Error("untouched axis moved");
@@ -434,8 +434,8 @@ fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:5,
 const o=JSON.parse(L("pool","--limit","1"));
 const m=o.menu;
 if(!m) throw new Error("menu missing from pool");
-const want={词汇:8,句法:5,语篇:4,背景:3,题型:3};
-const live={词汇:5,句法:3,语篇:1,背景:0,题型:2};
+const want={词汇:8,句法:5,语篇:4,背景:3};
+const live={词汇:5,句法:3,语篇:1,背景:0};
 for(const [axis,n] of Object.entries(want)){
   const a=m[axis];
   if(!a) throw new Error("axis missing from menu: "+axis);
@@ -448,14 +448,14 @@ for(const [axis,n] of Object.entries(want)){
 }
 const sizes=m.词汇.rungs.map(r=>+(r.detail.match(/(\d+) 词/)||[])[1]);
 if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("tier rungs not ascending: "+sizes);
-if(!m.背景.note||!m.题型.note) throw new Error("unmeasured axes must carry an honesty note");
+if(!m.背景.note) throw new Error("the unmeasured axis must carry an honesty note");
 // a fresh state must pre-select the defaults, not a stale value
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,quiz:1,streakGood:0},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const d=JSON.parse(L("status")).menu;
-for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1,题型:1})){
+for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
-' "$SKILL_DIR" "$T3" && ok "menu offers every rung of all five axes, marks one current per axis, default == live state" || bad "diet menu"
+' "$SKILL_DIR" "$T3" && ok "menu offers every rung of all four axes, marks one current per axis, default == live state" || bad "diet menu"
 
 
 echo "== archive (scripted step-6) =="

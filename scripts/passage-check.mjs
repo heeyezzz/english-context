@@ -212,7 +212,6 @@ function candidates0(w) {
 
 // ---------- checks ----------
 const fail = [];
-const warn = [];
 function isReunionWord(base, b) {
   if (reunion.has(base)) return true;
   for (const s of b.surfaces) if (reunion.has(s)) return true;
@@ -301,11 +300,17 @@ if (undeclared.length) fail.push(`undeclared above-level words: ${undeclared.joi
 for (const t of targets) {
   const hits = targetHits.get(t) || 0;
   if (hits < LIMITS.minTargetHits) fail.push(`target "${t}" occurs ${hits}x, needs >= ${LIMITS.minTargetHits}`);
+  // v1.20.0: was a warning. SKILL.md has always listed "each bolded at least once" as a HARD rule
+  // while passage-format.md called it warn-level and this script only warned — three different
+  // strengths for one rule. It is now a failure, which is what SKILL.md and the noticed-forms
+  // contract (bold + in-context gloss) actually require.
   const bolded = boldSpans.some((span) => span.includes(t));
-  if (!bolded) warn.push(`target "${t}" never appears inside **bold** (rule: highlight targets)`);
+  if (!bolded) fail.push(`target "${t}" never appears inside **bold** (rule: highlight every target)`);
 }
 const reunionUsed = [...reunion].filter((r) => candidates0(r) && tokens.some((t) => candidates0(t.toLowerCase().replace(/['’].*$/, '')) === candidates0(r)));
-if (reunion.size && !reunionUsed.length) warn.push('declared reunion words never appeared in prose');
+// v1.20.0: likewise promoted from warning — declaring reunion words in meta but never weaving
+// them in is a drafting miss, and the format guide requires each to appear at least once.
+if (reunion.size && !reunionUsed.length) fail.push('declared reunion words never appeared in prose');
 
 // The four-dimension predicted/requested profile was RETIRED in v1.17.0. It recorded the agent's
 // own guess about the passage's load, which nothing downstream consumed, and three of its four
@@ -334,7 +339,7 @@ const report = {
   // archive-time anchor: ledger.mjs archive refuses to file a passage whose bytes changed
   // after validation (sha256 of the raw file as sent to this gate).
   passageSha256: createHash('sha256').update(raw).digest('hex'),
-  fail, warn,
+  fail,
 };
 const reportJson = JSON.stringify(report, null, 2);
 if (arg('report', null)) { try { writeFileSync(arg('report'), reportJson); } catch (e) { console.error('--report write failed: ' + e.message); } }
