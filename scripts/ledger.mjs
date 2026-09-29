@@ -127,6 +127,48 @@ function tierPool(tier) {
   return set;
 }
 
+// Pre-draft option menu (v1.18.0): the whole multi-axis / multi-rung choice surface, derived
+// from the rung tables — no new state. The rung flagged `current` IS the default, and because
+// the five axes live in state.json (auto-pushed to the private data repo) that default is
+// literally the learner's last choice, carried across sessions and machines for free.
+// The menu is a READOUT that can be acted on: the learner answers with an axis + rung and the
+// agent runs `axes --<axis> <rung>`.
+const menuOut = (s) => {
+  const cur = {
+    tier: s.difficulty.tier,
+    syntax: clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX),
+    cohesion: clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION),
+    background: clamp(s.difficulty.background ?? 1, MAX_BACKGROUND),
+    quiz: clamp(s.difficulty.quiz ?? 1, MAX_QUIZ),
+  };
+  const ladder = (key, rungs) => ({
+    flag: `--${key}`,
+    current: cur[key],
+    rungs: rungs.map((r, i) => ({ value: i, label: r.label, detail: r.detail ?? null, current: cur[key] === i })),
+  });
+  return {
+    词汇: {
+      flag: '--tier',
+      current: cur.tier,
+      note: '通常由「连续两次 flow」自动上调，也可直接点菜；点菜不重置连击。词池的过滤规则本身仍在脚本闸门内',
+      rungs: Object.entries(TIERS).map(([n, t]) => ({ value: +n, label: t.label, detail: `${tierPool(t).size} 词`, current: cur.tier === +n })),
+    },
+    句法: ladder('syntax', SYNTAX_LADDER.map((r) => ({
+      label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}`,
+    }))),
+    语篇: ladder('cohesion', COHESION_LADDER.map((r) => ({
+      label: r.label,
+      detail: r.minOverlap || r.minConnectives
+        ? `重叠≥${r.minOverlap} 连接词≥${r.minConnectives}`
+        : (r.maxOverlap !== 1 || r.maxConnectives !== 99
+          ? `重叠≤${r.maxOverlap} 连接词≤${r.maxConnectives}`
+          : '无约束'),
+    }))),
+    背景: { ...ladder('background', BACKGROUND_LADDER.map((label) => ({ label }))), note: '无硬闸：靠选题兑现，脚本量不到' },
+    题型: { ...ladder('quiz', QUIZ_LADDER.map((label) => ({ label }))), note: '无硬闸：靠出题兑现，脚本量不到' },
+  };
+};
+
 // One-time migration of pre-v1.15.0 tier numbers (state.version < 2). Old tier 1 was
 // "all B1" = new tier 3; old tiers 2/3 were the two ends of a non-monotone ladder and both
 // map to the top of the new one. Applied on every read (status/pool never save), stamped by
@@ -194,6 +236,7 @@ else if (cmd === 'status') {
   console.log(JSON.stringify({
     ...difficultyOut(s),
     poolWords: tierPool(TIERS[s.difficulty.tier]).size,
+    menu: menuOut(s),
     inFlight: Object.values(s.words).filter((e) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT).length,
     sessions: { total: s.sessions.length, counted: s.sessions.filter((x) => x.status === 'counted').length, pending: pending.map((p) => ({ id: p.id, topic: p.topic, date: p.date })) },
     activeWords: Object.entries(s.words).filter(([, e]) => e.status === 'active').map(([w, e]) => `${w}:${e.exposures}/${GRADUATE_AT}`).join(' '),
@@ -351,7 +394,7 @@ else if (cmd === 'axes') {
   }
   if (!Object.keys(changed).length) { console.error('nothing to set — pass any of --tier/--syntax/--cohesion/--background/--quiz'); process.exit(2); }
   save(s);
-  out({ changed, ...difficultyOut(s) });
+  out({ changed, ...difficultyOut(s), menu: menuOut(s) });
 }
 
 else if (cmd === 'interest') {
@@ -425,6 +468,11 @@ else if (cmd === 'pool') {
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]}·b${pool[i][2]})`),
     recent,
     history,
+    // The default the menu pre-selects is the live state, i.e. the learner's last choice; when
+    // feedback-driven drift has since moved an axis, lastUsed shows what the last DRAFT actually
+    // ran with, so a silent softening is visible instead of surprising.
+    lastUsed: history.find((x) => x.axes)?.axes ?? null,
+    menu: menuOut(s),
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),

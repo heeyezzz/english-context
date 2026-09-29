@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.17.0
+version: 1.18.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -60,17 +60,19 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定档位 + 协商（起草前必做）：** 读 `pool`/`status` 的 `axes`（五轴当前档位）与 `history`
-   （最近 8 篇的「档位 → 体感」对账），定下本篇的轴向安排，然后**用一句人话讲给学习者听**
-   （例：「今天词池到 tier 6、衔接调松、话题换新的」），等他点头或否决 —— 他想改就直接跑
-   `ledger.mjs axes --cohesion 3 --syntax 2`（任一轴）落地，改完再说一遍。
-   协商的对象是**真参数**，没有别的数字要填。**先协商再动手**，别写完才问。
+   **定档位 + 协商（起草前必做）：** 读 `pool`/`status` 的 `menu` —— 那是完整的多维多档选择面，
+   每个轴列出**全部档位及其含义**，标了 `current: true` 的那一档就是**默认值**
+   （= 学习者上次的选择；五轴存在 state.json 里，跨会话、跨机器自动保留，不需要另存）。
+   把菜单念给学习者听（至少念各轴当前那一行），然后：
+   - 他说「句法 3」「语篇松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地
+   - 他说「就按默认」→ 什么都不用改
+   - 想确认自动反馈有没有偷偷改过他的选择：`pool` 的 `lastUsed` 是上一篇实际用的档位快照，
+     **与 `menu` 的 current 不同就说明被体感反馈降过档** —— 照实告诉他，别让他以为自己选的值还在。
    **探针（同一处顺带判）：** 若 `history` 里**最近连续 3 篇** feel 全为 `ok`，说明一直待在无聊区、
    传感器没有信号 —— 本篇按轮转把一个轴顶到**最紧/最难档**（顺序：语篇 → 背景 → 句法 → 词汇 → 题型），
    同样先告诉学习者再动手，他不想就跳过。
-   冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧），**不能动词汇档**
-   （词池是测量问题，归脚本闸门）；若学习者要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于常规），
-   **以那个更紧的档为准**——愿望不覆盖受挫证据。
+   冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧）；
+   若学习者要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于常规），**以那个更紧的档为准**——愿望不覆盖受挫证据。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`

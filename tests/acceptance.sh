@@ -308,7 +308,13 @@ const hit=h.find(c=>c.session===process.argv[2]);
 if(!hit) throw new Error("newest counted session absent from history");
 if(hit.feel!=="context") throw new Error("feel wrong: "+hit.feel);
 if(hit.axes===null) throw new Error("axes snapshot missing for the newest row");
-' "$T/pool_hist.json" "$PPSID2" && ok "pool history pairs each passage's axes with its feel (no calibration field)" || bad "A->feel history"
+// lastUsed must equal the newest axes-bearing row, so feedback-driven drift is visible.
+// Compare against the row itself, not a literal — earlier confirms in this suite legitimately
+// drift the axes, and a hardcoded expectation would break for the wrong reason.
+const newest=h.find(c=>c.axes);
+if(!d.lastUsed) throw new Error("lastUsed missing");
+if(JSON.stringify(d.lastUsed)!==JSON.stringify(newest.axes)) throw new Error("lastUsed "+JSON.stringify(d.lastUsed)+" != newest row "+JSON.stringify(newest.axes));
+' "$T/pool_hist.json" "$PPSID2" && ok "pool history pairs each passage's axes with its feel, and lastUsed exposes the last draft's settings" || bad "A->feel history"
 
 echo "== difficulty ladder v1.15.0 (word bands / 6 tiers / 4 sentence rungs / negotiation) =="
 # asset integrity: every B1/B2 word carries exactly one band, and no other word carries any
@@ -418,6 +424,38 @@ if(bad.status===0) throw new Error("out-of-range tier accepted");
 const empty=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--state-dir",dir,"--no-sync"],{encoding:"utf8"});
 if(empty.status===0) throw new Error("empty axes call accepted");
 ' "$SKILL_DIR" "$T3" && ok "axes command sets a subset, rejects out-of-range and empty calls" || bad "axes command"
+
+# the pre-draft menu: every axis must offer ALL its rungs, mark exactly one as current, and the
+# marked default must equal the live state (i.e. the learner's last choice) — v1.18.0
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:5,syntax:3,cohesion:1,background:0,quiz:2,streakGood:0},words:{},sessions:[],interests:[]}));
+const o=JSON.parse(L("pool","--limit","1"));
+const m=o.menu;
+if(!m) throw new Error("menu missing from pool");
+const want={词汇:8,句法:5,语篇:4,背景:3,题型:3};
+const live={词汇:5,句法:3,语篇:1,背景:0,题型:2};
+for(const [axis,n] of Object.entries(want)){
+  const a=m[axis];
+  if(!a) throw new Error("axis missing from menu: "+axis);
+  if(!a.flag) throw new Error("axis not selectable: "+axis);
+  if(a.rungs.length!==n) throw new Error(axis+" offers "+a.rungs.length+" rungs, want "+n);
+  const marked=a.rungs.filter(r=>r.current);
+  if(marked.length!==1) throw new Error(axis+" marks "+marked.length+" rungs as current");
+  if(marked[0].value!==live[axis]) throw new Error(axis+" default "+marked[0].value+" != live state "+live[axis]);
+  if(marked[0].value!==a.current) throw new Error(axis+" rung/axis current disagree");
+}
+const sizes=m.词汇.rungs.map(r=>+(r.detail.match(/(\d+) 词/)||[])[1]);
+if(!sizes.every((v,i)=>i===0||sizes[i-1]<v)) throw new Error("tier rungs not ascending: "+sizes);
+if(!m.背景.note||!m.题型.note) throw new Error("unmeasured axes must carry an honesty note");
+// a fresh state must pre-select the defaults, not a stale value
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,quiz:1,streakGood:0},words:{},sessions:[],interests:[]}));
+const d=JSON.parse(L("status")).menu;
+for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1,题型:1})){
+  if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
+}
+' "$SKILL_DIR" "$T3" && ok "menu offers every rung of all five axes, marks one current per axis, default == live state" || bad "diet menu"
 
 
 echo "== archive (scripted step-6) =="
