@@ -509,6 +509,18 @@ for(const [axis,v] of Object.entries({词汇:4,句法:1,语篇:2,背景:1})){
 }
 ' "$SKILL_DIR" "$T3" && ok "menu: all rungs + one current + direction + set + drift per axis, and fixedLimits matches passage-check LIMITS" || bad "diet menu"
 
+# the panel must be rendered from a FIXED template, not improvised per agent (v1.26.0): the file
+# has to exist, be linked from SKILL.md, cover all four axes, name every fill source, and keep the
+# two hard rules (state the inverted 句法 direction; never read gateFlags aloud).
+TPL="$SKILL_DIR/references/panel-templates.md"
+[ -f "$TPL" ] && ok "panel template file exists" || bad "panel-templates.md missing"
+grepj 'references/panel-templates.md' "$SKILL_DIR/SKILL.md" && ok "SKILL.md links the panel template" || bad "template not linked"
+miss=""
+for k in 词汇 句法 语篇 背景 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 相反 不念; do
+  grepj "$k" "$TPL" || miss="$miss $k"
+done
+[ -z "$miss" ] && ok "template covers all four axes, every fill source, and both hard rules" || bad "template missing:$miss"
+
 
 echo "== archive (scripted step-6) =="
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/rep_ok.json" > /dev/null 2>&1
