@@ -47,6 +47,17 @@ const LIMITS = {
   minTargets: +arg('min-targets', 4),
   maxTargets: +arg('max-targets', 5),
   minTargetHits: +arg('min-target-hits', 2), // each target must occur >= this many times
+  // v1.16.0 syntactic/discourse gates. Defaults are deliberately NON-BINDING so that a caller
+  // that passes no flags behaves exactly as before; ledger.mjs emits the exact flag string
+  // (`gateFlags`) for the current rung, and SKILL.md requires copying it verbatim.
+  maxClauses: +arg('max-clauses', 99),       // clauses per sentence (subordinators+relatives) -> T-unit density
+  maxPassives: +arg('max-passives', 99),     // passive constructions in the whole passage
+  minOverlap: +arg('min-overlap', 0),        // adjacent-sentence content-word overlap, 0-1 (cohesion floor)
+  minConnectives: +arg('min-connectives', 0), // discourse connectives per sentence (deep-cohesion floor)
+  // ...and the hard-end of the same axis: deliberately FEWER explicit ties, so the reader has to
+  // build the relations. Defaults are non-binding ceilings (1 / 99) so an unflagged call is inert.
+  maxOverlap: +arg('max-overlap', 1),
+  maxConnectives: +arg('max-connectives', 99),
 };
 
 // ---------- vocabulary ----------
@@ -218,6 +229,44 @@ const aboveTokens = [...aboveBuckets.entries()]
   .reduce((a, [, b]) => a + b.count, 0);
 const rate = totalWords ? (aboveTokens / totalWords) * 100 : 0;
 
+// ---------- v1.16.0 syntactic / discourse metrics (parser-free approximations) ----------
+// Clause density counts subordinators + relative pronouns — that is the strongest syntactic
+// predictor in the research (T-unit length). Passives are BE + participle. Cohesion is
+// adjacent-sentence content-word overlap (the core of Coh-Metrix's L2 readability index).
+// Connectives come from a fixed list. These are heuristics ("that" is both a relativizer and a
+// demonstrative), so the caps in SYNTAX_LADDER / COHESION_LADDER are set from the measured
+// spread of the learner's own 13 archived passages, not from a theoretical ideal.
+const SUBORDINATORS = /\b(although|though|because|since|while|whereas|unless|until|whenever|when|wherever|where|if|after|before|that|which|who|whom|whose)\b/gi;
+const CONNECTIVES = /\b(however|therefore|moreover|furthermore|nevertheless|nonetheless|consequently|meanwhile|instead|otherwise|thus|hence|besides|firstly|secondly|thirdly|finally|then|next|later|still|also|because|although|though|while|when|if|since|but|and|or|yet|so)\b/gi;
+const STOPWORDS = new Set(('a an the and or but so yet nor for of in on at to from by with as is are was were be been being am '
+  + 'do does did have has had will would can could may might must shall should this that these those it its they them '
+  + 'their he she his her him you your we our us i me my not no if then than there here when where while because '
+  + 'although though who whom whose which what how all any both each few more most other some such only own same too '
+  + 'very just also even still').split(/\s+/));
+const clauseCounts = sentences.map((s) => 1 + (s.match(SUBORDINATORS) || []).length);
+const maxClauses = clauseCounts.length ? Math.max(...clauseCounts) : 0;
+let passiveCount = 0;
+for (const s of sentences) {
+  const re = /\b(is|are|was|were|be|been|being|am)\s+([a-z][a-z'-]*)\b/gi;
+  let m;
+  while ((m = re.exec(s))) {
+    const p = m[2].toLowerCase();
+    if (/(ed|en)$/.test(p) || irregular.has(p)) passiveCount++;
+  }
+}
+const contentSets = sentences.map((s) => new Set(
+  (s.toLowerCase().match(/[a-z][a-z'-]*/g) || []).filter((w) => !STOPWORDS.has(w) && w.length > 2)));
+let overlapSum = 0, overlapN = 0;
+for (let i = 1; i < contentSets.length; i++) {
+  const cur = contentSets[i], prev = contentSets[i - 1];
+  if (!cur.size) continue;
+  let hit = 0;
+  for (const w of cur) if (prev.has(w)) hit++;
+  overlapSum += hit / cur.size; overlapN++;
+}
+const overlap = overlapN ? overlapSum / overlapN : 0;
+const connectivesPerSentence = sentences.length ? (prose.match(CONNECTIVES) || []).length / sentences.length : 0;
+
 if (targets.length < LIMITS.minTargets || targets.length > LIMITS.maxTargets)
   fail.push(`targets count ${targets.length} outside ${LIMITS.minTargets}–${LIMITS.maxTargets}`);
 if (totalWords < LIMITS.minWords || totalWords > LIMITS.maxWords)
@@ -228,6 +277,18 @@ if (avg > LIMITS.avgSentence)
   fail.push(`avg sentence ${avg.toFixed(1)} > ${LIMITS.avgSentence}`);
 if (rate > LIMITS.maxRate)
   fail.push(`above-level token rate ${rate.toFixed(1)}% > ${LIMITS.maxRate}%`);
+if (maxClauses > LIMITS.maxClauses)
+  fail.push(`longest clause run ${maxClauses} > ${LIMITS.maxClauses} clauses in one sentence`);
+if (passiveCount > LIMITS.maxPassives)
+  fail.push(`passive constructions ${passiveCount} > ${LIMITS.maxPassives}`);
+if (overlap < LIMITS.minOverlap)
+  fail.push(`adjacent-sentence content overlap ${overlap.toFixed(2)} < ${LIMITS.minOverlap} (cohesion floor)`);
+if (connectivesPerSentence < LIMITS.minConnectives)
+  fail.push(`connectives per sentence ${connectivesPerSentence.toFixed(2)} < ${LIMITS.minConnectives} (deep-cohesion floor)`);
+if (overlap > LIMITS.maxOverlap)
+  fail.push(`adjacent-sentence content overlap ${overlap.toFixed(2)} > ${LIMITS.maxOverlap} (too explicit for this rung)`);
+if (connectivesPerSentence > LIMITS.maxConnectives)
+  fail.push(`connectives per sentence ${connectivesPerSentence.toFixed(2)} > ${LIMITS.maxConnectives} (too explicit for this rung)`);
 
 const undeclared = [];
 for (const [base, b] of aboveBuckets) {
@@ -272,6 +333,10 @@ const report = {
   sentences: sentLens.length,
   avgSentence: +avg.toFixed(1),
   maxSentence: Math.max(0, ...sentLens),
+  maxClauses,
+  passives: passiveCount,
+  contentOverlap: +overlap.toFixed(3),
+  connectivesPerSentence: +connectivesPerSentence.toFixed(2),
   aboveLevelTokens: aboveTokens,
   aboveLevelRate: +rate.toFixed(1) + '%',
   targets: Object.fromEntries(targetHits),

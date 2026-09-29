@@ -1,4693 +1,4710 @@
-# english-context · 词频带（把 B1/B2 按真实词频切成三段，供 ledger 的 6 档词池使用）
+# english-context · 词频带 → 复合稀有度带（B1/B2 各切四段，供 ledger 的 8 档词池使用）
 #
-# 来源：Maximax67/Words-CEFR-Dataset（MIT License）的
-#       datasets/valid_words_sorted_by_frequency.csv —— Google N-Gram 词频，按频次降序排名。
-#       https://github.com/Maximax67/Words-CEFR-Dataset
-#       抓取日期：2026-09-29。上游共 172,782 条；本表覆盖 CEFR 词表中出现的 B1/B2 词。
-#       等级（第二列）来自同仓库 datasets/word_list_cefr.csv，与本目录 cefr-j-words.tsv 同源。
+# 评级依据（三项心理语言学/语料指标，取向统一为"越高越难"）：
+#   1) 词频   — Google N-Gram 排名（越靠后越难）
+#   2) AoA    — 习得年龄，母语者平均几岁学会（越晚越难）
+#   3) 具体性 — 1-5 分，越抽象越难（取反向）
+#   数据落在 B1/B2 这个窄频段里时，词频与 AoA 几乎不相关（Spearman 0.04）——
+#   这一段里词频差异反映的是话题/语域而非习得年龄，所以单用词频会漏掉
+#   "fiscal / paradox / ambiguity" 这类高频但抽象、晚学的难词。研究（Zhang 2025 SSLA）
+#   亦发现 AoA 是跨 CEFR 档最一致的判别特征。故改用三项等权百分位均值。
 #
-# 推导方法（可复现）：取 cefr-j-words.tsv 中等级为 B1 / B2 的词，各自按 Google N-Gram
-#       排名升序（越常见越靠前），三等分 → band 1（最高频）/ 2 / 3（最低频）。
-#       无词频记录的词（166 个，占 3.6%）排到最末，归入 band 3（保守：只在高档位出现）。
-#       B1 2178 词：726/726/726，边界 rank 4040 / 10348
-#       B2 2497 词：832/832/833，边界 rank 8282 / 18784
+# 来源（抓取日期 2026-09-29）：
+#   词频：(MIT License) Maximax67/Words-CEFR-Dataset
+#         datasets/valid_words_sorted_by_frequency.csv（172,782 条，Rank/Word/Frequency count）
+#   AoA ：Kuperman, Stadthagen-Gonzalez & Brysbaert (2012) Behavior Research Methods 44:978-990
+#         CSV 镜像 GliteTech/research-ace-cefr（t0009/kuperman-aoa-2012/files/kuperman-aoa-2012.csv）
+#         原始授权未明示（research use / freely redistributed）
+#   具体性：Brysbaert, Warriner & Kuperman (2014) Behavior Research Methods 46:904-911
+#         CSV 镜像 seantrott/concreteness（data/raw/brysbaert_norms.csv，含官方 9 列格式）
+#         原始授权 CC BY-NC（非商业）
+#   ⚠️ 本文件只提交"派生档位"，三项原始评分不再分发；如需复算，请自行从上述来源取原始数据。
 #
-# 格式：word <TAB> level <TAB> band <TAB> google-ngram-rank
-#       第四列仅供人工复核，脚本不读。
+# 推导方法（可复现）：
+#   取 cefr-j-words.tsv 中等级为 B1 / B2 的词（4,675 个）。对每项指标在全量数据上算百分位
+#   （词频/AoA 取正向、具体性取反向），缺失的指标不计入，取可用项的等权平均 → 复合稀有度。
+#   覆盖率：词频 96.4% · AoA 85.1% · 具体性 93.1% · 三项齐全 84.3%（缺失不丢词，按可用项平均）。
+#   再在 B1 / B2 内部各自按复合稀有度升序四分位 → band 1（最易）… 4（最难）。
+#   B1 2178 词：544/544/544/546   B2 2497 词：624/624/624/625
+#
+# 格式：word <TAB> level <TAB> band
 # 说明：A1/A2 词不在此表内——它们永远是自由词（不计超纲率），不参与档位。
 #       本表只被 ledger.mjs 的档位词池过滤读取；passage-check.mjs 不使用，硬闸行为不受影响。
-general	B1	1	113
-per	B1	1	124
-service	B1	1	153
-development	B1	1	167
-total	B1	1	182
-department	B1	1	210
-thus	B1	1	236
-whether	B1	1	241
-process	B1	1	243
-county	B1	1	266
-available	B1	1	273
-president	B1	1	278
-amount	B1	1	279
-economic	B1	1	289
-including	B1	1	290
-percent	B1	1	312
-provided	B1	1	318
-policy	B1	1	319
-property	B1	1	321
-analysis	B1	1	346
-various	B1	1	354
-management	B1	1	364
-tax	B1	1	373
-individual	B1	1	382
-district	B1	1	394
-industry	B1	1	404
-press	B1	1	411
-current	B1	1	415
-term	B1	1	418
-income	B1	1	422
-application	B1	1	435
-union	B1	1	445
-treatment	B1	1	455
-surface	B1	1	457
-central	B1	1	464
-basis	B1	1	465
-working	B1	1	466
-able	B1	1	475
-council	B1	1	478
-growth	B1	1	479
-construction	B1	1	489
-authority	B1	1	503
-series	B1	1	512
-paid	B1	1	525
-main	B1	1	539
-standard	B1	1	540
-equipment	B1	1	541
-operation	B1	1	551
-administration	B1	1	582
-theory	B1	1	586
-annual	B1	1	588
-decision	B1	1	593
-respect	B1	1	594
-generally	B1	1	602
-agreement	B1	1	604
-financial	B1	1	606
-organization	B1	1	617
-effective	B1	1	623
-distribution	B1	1	629
-security	B1	1	630
-limited	B1	1	633
-insurance	B1	1	634
-industrial	B1	1	638
-nor	B1	1	651
-written	B1	1	657
-journal	B1	1	659
-loss	B1	1	664
-approach	B1	1	676
-supply	B1	1	684
-employment	B1	1	695
-volume	B1	1	697
-region	B1	1	707
-chief	B1	1	728
-particularly	B1	1	729
-involved	B1	1	731
-sometimes	B1	1	737
-legal	B1	1	740
-length	B1	1	755
-civil	B1	1	766
-movement	B1	1	774
-disease	B1	1	782
-potential	B1	1	790
-army	B1	1	798
-relationship	B1	1	802
-charge	B1	1	813
-extent	B1	1	815
-flow	B1	1	826
-fund	B1	1	831
-protection	B1	1	834
-risk	B1	1	850
-cell	B1	1	855
-commercial	B1	1	859
-throughout	B1	1	864
-institute	B1	1	869
-unless	B1	1	875
-equal	B1	1	882
-capacity	B1	1	884
-goods	B1	1	885
-judgment	B1	1	893
-former	B1	1	905
-engineering	B1	1	906
-soil	B1	1	911
-demand	B1	1	914
-determine	B1	1	915
-directly	B1	1	923
-steel	B1	1	926
-safety	B1	1	931
-previous	B1	1	933
-entire	B1	1	943
-content	B1	1	944
-justice	B1	1	945
-rest	B1	1	949
-agricultural	B1	1	956
-duty	B1	1	965
-prepared	B1	1	971
-assistance	B1	1	974
-otherwise	B1	1	977
-status	B1	1	978
-presence	B1	1	980
-require	B1	1	989
-concerned	B1	1	990
-active	B1	1	993
-consideration	B1	1	996
-relation	B1	1	1000
-mass	B1	1	1004
-transfer	B1	1	1008
-failure	B1	1	1013
-maximum	B1	1	1014
-environmental	B1	1	1021
-aid	B1	1	1027
-connection	B1	1	1028
-literature	B1	1	1030
-independent	B1	1	1035
-sufficient	B1	1	1040
-upper	B1	1	1042
-balance	B1	1	1045
-iron	B1	1	1046
-regard	B1	1	1048
-complex	B1	1	1053
-relative	B1	1	1057
-coal	B1	1	1059
-joint	B1	1	1060
-access	B1	1	1061
-southern	B1	1	1063
-immediately	B1	1	1066
-distance	B1	1	1067
-progress	B1	1	1072
-benefit	B1	1	1080
-bureau	B1	1	1088
-object	B1	1	1089
-economy	B1	1	1110
-appeal	B1	1	1111
-positive	B1	1	1116
-religious	B1	1	1120
-measure	B1	1	1123
-transportation	B1	1	1127
-internal	B1	1	1130
-cultural	B1	1	1131
-historical	B1	1	1139
-defense	B1	1	1150
-hearing	B1	1	1153
-examination	B1	1	1162
-approximately	B1	1	1167
-introduction	B1	1	1168
-minimum	B1	1	1169
-initial	B1	1	1176
-motor	B1	1	1178
-critical	B1	1	1180
-agriculture	B1	1	1183
-occur	B1	1	1190
-spirit	B1	1	1191
-regional	B1	1	1192
-serious	B1	1	1193
-none	B1	1	1197
-considerable	B1	1	1198
-maintenance	B1	1	1199
-professor	B1	1	1205
-majority	B1	1	1230
-essential	B1	1	1233
-reduction	B1	1	1237
-northern	B1	1	1239
-highly	B1	1	1241
-grant	B1	1	1247
-rise	B1	1	1257
-teaching	B1	1	1268
-reasonable	B1	1	1269
-responsible	B1	1	1271
-practical	B1	1	1277
-firm	B1	1	1278
-instance	B1	1	1279
-principle	B1	1	1283
-relatively	B1	1	1289
-frequency	B1	1	1303
-responsibility	B1	1	1305
-variety	B1	1	1309
-nuclear	B1	1	1338
-obtain	B1	1	1343
-existence	B1	1	1346
-leading	B1	1	1347
-christian	B1	1	1351
-location	B1	1	1356
-election	B1	1	1367
-eastern	B1	1	1381
-foundation	B1	1	1387
-network	B1	1	1391
-investigation	B1	1	1392
-mental	B1	1	1393
-laboratory	B1	1	1400
-regulation	B1	1	1401
-determination	B1	1	1404
-pattern	B1	1	1409
-concept	B1	1	1411
-fuel	B1	1	1417
-completely	B1	1	1420
-merely	B1	1	1422
-conduct	B1	1	1427
-improvement	B1	1	1431
-representative	B1	1	1435
-regarding	B1	1	1452
-forth	B1	1	1454
-transport	B1	1	1456
-maintain	B1	1	1460
-entirely	B1	1	1461
-frequently	B1	1	1466
-vice	B1	1	1469
-constitution	B1	1	1471
-stress	B1	1	1476
-comparison	B1	1	1478
-foot	B1	1	1479
-reduce	B1	1	1489
-despite	B1	1	1494
-ordinary	B1	1	1500
-concentration	B1	1	1501
-desire	B1	1	1510
-element	B1	1	1517
-railroad	B1	1	1519
-alternative	B1	1	1521
-governor	B1	1	1526
-pain	B1	1	1531
-storage	B1	1	1546
-criminal	B1	1	1548
-worth	B1	1	1550
-setting	B1	1	1552
-definition	B1	1	1556
-medium	B1	1	1557
-conclusion	B1	1	1563
-damage	B1	1	1566
-slightly	B1	1	1570
-absence	B1	1	1573
-permit	B1	1	1574
-limit	B1	1	1580
-sort	B1	1	1586
-finding	B1	1	1601
-railway	B1	1	1602
-waste	B1	1	1614
-session	B1	1	1617
-selection	B1	1	1621
-opening	B1	1	1622
-finance	B1	1	1625
-guide	B1	1	1627
-moral	B1	1	1633
-religion	B1	1	1634
-marked	B1	1	1636
-politics	B1	1	1639
-permanent	B1	1	1642
-broad	B1	1	1646
-debt	B1	1	1647
-lay	B1	1	1650
-race	B1	1	1651
-sex	B1	1	1652
-reserve	B1	1	1654
-marriage	B1	1	1656
-van	B1	1	1662
-skin	B1	1	1663
-season	B1	1	1664
-combination	B1	1	1668
-gain	B1	1	1690
-largely	B1	1	1693
-port	B1	1	1694
-conflict	B1	1	1703
-engaged	B1	1	1708
-origin	B1	1	1709
-solid	B1	1	1711
-numerous	B1	1	1718
-vehicle	B1	1	1719
-substantial	B1	1	1722
-preparation	B1	1	1726
-command	B1	1	1730
-efficiency	B1	1	1733
-possibility	B1	1	1735
-republic	B1	1	1736
-establishment	B1	1	1745
-contain	B1	1	1747
-composition	B1	1	1753
-signal	B1	1	1757
-estimate	B1	1	1758
-electrical	B1	1	1761
-depth	B1	1	1766
-brief	B1	1	1774
-entry	B1	1	1775
-edge	B1	1	1778
-global	B1	1	1779
-experiment	B1	1	1780
-injury	B1	1	1781
-consumption	B1	1	1782
-bond	B1	1	1786
-immediate	B1	1	1787
-bound	B1	1	1794
-properly	B1	1	1802
-moreover	B1	1	1817
-edition	B1	1	1820
-excess	B1	1	1821
-reality	B1	1	1824
-quantity	B1	1	1827
-layer	B1	1	1828
-proof	B1	1	1829
-liquid	B1	1	1837
-advance	B1	1	1838
-affect	B1	1	1840
-typical	B1	1	1848
-cancer	B1	1	1852
-dependent	B1	1	1854
-instruction	B1	1	1861
-mechanical	B1	1	1867
-proportion	B1	1	1868
-engine	B1	1	1870
-channel	B1	1	1879
-primarily	B1	1	1881
-consumer	B1	1	1887
-document	B1	1	1890
-philosophy	B1	1	1891
-settlement	B1	1	1895
-cotton	B1	1	1901
-marine	B1	1	1904
-delivery	B1	1	1909
-closely	B1	1	1917
-mission	B1	1	1918
-anti	B1	1	1919
-aware	B1	1	1921
-approval	B1	1	1929
-monthly	B1	1	1934
-continuous	B1	1	1937
-device	B1	1	1938
-rapid	B1	1	1942
-minor	B1	1	1945
-technique	B1	1	1947
-ensure	B1	1	1952
-contribution	B1	1	1964
-protect	B1	1	1970
-electronic	B1	1	1988
-recovery	B1	1	1989
-assume	B1	1	1991
-leadership	B1	1	1994
-prove	B1	1	1997
-identity	B1	1	2003
-severe	B1	1	2008
-objective	B1	1	2011
-rapidly	B1	1	2015
-membership	B1	1	2026
-career	B1	1	2028
-pure	B1	1	2031
-apparent	B1	1	2032
-formal	B1	1	2033
-battle	B1	1	2035
-soul	B1	1	2038
-sand	B1	1	2045
-academic	B1	1	2050
-nevertheless	B1	1	2051
-radiation	B1	1	2056
-crop	B1	1	2061
-possession	B1	1	2067
-avenue	B1	1	2071
-height	B1	1	2073
-expense	B1	1	2077
-cycle	B1	1	2086
-obvious	B1	1	2090
-sheet	B1	1	2095
-proposal	B1	1	2096
-suddenly	B1	1	2100
-measurement	B1	1	2108
-superior	B1	1	2111
-inspection	B1	1	2115
-conservation	B1	1	2127
-democratic	B1	1	2138
-emphasis	B1	1	2139
-requirement	B1	1	2147
-capable	B1	1	2148
-decrease	B1	1	2156
-equally	B1	1	2159
-witness	B1	1	2169
-tissue	B1	1	2175
-secure	B1	1	2177
-valuable	B1	1	2179
-scope	B1	1	2181
-significance	B1	1	2188
-characteristic	B1	1	2190
-fifth	B1	1	2205
-resource	B1	1	2212
-diameter	B1	1	2216
-vision	B1	1	2223
-steam	B1	1	2232
-facility	B1	1	2236
-enemy	B1	1	2237
-unable	B1	1	2239
-interaction	B1	1	2244
-unique	B1	1	2246
-via	B1	1	2252
-efficient	B1	1	2259
-curve	B1	1	2265
-angle	B1	1	2271
-economics	B1	1	2273
-remove	B1	1	2276
-organic	B1	1	2283
-temporary	B1	1	2290
-sequence	B1	1	2291
-experienced	B1	1	2295
-category	B1	1	2298
-currently	B1	1	2310
-violence	B1	1	2311
-suppose	B1	1	2315
-confidence	B1	1	2325
-stream	B1	1	2330
-belief	B1	1	2338
-contrary	B1	1	2341
-eventually	B1	1	2345
-ad	B1	1	2349
-opposition	B1	1	2358
-arrangement	B1	1	2365
-absolute	B1	1	2369
-crisis	B1	1	2380
-vessel	B1	1	2381
-narrow	B1	1	2384
-household	B1	1	2386
-alcohol	B1	1	2387
-shift	B1	1	2391
-oxygen	B1	1	2397
-wire	B1	1	2400
-literary	B1	1	2404
-pipe	B1	1	2408
-observation	B1	1	2413
-electron	B1	1	2416
-holy	B1	1	2419
-behalf	B1	1	2424
-obviously	B1	1	2434
-tend	B1	1	2436
-mile	B1	1	2447
-visual	B1	1	2454
-select	B1	1	2464
-plain	B1	1	2469
-mutual	B1	1	2473
-aside	B1	1	2478
-mere	B1	1	2479
-similarly	B1	1	2485
-fellow	B1	1	2496
-ocean	B1	1	2505
-spiritual	B1	1	2522
-struggle	B1	1	2537
-registration	B1	1	2539
-rare	B1	1	2540
-onto	B1	1	2542
-empire	B1	1	2551
-abstract	B1	1	2553
-formula	B1	1	2558
-aspect	B1	1	2566
-turning	B1	1	2569
-normally	B1	1	2570
-consequently	B1	1	2575
-occasion	B1	1	2581
-cattle	B1	1	2590
-furthermore	B1	1	2592
-probability	B1	1	2598
-decline	B1	1	2599
-commonly	B1	1	2601
-infection	B1	1	2613
-accurate	B1	1	2617
-extreme	B1	1	2619
-recognize	B1	1	2620
-option	B1	1	2623
-mineral	B1	1	2644
-oral	B1	1	2649
-extend	B1	1	2651
-bulletin	B1	1	2655
-qualified	B1	1	2656
-stable	B1	1	2662
-register	B1	1	2666
-evident	B1	1	2670
-unemployment	B1	1	2675
-psychological	B1	1	2677
-enable	B1	1	2679
-partial	B1	1	2690
-academy	B1	1	2693
-comment	B1	1	2695
-chemistry	B1	1	2696
-sharp	B1	1	2700
-burden	B1	1	2703
-poetry	B1	1	2709
-naturally	B1	1	2713
-copyright	B1	1	2714
-outstanding	B1	1	2720
-separation	B1	1	2724
-gentleman	B1	1	2740
-customs	B1	1	2744
-examine	B1	1	2755
-physics	B1	1	2757
-atlantic	B1	1	2762
-outer	B1	1	2767
-tendency	B1	1	2777
-whenever	B1	1	2779
-constitute	B1	1	2784
-atmosphere	B1	1	2798
-deposit	B1	1	2803
-fax	B1	1	2808
-distinction	B1	1	2810
-climate	B1	1	2812
-intention	B1	1	2814
-league	B1	1	2818
-assist	B1	1	2828
-border	B1	1	2841
-democracy	B1	1	2857
-muscle	B1	1	2862
-strain	B1	1	2870
-competitive	B1	1	2871
-promote	B1	1	2878
-presentation	B1	1	2880
-increasingly	B1	1	2888
-canal	B1	1	2890
-discovery	B1	1	2891
-slight	B1	1	2893
-link	B1	1	2895
-satisfied	B1	1	2896
-terminal	B1	1	2902
-definite	B1	1	2904
-vast	B1	1	2906
-vary	B1	1	2913
-emotional	B1	1	2939
-poverty	B1	1	2940
-accuracy	B1	1	2943
-basin	B1	1	2953
-rubber	B1	1	2956
-discrimination	B1	1	2958
-prison	B1	1	2971
-acceptance	B1	1	2972
-visible	B1	1	2974
-retail	B1	1	2995
-minority	B1	1	2998
-define	B1	1	3002
-divine	B1	1	3007
-huge	B1	1	3013
-defence	B1	1	3015
-satisfaction	B1	1	3035
-associate	B1	1	3039
-exact	B1	1	3043
-strategic	B1	1	3047
-threat	B1	1	3050
-tank	B1	1	3058
-inquiry	B1	1	3064
-heaven	B1	1	3065
-guidance	B1	1	3071
-trend	B1	1	3079
-intermediate	B1	1	3084
-absolutely	B1	1	3085
-breath	B1	1	3094
-involve	B1	1	3100
-contribute	B1	1	3101
-aim	B1	1	3102
-typically	B1	1	3105
-depression	B1	1	3108
-frequent	B1	1	3110
-recording	B1	1	3112
-classical	B1	1	3133
-destruction	B1	1	3139
-beneath	B1	1	3143
-digital	B1	1	3154
-proceed	B1	1	3171
-exclusive	B1	1	3172
-guilty	B1	1	3181
-surgery	B1	1	3185
-rank	B1	1	3186
-occasionally	B1	1	3187
-era	B1	1	3193
-arise	B1	1	3205
-incident	B1	1	3225
-electricity	B1	1	3229
-declaration	B1	1	3235
-bishop	B1	1	3237
-surely	B1	1	3245
-counter	B1	1	3249
-admission	B1	1	3257
-surrounding	B1	1	3258
-transformation	B1	1	3261
-moderate	B1	1	3265
-resident	B1	1	3270
-tobacco	B1	1	3276
-notion	B1	1	3283
-gene	B1	1	3287
-pub	B1	1	3292
-mathematics	B1	1	3300
-promotion	B1	1	3301
-logic	B1	1	3302
-wing	B1	1	3306
-currency	B1	1	3315
-rail	B1	1	3318
-steady	B1	1	3320
-liver	B1	1	3325
-disability	B1	1	3330
-compound	B1	1	3333
-rarely	B1	1	3338
-tension	B1	1	3343
-treat	B1	1	3350
-remarkable	B1	1	3353
-atomic	B1	1	3363
-attend	B1	1	3369
-poet	B1	1	3371
-participate	B1	1	3379
-taste	B1	1	3382
-respond	B1	1	3390
-prayer	B1	1	3396
-survival	B1	1	3397
-impression	B1	1	3402
-limitation	B1	1	3404
-owing	B1	1	3407
-prominent	B1	1	3410
-gap	B1	1	3411
-narrative	B1	1	3416
-artist	B1	1	3421
-illness	B1	1	3427
-profession	B1	1	3429
-objection	B1	1	3430
-bull	B1	1	3435
-demonstrate	B1	1	3436
-recall	B1	1	3451
-blind	B1	1	3458
-ward	B1	1	3459
-constantly	B1	1	3463
-differ	B1	1	3481
-circular	B1	1	3484
-assignment	B1	1	3502
-genetic	B1	1	3511
-score	B1	1	3518
-virus	B1	1	3529
-absent	B1	1	3541
-annually	B1	1	3547
-pound	B1	1	3548
-sports	B1	1	3554
-interval	B1	1	3559
-achievement	B1	1	3561
-newly	B1	1	3563
-curriculum	B1	1	3581
-filter	B1	1	3604
-afford	B1	1	3620
-victory	B1	1	3623
-burning	B1	1	3629
-briefly	B1	1	3632
-guarantee	B1	1	3638
-awareness	B1	1	3639
-initially	B1	1	3645
-rough	B1	1	3647
-pump	B1	1	3648
-allowance	B1	1	3649
-mount	B1	1	3650
-package	B1	1	3651
-silent	B1	1	3663
-phenomenon	B1	1	3672
-observe	B1	1	3683
-reliable	B1	1	3684
-preference	B1	1	3686
-recover	B1	1	3698
-conservative	B1	1	3709
-moisture	B1	1	3715
-shortly	B1	1	3722
-punishment	B1	1	3728
-organisation	B1	1	3739
-adopt	B1	1	3746
-complicated	B1	1	3750
-engage	B1	1	3753
-phrase	B1	1	3768
-arrival	B1	1	3770
-dramatic	B1	1	3773
-breast	B1	1	3791
-trace	B1	1	3793
-slope	B1	1	3796
-conscious	B1	1	3800
-overcome	B1	1	3813
-favorable	B1	1	3815
-revision	B1	1	3819
-calculation	B1	1	3824
-afterwards	B1	1	3840
-anxiety	B1	1	3841
-distant	B1	1	3843
-reflection	B1	1	3846
-coastal	B1	1	3848
-tongue	B1	1	3850
-technological	B1	1	3860
-warning	B1	1	3872
-stem	B1	1	3880
-simultaneously	B1	1	3884
-wildlife	B1	1	3891
-switch	B1	1	3893
-harbor	B1	1	3903
-powder	B1	1	3906
-racial	B1	1	3922
-confusion	B1	1	3932
-totally	B1	1	3939
-routine	B1	1	3950
-rational	B1	1	3954
-hidden	B1	1	3956
-extraordinary	B1	1	3965
-emperor	B1	1	3975
-log	B1	1	3978
-historic	B1	1	3987
-syndrome	B1	1	3990
-residential	B1	1	3991
-finger	B1	1	3995
-neutral	B1	1	3999
-northwest	B1	1	4006
-systematic	B1	1	4007
-remainder	B1	1	4013
-eliminate	B1	1	4016
-biology	B1	1	4020
-deliver	B1	1	4021
-mayor	B1	1	4025
-comfort	B1	1	4028
-suffer	B1	1	4031
-substitute	B1	1	4036
-productive	B1	1	4039
-conclude	B1	1	4040
-victim	B1	2	4043
-producer	B1	2	4058
-platform	B1	2	4059
-construct	B1	2	4062
-demonstration	B1	2	4064
-universe	B1	2	4066
-possess	B1	2	4068
-diagram	B1	2	4070
-pale	B1	2	4073
-beat	B1	2	4083
-fallen	B1	2	4091
-deed	B1	2	4097
-immigration	B1	2	4098
-sacred	B1	2	4100
-altogether	B1	2	4106
-crossing	B1	2	4112
-reputation	B1	2	4125
-organ	B1	2	4132
-publisher	B1	2	4145
-exploration	B1	2	4153
-refuse	B1	2	4158
-furnish	B1	2	4163
-preservation	B1	2	4165
-recommend	B1	2	4170
-merchant	B1	2	4172
-farming	B1	2	4178
-personally	B1	2	4188
-relate	B1	2	4198
-massive	B1	2	4199
-breeding	B1	2	4204
-baker	B1	2	4212
-darkness	B1	2	4215
-acquire	B1	2	4216
-remedy	B1	2	4219
-protective	B1	2	4228
-grave	B1	2	4242
-anger	B1	2	4248
-intense	B1	2	4251
-definitely	B1	2	4254
-indirect	B1	2	4257
-preserve	B1	2	4265
-arrest	B1	2	4266
-deficiency	B1	2	4274
-retain	B1	2	4298
-format	B1	2	4326
-dozen	B1	2	4338
-satellite	B1	2	4344
-protest	B1	2	4353
-priest	B1	2	4354
-tiny	B1	2	4357
-uncertainty	B1	2	4358
-widespread	B1	2	4374
-somehow	B1	2	4376
-correction	B1	2	4379
-nutrition	B1	2	4383
-outline	B1	2	4389
-proud	B1	2	4390
-brick	B1	2	4394
-rolling	B1	2	4402
-lab	B1	2	4404
-equality	B1	2	4405
-neighborhood	B1	2	4407
-worthy	B1	2	4411
-wound	B1	2	4416
-sphere	B1	2	4437
-peculiar	B1	2	4444
-monitor	B1	2	4448
-attachment	B1	2	4452
-filling	B1	2	4456
-trail	B1	2	4469
-lift	B1	2	4472
-appreciation	B1	2	4483
-strip	B1	2	4497
-deny	B1	2	4503
-prize	B1	2	4522
-capture	B1	2	4523
-generate	B1	2	4533
-southeast	B1	2	4550
-lung	B1	2	4551
-honest	B1	2	4556
-meanwhile	B1	2	4565
-distinguish	B1	2	4573
-freely	B1	2	4576
-passion	B1	2	4588
-expand	B1	2	4597
-rely	B1	2	4600
-civilization	B1	2	4607
-glory	B1	2	4612
-intensive	B1	2	4625
-isolation	B1	2	4630
-wherever	B1	2	4634
-stick	B1	2	4641
-tin	B1	2	4642
-diverse	B1	2	4658
-occasional	B1	2	4682
-frozen	B1	2	4684
-pace	B1	2	4688
-courage	B1	2	4689
-essence	B1	2	4705
-primitive	B1	2	4713
-nearby	B1	2	4716
-unlikely	B1	2	4721
-departure	B1	2	4728
-workshop	B1	2	4739
-disaster	B1	2	4746
-usage	B1	2	4772
-southwest	B1	2	4775
-dealer	B1	2	4776
-killing	B1	2	4783
-geology	B1	2	4784
-disk	B1	2	4798
-settle	B1	2	4801
-habitat	B1	2	4807
-folk	B1	2	4813
-graph	B1	2	4821
-humanity	B1	2	4831
-geographical	B1	2	4841
-tropical	B1	2	4847
-defeat	B1	2	4857
-bent	B1	2	4866
-firmly	B1	2	4869
-bare	B1	2	4872
-hunt	B1	2	4879
-scholarship	B1	2	4884
-irregular	B1	2	4895
-lecture	B1	2	4902
-refusal	B1	2	4908
-abundant	B1	2	4917
-slavery	B1	2	4934
-upward	B1	2	4937
-slip	B1	2	4942
-worn	B1	2	4948
-silk	B1	2	4949
-accurately	B1	2	4950
-curious	B1	2	4967
-dialogue	B1	2	4974
-propose	B1	2	4977
-inform	B1	2	4980
-praise	B1	2	4981
-pole	B1	2	4993
-disabled	B1	2	5001
-buyer	B1	2	5006
-shallow	B1	2	5015
-thorough	B1	2	5019
-craft	B1	2	5038
-gay	B1	2	5083
-specially	B1	2	5093
-giant	B1	2	5112
-compromise	B1	2	5119
-resolve	B1	2	5132
-passive	B1	2	5138
-defend	B1	2	5139
-parking	B1	2	5150
-tale	B1	2	5151
-artistic	B1	2	5169
-calculate	B1	2	5184
-geography	B1	2	5185
-inevitable	B1	2	5198
-mild	B1	2	5210
-signature	B1	2	5211
-prejudice	B1	2	5216
-calm	B1	2	5222
-weakness	B1	2	5228
-agenda	B1	2	5229
-damaged	B1	2	5236
-accomplish	B1	2	5253
-alike	B1	2	5264
-weapon	B1	2	5265
-sympathy	B1	2	5270
-invasion	B1	2	5275
-server	B1	2	5282
-farther	B1	2	5286
-loud	B1	2	5287
-sword	B1	2	5289
-fold	B1	2	5295
-haven	B1	2	5296
-tremendous	B1	2	5310
-combine	B1	2	5316
-lodge	B1	2	5335
-continuously	B1	2	5341
-reception	B1	2	5351
-bore	B1	2	5360
-accessible	B1	2	5363
-palm	B1	2	5378
-encouraging	B1	2	5379
-cure	B1	2	5385
-insight	B1	2	5394
-pupil	B1	2	5398
-specialist	B1	2	5406
-nucleus	B1	2	5411
-eternal	B1	2	5422
-dioxide	B1	2	5425
-northeast	B1	2	5437
-innocent	B1	2	5458
-packing	B1	2	5461
-carriage	B1	2	5469
-resort	B1	2	5475
-barely	B1	2	5485
-broadcast	B1	2	5488
-enthusiasm	B1	2	5492
-prohibition	B1	2	5519
-destination	B1	2	5532
-hanging	B1	2	5536
-motivation	B1	2	5539
-urge	B1	2	5547
-reward	B1	2	5549
-glance	B1	2	5552
-healing	B1	2	5561
-shelter	B1	2	5564
-abundance	B1	2	5565
-encounter	B1	2	5576
-horizon	B1	2	5588
-emotion	B1	2	5591
-vein	B1	2	5598
-privacy	B1	2	5604
-prisoner	B1	2	5609
-discount	B1	2	5620
-abnormal	B1	2	5623
-prosperity	B1	2	5629
-bow	B1	2	5632
-precious	B1	2	5637
-tourism	B1	2	5640
-bitter	B1	2	5645
-citizenship	B1	2	5648
-realistic	B1	2	5649
-suspect	B1	2	5654
-sheriff	B1	2	5658
-surgeon	B1	2	5672
-instructor	B1	2	5679
-faithful	B1	2	5694
-meaningful	B1	2	5704
-fur	B1	2	5707
-reservation	B1	2	5714
-companion	B1	2	5724
-resist	B1	2	5729
-indirectly	B1	2	5731
-restore	B1	2	5757
-hire	B1	2	5760
-mud	B1	2	5763
-aggressive	B1	2	5765
-auxiliary	B1	2	5766
-hazard	B1	2	5767
-guilt	B1	2	5775
-disc	B1	2	5777
-shortage	B1	2	5779
-architect	B1	2	5780
-clinic	B1	2	5781
-pin	B1	2	5783
-counseling	B1	2	5785
-studio	B1	2	5787
-ecological	B1	2	5788
-pot	B1	2	5791
-pit	B1	2	5798
-mankind	B1	2	5803
-repeatedly	B1	2	5805
-appoint	B1	2	5826
-brass	B1	2	5835
-emphasize	B1	2	5847
-suicide	B1	2	5862
-confirm	B1	2	5881
-virtual	B1	2	5893
-exit	B1	2	5894
-steadily	B1	2	5900
-molecule	B1	2	5903
-collapse	B1	2	5908
-strengthen	B1	2	5923
-tide	B1	2	5924
-invitation	B1	2	5925
-severely	B1	2	5927
-generous	B1	2	5928
-acknowledge	B1	2	5939
-commit	B1	2	5942
-volunteer	B1	2	5943
-stressed	B1	2	5945
-bronze	B1	2	5951
-burst	B1	2	5958
-hiv	B1	2	5968
-publicly	B1	2	5985
-salmon	B1	2	5987
-rainfall	B1	2	5993
-charity	B1	2	6001
-jail	B1	2	6007
-horn	B1	2	6009
-safely	B1	2	6011
-delicate	B1	2	6012
-declare	B1	2	6019
-chase	B1	2	6026
-connect	B1	2	6029
-invest	B1	2	6034
-excitement	B1	2	6049
-modify	B1	2	6050
-painful	B1	2	6076
-liberation	B1	2	6086
-legally	B1	2	6088
-laughter	B1	2	6095
-continually	B1	2	6097
-timely	B1	2	6099
-organism	B1	2	6102
-flash	B1	2	6114
-loyalty	B1	2	6124
-analyze	B1	2	6152
-telecommunications	B1	2	6159
-compete	B1	2	6179
-pregnant	B1	2	6206
-examiner	B1	2	6212
-ecology	B1	2	6214
-mediterranean	B1	2	6231
-tragedy	B1	2	6244
-minimize	B1	2	6250
-occupy	B1	2	6251
-twin	B1	2	6257
-terror	B1	2	6258
-arrange	B1	2	6260
-urgent	B1	2	6262
-attract	B1	2	6263
-myth	B1	2	6265
-ignore	B1	2	6275
-ceremony	B1	2	6281
-intend	B1	2	6286
-funeral	B1	2	6290
-reject	B1	2	6292
-cave	B1	2	6295
-remark	B1	2	6298
-needle	B1	2	6301
-approve	B1	2	6321
-motive	B1	2	6334
-naked	B1	2	6335
-similarity	B1	2	6344
-certainty	B1	2	6354
-disturbance	B1	2	6358
-summit	B1	2	6364
-convey	B1	2	6375
-nonetheless	B1	2	6381
-downward	B1	2	6383
-caution	B1	2	6389
-rescue	B1	2	6391
-unexpected	B1	2	6396
-stuck	B1	2	6409
-extensively	B1	2	6414
-dull	B1	2	6416
-permanently	B1	2	6423
-stretch	B1	2	6432
-transform	B1	2	6437
-lasting	B1	2	6438
-launch	B1	2	6441
-announcement	B1	2	6453
-mentally	B1	2	6459
-impressive	B1	2	6460
-unemployed	B1	2	6484
-shame	B1	2	6499
-exhausted	B1	2	6505
-delight	B1	2	6526
-drag	B1	2	6539
-emerge	B1	2	6542
-unfortunate	B1	2	6549
-suspicion	B1	2	6552
-bold	B1	2	6553
-hang	B1	2	6575
-biography	B1	2	6581
-update	B1	2	6595
-eager	B1	2	6596
-outdoor	B1	2	6601
-participant	B1	2	6635
-historian	B1	2	6650
-encouragement	B1	2	6653
-collar	B1	2	6664
-librarian	B1	2	6671
-questionnaire	B1	2	6673
-formally	B1	2	6685
-nowhere	B1	2	6697
-qualify	B1	2	6709
-explosion	B1	2	6719
-challenging	B1	2	6720
-dare	B1	2	6727
-steep	B1	2	6736
-sickness	B1	2	6738
-confirmation	B1	2	6742
-scholar	B1	2	6752
-barrel	B1	2	6755
-rid	B1	2	6758
-graphic	B1	2	6760
-voyage	B1	2	6768
-traditionally	B1	2	6775
-cabin	B1	2	6779
-affection	B1	2	6781
-marble	B1	2	6788
-locate	B1	2	6795
-threatening	B1	2	6823
-distinctly	B1	2	6839
-doc	B1	2	6840
-dirt	B1	2	6845
-orchestra	B1	2	6852
-arrow	B1	2	6863
-pond	B1	2	6869
-offensive	B1	2	6870
-accompany	B1	2	6872
-bacon	B1	2	6888
-destructive	B1	2	6891
-depressed	B1	2	6894
-forecast	B1	2	6912
-lamb	B1	2	6922
-lightly	B1	2	6952
-useless	B1	2	6953
-derive	B1	2	6957
-bomb	B1	2	6959
-bark	B1	2	6960
-insist	B1	2	6963
-vague	B1	2	6973
-landlord	B1	2	6977
-patience	B1	2	6994
-govern	B1	2	7003
-willingness	B1	2	7004
-attain	B1	2	7006
-ink	B1	2	7011
-negotiation	B1	2	7021
-parental	B1	2	7031
-dating	B1	2	7042
-positively	B1	2	7067
-vain	B1	2	7087
-lawful	B1	2	7101
-improper	B1	2	7107
-sensation	B1	2	7108
-officially	B1	2	7119
-socially	B1	2	7128
-complement	B1	2	7131
-triumph	B1	2	7135
-wagon	B1	2	7136
-frost	B1	2	7150
-pause	B1	2	7165
-designer	B1	2	7180
-freezing	B1	2	7200
-react	B1	2	7203
-northwestern	B1	2	7205
-stupid	B1	2	7209
-magnificent	B1	2	7215
-excellence	B1	2	7243
-orbit	B1	2	7262
-desperate	B1	2	7264
-beloved	B1	2	7273
-straw	B1	2	7278
-faint	B1	2	7307
-monument	B1	2	7315
-fragment	B1	2	7318
-outward	B1	2	7325
-hunger	B1	2	7340
-harbour	B1	2	7342
-tire	B1	2	7348
-deaf	B1	2	7366
-favourable	B1	2	7367
-tent	B1	2	7390
-fitness	B1	2	7401
-comedy	B1	2	7410
-overwhelming	B1	2	7414
-amazing	B1	2	7417
-drunk	B1	2	7418
-tightly	B1	2	7429
-lean	B1	2	7432
-humor	B1	2	7449
-endless	B1	2	7454
-boom	B1	2	7464
-assign	B1	2	7473
-refund	B1	2	7487
-stir	B1	2	7492
-herd	B1	2	7501
-devotion	B1	2	7502
-install	B1	2	7513
-terrorism	B1	2	7516
-controversial	B1	2	7534
-abandon	B1	2	7539
-lighter	B1	2	7540
-critic	B1	2	7541
-convince	B1	2	7549
-basement	B1	2	7554
-cruel	B1	2	7566
-forbidden	B1	2	7567
-breed	B1	2	7568
-loyal	B1	2	7571
-bet	B1	2	7573
-attraction	B1	2	7575
-surprisingly	B1	2	7582
-deserve	B1	2	7591
-sponsor	B1	2	7606
-casual	B1	2	7608
-despair	B1	2	7614
-alcoholic	B1	2	7617
-sculpture	B1	2	7654
-restrict	B1	2	7660
-fortunate	B1	2	7661
-lately	B1	2	7663
-prescription	B1	2	7664
-forehead	B1	2	7683
-gesture	B1	2	7685
-hip	B1	2	7696
-pottery	B1	2	7726
-plug	B1	2	7740
-poison	B1	2	7752
-curiosity	B1	2	7758
-gratitude	B1	2	7820
-viewpoint	B1	2	7832
-tragic	B1	2	7865
-incorrect	B1	2	7867
-philosopher	B1	2	7878
-negotiate	B1	2	7882
-lightning	B1	2	7887
-adviser	B1	2	7889
-mess	B1	2	7897
-thumb	B1	2	7898
-charm	B1	2	7900
-goodness	B1	2	7908
-sorrow	B1	2	7916
-champion	B1	2	7933
-graphics	B1	2	7937
-attach	B1	2	7941
-blessing	B1	2	7949
-parcel	B1	2	7960
-chaos	B1	2	7972
-deadline	B1	2	7988
-ferry	B1	2	7989
-theft	B1	2	7998
-owe	B1	2	8001
-glorious	B1	2	8003
-trigger	B1	2	8011
-earnest	B1	2	8014
-enjoyment	B1	2	8033
-workplace	B1	2	8048
-arithmetic	B1	2	8051
-minus	B1	2	8071
-unusually	B1	2	8111
-forgive	B1	2	8113
-luxury	B1	2	8119
-dot	B1	2	8130
-telegram	B1	2	8149
-patrol	B1	2	8151
-wax	B1	2	8158
-hammer	B1	2	8161
-whoever	B1	2	8183
-warmth	B1	2	8185
-distribute	B1	2	8186
-paradise	B1	2	8192
-afterward	B1	2	8207
-nutrient	B1	2	8218
-rage	B1	2	8221
-temper	B1	2	8244
-phoenix	B1	2	8247
-crash	B1	2	8256
-genetics	B1	2	8273
-hatred	B1	2	8302
-feast	B1	2	8321
-scan	B1	2	8323
-undergo	B1	2	8325
-ambitious	B1	2	8334
-fantasy	B1	2	8335
-adapt	B1	2	8371
-detective	B1	2	8375
-accidental	B1	2	8379
-delighted	B1	2	8386
-athletic	B1	2	8394
-sheer	B1	2	8417
-kindness	B1	2	8433
-behave	B1	2	8444
-aboard	B1	2	8461
-orderly	B1	2	8466
-tile	B1	2	8468
-tense	B1	2	8477
-enthusiastic	B1	2	8485
-jazz	B1	2	8488
-foolish	B1	2	8514
-interact	B1	2	8529
-researcher	B1	2	8535
-melt	B1	2	8551
-miracle	B1	2	8552
-debris	B1	2	8557
-admiration	B1	2	8559
-frustration	B1	2	8566
-cage	B1	2	8567
-submarine	B1	2	8584
-spiral	B1	2	8595
-fond	B1	2	8600
-absorb	B1	2	8618
-moss	B1	2	8620
-flavor	B1	2	8628
-spelling	B1	2	8633
-beast	B1	2	8641
-acquaintance	B1	2	8645
-ladder	B1	2	8657
-scared	B1	2	8664
-persuade	B1	2	8671
-gallon	B1	2	8683
-imaginary	B1	2	8701
-brotherhood	B1	2	8725
-documentary	B1	2	8730
-overnight	B1	2	8736
-pharmacy	B1	2	8737
-vacancy	B1	2	8744
-nationalist	B1	2	8747
-dynasty	B1	2	8778
-penny	B1	2	8801
-cliff	B1	2	8824
-dialog	B1	2	8826
-canned	B1	2	8849
-beard	B1	2	8852
-noticeable	B1	2	8855
-curtain	B1	2	8869
-bin	B1	2	8881
-bunch	B1	2	8963
-vivid	B1	2	8972
-shocked	B1	2	8983
-creator	B1	2	8984
-graduation	B1	2	9004
-pork	B1	2	9006
-resemble	B1	2	9021
-accountant	B1	2	9025
-deadly	B1	2	9037
-inscription	B1	2	9040
-insane	B1	2	9041
-delightful	B1	2	9044
-calf	B1	2	9050
-hut	B1	2	9066
-supportive	B1	2	9086
-carpet	B1	2	9089
-misery	B1	2	9097
-sunset	B1	2	9145
-dial	B1	2	9148
-disagreement	B1	2	9157
-unrelated	B1	2	9175
-goddess	B1	2	9178
-judgement	B1	2	9180
-fountain	B1	2	9205
-characterize	B1	2	9216
-neighbourhood	B1	2	9231
-damp	B1	2	9239
-incredible	B1	2	9247
-disappointment	B1	2	9254
-obstacle	B1	2	9279
-elbow	B1	2	9316
-heavenly	B1	2	9332
-warranty	B1	2	9344
-underneath	B1	2	9351
-transitional	B1	2	9353
-wrist	B1	2	9368
-grouping	B1	2	9385
-airline	B1	2	9388
-reef	B1	2	9390
-blend	B1	2	9396
-sometime	B1	2	9400
-northeastern	B1	2	9429
-bullet	B1	2	9431
-oneself	B1	2	9441
-meditation	B1	2	9454
-oppression	B1	2	9474
-slot	B1	2	9525
-miserable	B1	2	9556
-recognise	B1	2	9578
-whichever	B1	2	9592
-pie	B1	2	9606
-ridiculous	B1	2	9616
-hatch	B1	2	9624
-highlight	B1	2	9648
-aloud	B1	2	9653
-horrible	B1	2	9663
-greenhouse	B1	2	9672
-sigh	B1	2	9675
-sleeve	B1	2	9679
-expose	B1	2	9682
-warrior	B1	2	9683
-depart	B1	2	9690
-prosperous	B1	2	9704
-nonsense	B1	2	9720
-twist	B1	2	9731
-appetite	B1	2	9736
-symptom	B1	2	9741
-spectacular	B1	2	9752
-endure	B1	2	9760
-bubble	B1	2	9811
-ration	B1	2	9813
-thunder	B1	2	9826
-safeguard	B1	2	9868
-extinction	B1	2	9871
-flock	B1	2	9883
-enquiry	B1	2	9909
-maple	B1	2	9963
-ripe	B1	2	9968
-translate	B1	2	9979
-announce	B1	2	10001
-dissolve	B1	2	10005
-evenly	B1	2	10024
-unite	B1	2	10025
-hardship	B1	2	10026
-unclear	B1	2	10031
-reproduce	B1	2	10035
-nail	B1	2	10047
-jungle	B1	2	10057
-monster	B1	2	10069
-cod	B1	2	10070
-trim	B1	2	10087
-monk	B1	2	10098
-builder	B1	2	10100
-cancel	B1	2	10114
-delete	B1	2	10133
-countless	B1	2	10159
-helpless	B1	2	10161
-honestly	B1	2	10168
-candle	B1	2	10170
-ashamed	B1	2	10176
-journalist	B1	2	10179
-warn	B1	2	10181
-jar	B1	2	10182
-garment	B1	2	10194
-purse	B1	2	10195
-boot	B1	2	10214
-honesty	B1	2	10222
-ant	B1	2	10233
-swear	B1	2	10238
-accent	B1	2	10258
-disastrous	B1	2	10261
-awkward	B1	2	10262
-revise	B1	2	10268
-divorced	B1	2	10270
-ivory	B1	2	10273
-isle	B1	2	10277
-ecosystem	B1	2	10294
-stare	B1	2	10305
-turbulence	B1	2	10308
-skeleton	B1	2	10333
-beautifully	B1	2	10340
-grab	B1	2	10348
-capsule	B1	3	10350
-intentionally	B1	3	10370
-acknowledgment	B1	3	10372
-gifted	B1	3	10386
-respectable	B1	3	10389
-westward	B1	3	10397
-biochemistry	B1	3	10408
-punish	B1	3	10456
-cautious	B1	3	10476
-recycling	B1	3	10480
-frustrated	B1	3	10485
-consume	B1	3	10490
-leap	B1	3	10501
-heater	B1	3	10506
-discomfort	B1	3	10523
-crow	B1	3	10579
-seize	B1	3	10583
-summarize	B1	3	10584
-worthwhile	B1	3	10589
-homeless	B1	3	10626
-sore	B1	3	10647
-continual	B1	3	10664
-bless	B1	3	10684
-salesman	B1	3	10705
-supposedly	B1	3	10706
-glimpse	B1	3	10712
-emotionally	B1	3	10739
-robot	B1	3	10741
-chemist	B1	3	10750
-hopefully	B1	3	10769
-cough	B1	3	10789
-encyclopedia	B1	3	10794
-selfish	B1	3	10798
-hesitate	B1	3	10884
-beaver	B1	3	10892
-nephew	B1	3	10935
-heal	B1	3	10951
-educate	B1	3	10952
-confusing	B1	3	10954
-farewell	B1	3	10966
-whisper	B1	3	10971
-mechanic	B1	3	11021
-embarrassed	B1	3	11037
-magical	B1	3	11049
-keyboard	B1	3	11105
-politician	B1	3	11124
-choir	B1	3	11146
-visa	B1	3	11173
-applause	B1	3	11175
-baggage	B1	3	11188
-entertain	B1	3	11196
-handy	B1	3	11204
-jealous	B1	3	11218
-stricken	B1	3	11225
-renew	B1	3	11240
-accessory	B1	3	11256
-ingredient	B1	3	11269
-swollen	B1	3	11324
-cheerful	B1	3	11329
-humour	B1	3	11355
-scenic	B1	3	11379
-eternity	B1	3	11385
-wrap	B1	3	11408
-sour	B1	3	11410
-newborn	B1	3	11429
-whale	B1	3	11434
-heel	B1	3	11474
-internationally	B1	3	11501
-classify	B1	3	11512
-chronological	B1	3	11514
-pillow	B1	3	11518
-tablet	B1	3	11519
-advisor	B1	3	11575
-modem	B1	3	11609
-sidewalk	B1	3	11638
-antique	B1	3	11669
-vowel	B1	3	11701
-strangely	B1	3	11714
-bilingual	B1	3	11744
-shrimp	B1	3	11745
-diligence	B1	3	11760
-hopeless	B1	3	11773
-deprive	B1	3	11785
-dump	B1	3	11803
-careless	B1	3	11810
-embarrassment	B1	3	11843
-interrupt	B1	3	11851
-gown	B1	3	11853
-ambulance	B1	3	11860
-referee	B1	3	11891
-sadness	B1	3	11898
-scratch	B1	3	11993
-hopeful	B1	3	12014
-secretly	B1	3	12042
-spectator	B1	3	12045
-greeting	B1	3	12092
-swell	B1	3	12103
-competitor	B1	3	12104
-discourage	B1	3	12115
-simplify	B1	3	12142
-clip	B1	3	12180
-talented	B1	3	12276
-harness	B1	3	12280
-weird	B1	3	12287
-misunderstanding	B1	3	12288
-hop	B1	3	12290
-amusing	B1	3	12310
-cultivate	B1	3	12339
-novelist	B1	3	12341
-nod	B1	3	12355
-stuffed	B1	3	12382
-puzzle	B1	3	12385
-terribly	B1	3	12399
-notorious	B1	3	12434
-memorable	B1	3	12455
-ness	B1	3	12486
-survivor	B1	3	12490
-curiously	B1	3	12509
-fashionable	B1	3	12521
-informative	B1	3	12523
-persuasive	B1	3	12539
-gossip	B1	3	12549
-amazed	B1	3	12557
-passport	B1	3	12577
-repay	B1	3	12589
-scatter	B1	3	12594
-spider	B1	3	12605
-diving	B1	3	12638
-whistle	B1	3	12724
-poisonous	B1	3	12738
-trash	B1	3	12746
-cabbage	B1	3	12791
-inspire	B1	3	12810
-violently	B1	3	12822
-coffin	B1	3	12833
-graceful	B1	3	12847
-circus	B1	3	12903
-alphabet	B1	3	12929
-animated	B1	3	12946
-hearted	B1	3	12949
-devastating	B1	3	12951
-modal	B1	3	12953
-crush	B1	3	12971
-visually	B1	3	12976
-apology	B1	3	13029
-stall	B1	3	13063
-ginger	B1	3	13112
-teen	B1	3	13141
-gardening	B1	3	13233
-thirst	B1	3	13249
-vet	B1	3	13251
-regain	B1	3	13253
-defender	B1	3	13276
-englishman	B1	3	13281
-dusty	B1	3	13304
-mustard	B1	3	13327
-gall	B1	3	13334
-surround	B1	3	13339
-actress	B1	3	13347
-analyse	B1	3	13352
-piety	B1	3	13353
-connexion	B1	3	13354
-terrified	B1	3	13377
-bang	B1	3	13385
-fetch	B1	3	13389
-butcher	B1	3	13402
-preschool	B1	3	13442
-turtle	B1	3	13457
-unexpectedly	B1	3	13474
-unwanted	B1	3	13479
-bald	B1	3	13492
-freshman	B1	3	13502
-animation	B1	3	13645
-mosquito	B1	3	13679
-accidentally	B1	3	13692
-unfit	B1	3	13733
-allergic	B1	3	13780
-runway	B1	3	13790
-handwriting	B1	3	13801
-dive	B1	3	13910
-knit	B1	3	13917
-lessen	B1	3	13929
-spoil	B1	3	13961
-hearty	B1	3	13976
-impair	B1	3	13978
-mule	B1	3	14015
-extinct	B1	3	14048
-helmet	B1	3	14049
-lottery	B1	3	14088
-stubborn	B1	3	14095
-yoga	B1	3	14111
-annoyed	B1	3	14128
-cushion	B1	3	14185
-unpredictable	B1	3	14189
-wrapping	B1	3	14218
-lifelong	B1	3	14220
-genetically	B1	3	14256
-daisy	B1	3	14257
-sticky	B1	3	14262
-humorous	B1	3	14263
-compose	B1	3	14276
-mischief	B1	3	14287
-shiny	B1	3	14289
-fade	B1	3	14313
-sponge	B1	3	14332
-peanut	B1	3	14334
-queue	B1	3	14349
-cv	B1	3	14355
-bust	B1	3	14385
-sunrise	B1	3	14421
-thankful	B1	3	14422
-conquer	B1	3	14439
-murderer	B1	3	14477
-tuna	B1	3	14484
-incredibly	B1	3	14489
-fortnight	B1	3	14492
-fake	B1	3	14522
-compliment	B1	3	14550
-tick	B1	3	14575
-gorgeous	B1	3	14606
-trumpet	B1	3	14630
-nasty	B1	3	14637
-breakthrough	B1	3	14705
-luggage	B1	3	14730
-likeness	B1	3	14771
-wildly	B1	3	14789
-buddy	B1	3	14824
-advertise	B1	3	14858
-lettuce	B1	3	14905
-flute	B1	3	14923
-bakery	B1	3	14952
-civilisation	B1	3	14984
-tournament	B1	3	14998
-wetland	B1	3	15015
-teller	B1	3	15035
-boast	B1	3	15047
-pollutant	B1	3	15075
-imitate	B1	3	15077
-boldly	B1	3	15080
-password	B1	3	15085
-niece	B1	3	15100
-illegally	B1	3	15101
-jewel	B1	3	15110
-consonant	B1	3	15121
-terrific	B1	3	15134
-wizard	B1	3	15194
-brightly	B1	3	15243
-remembrance	B1	3	15245
-proclaim	B1	3	15253
-shocking	B1	3	15301
-courageous	B1	3	15328
-slogan	B1	3	15335
-performer	B1	3	15345
-rotten	B1	3	15350
-acknowledgement	B1	3	15382
-vividly	B1	3	15385
-enclose	B1	3	15409
-anyhow	B1	3	15441
-handkerchief	B1	3	15477
-kettle	B1	3	15561
-motto	B1	3	15580
-enjoyable	B1	3	15610
-strawberry	B1	3	15611
-hasty	B1	3	15670
-camel	B1	3	15699
-outdoors	B1	3	15722
-warmly	B1	3	15724
-toss	B1	3	15820
-aspirin	B1	3	15842
-pronoun	B1	3	15913
-rebuild	B1	3	15988
-motorcycle	B1	3	15991
-congratulate	B1	3	16004
-humid	B1	3	16069
-boxing	B1	3	16125
-scare	B1	3	16130
-phantom	B1	3	16155
-superstition	B1	3	16162
-annoyance	B1	3	16196
-prefix	B1	3	16255
-volcano	B1	3	16263
-rubbish	B1	3	16310
-supporter	B1	3	16363
-groom	B1	3	16404
-comet	B1	3	16435
-roadside	B1	3	16453
-flavour	B1	3	16483
-counselling	B1	3	16533
-recycled	B1	3	16572
-loaf	B1	3	16735
-motionless	B1	3	16754
-gym	B1	3	16767
-eco	B1	3	16783
-razor	B1	3	16854
-celebrity	B1	3	16896
-ecstasy	B1	3	16958
-stripe	B1	3	17073
-motivate	B1	3	17090
-bedside	B1	3	17115
-depressing	B1	3	17123
-retrospect	B1	3	17160
-anxiously	B1	3	17168
-relaxing	B1	3	17206
-stormy	B1	3	17247
-ache	B1	3	17293
-jade	B1	3	17306
-politely	B1	3	17321
-spice	B1	3	17427
-stunning	B1	3	17472
-logo	B1	3	17504
-dj	B1	3	17553
-headline	B1	3	17569
-trustworthy	B1	3	17617
-suffix	B1	3	17676
-farmland	B1	3	17684
-riddle	B1	3	17692
-grill	B1	3	17777
-diligent	B1	3	17842
-chariot	B1	3	17855
-seawater	B1	3	17889
-spinach	B1	3	17917
-limp	B1	3	18002
-enrich	B1	3	18055
-dangerously	B1	3	18056
-wasteful	B1	3	18069
-awesome	B1	3	18139
-stressful	B1	3	18147
-tighten	B1	3	18168
-blush	B1	3	18231
-eagerness	B1	3	18236
-hurriedly	B1	3	18361
-comma	B1	3	18403
-idol	B1	3	18412
-settler	B1	3	18488
-fright	B1	3	18528
-crossroads	B1	3	18585
-calculator	B1	3	18617
-indoors	B1	3	18647
-accuse	B1	3	18678
-uncover	B1	3	18703
-necklace	B1	3	18704
-bleed	B1	3	18729
-wardrobe	B1	3	18767
-endanger	B1	3	18806
-specialize	B1	3	18807
-swarm	B1	3	18823
-fuss	B1	3	18845
-pleasantly	B1	3	18856
-puppy	B1	3	18864
-carelessness	B1	3	18867
-runaway	B1	3	18919
-liar	B1	3	18969
-curly	B1	3	18997
-illuminate	B1	3	19101
-gee	B1	3	19153
-nap	B1	3	19184
-carton	B1	3	19200
-yell	B1	3	19222
-choke	B1	3	19230
-pineapple	B1	3	19236
-bump	B1	3	19349
-recite	B1	3	19365
-ape	B1	3	19465
-complicate	B1	3	19500
-idiom	B1	3	19509
-paddle	B1	3	19543
-boredom	B1	3	19551
-emphasise	B1	3	19570
-inconvenient	B1	3	19581
-shadowy	B1	3	19595
-freezer	B1	3	19598
-glide	B1	3	19631
-undo	B1	3	19673
-rewrite	B1	3	19748
-tremble	B1	3	19764
-nickname	B1	3	19886
-outweigh	B1	3	19893
-subconscious	B1	3	19927
-mash	B1	3	19928
-parachute	B1	3	20013
-caller	B1	3	20145
-mathematician	B1	3	20247
-oily	B1	3	20273
-breathless	B1	3	20377
-proverb	B1	3	20389
-farthest	B1	3	20397
-dolphin	B1	3	20414
-unfold	B1	3	20450
-flu	B1	3	20502
-jug	B1	3	20538
-scary	B1	3	20590
-booking	B1	3	20716
-shameful	B1	3	20859
-drown	B1	3	20862
-tornado	B1	3	20888
-carelessly	B1	3	20900
-cherish	B1	3	20987
-haunt	B1	3	21234
-bandage	B1	3	21241
-magician	B1	3	21276
-newcomer	B1	3	21279
-unbelievable	B1	3	21314
-fluent	B1	3	21373
-reclaim	B1	3	21374
-teamwork	B1	3	21393
-bounce	B1	3	21486
-cucumber	B1	3	21544
-sophomore	B1	3	21614
-liberate	B1	3	21714
-inject	B1	3	21722
-encyclopaedia	B1	3	21729
-unfairly	B1	3	21812
-disgusting	B1	3	21815
-bravely	B1	3	21868
-saucepan	B1	3	21921
-outlaw	B1	3	21933
-hostel	B1	3	21996
-uncontrollable	B1	3	21997
-nervousness	B1	3	22023
-mourn	B1	3	22193
-mislead	B1	3	22206
-parrot	B1	3	22210
-shiver	B1	3	22283
-involuntarily	B1	3	22291
-vegetarian	B1	3	22328
-unheard	B1	3	22377
-diver	B1	3	22421
-honeymoon	B1	3	22486
-misty	B1	3	22492
-takeoff	B1	3	22494
-dedicate	B1	3	22514
-nectar	B1	3	22528
-waterfall	B1	3	22627
-inhabitant	B1	3	22892
-shave	B1	3	22952
-mend	B1	3	23040
-astronomer	B1	3	23179
-messy	B1	3	23192
-souvenir	B1	3	23199
-possessive	B1	3	23216
-fasten	B1	3	23288
-postcard	B1	3	23384
-reunification	B1	3	23475
-festive	B1	3	23603
-canteen	B1	3	23627
-bathe	B1	3	23698
-tempt	B1	3	23842
-minimise	B1	3	23896
-friendliness	B1	3	23901
-tumble	B1	3	23962
-innermost	B1	3	24154
-chuckle	B1	3	24226
-tease	B1	3	24257
-spicy	B1	3	24356
-photocopy	B1	3	24408
-raspberry	B1	3	24414
-unfriendly	B1	3	24442
-kitten	B1	3	24459
-participle	B1	3	24511
-addressee	B1	3	24535
-columnist	B1	3	24622
-gymnastics	B1	3	24635
-purify	B1	3	24772
-lovingly	B1	3	24827
-excitedly	B1	3	24834
-fondness	B1	3	24865
-unlucky	B1	3	24884
-lorry	B1	3	24921
-housework	B1	3	25029
-stumble	B1	3	25042
-tasty	B1	3	25080
-refreshments	B1	3	25187
-dude	B1	3	25312
-backpack	B1	3	25530
-infinitive	B1	3	25560
-nutritious	B1	3	25593
-seaweed	B1	3	25624
-broccoli	B1	3	25668
-embarrass	B1	3	25787
-smoker	B1	3	25841
-gaol	B1	3	25878
-adverb	B1	3	25961
-applaud	B1	3	26023
-preposition	B1	3	26224
-meditate	B1	3	26382
-overwhelm	B1	3	26428
-eyesight	B1	3	26486
-workout	B1	3	26507
-bracelet	B1	3	26513
-soothe	B1	3	26567
-saucer	B1	3	26723
-juicy	B1	3	26773
-sparkle	B1	3	26848
-popcorn	B1	3	26939
-gravy	B1	3	27179
-unify	B1	3	27262
-stylish	B1	3	27391
-burglar	B1	3	28417
-furthest	B1	3	28642
-wither	B1	3	28996
-enthusiast	B1	3	29009
-comedian	B1	3	29017
-someplace	B1	3	29324
-uplifted	B1	3	29412
-categorize	B1	3	29564
-disappoint	B1	3	29592
-ironing	B1	3	29795
-rainforest	B1	3	29857
-rudely	B1	3	29864
-disable	B1	3	29921
-tiring	B1	3	30006
-jumper	B1	3	30044
-jogging	B1	3	30053
-mailbox	B1	3	30125
-memorize	B1	3	30409
-safari	B1	3	30603
-thump	B1	3	30625
-giggle	B1	3	30771
-swimmer	B1	3	30992
-storyteller	B1	3	31019
-uninteresting	B1	3	31044
-loudspeaker	B1	3	31049
-rearrange	B1	3	31131
-gorilla	B1	3	31170
-checkout	B1	3	31512
-sticker	B1	3	31567
-inhale	B1	3	31699
-handshake	B1	3	32047
-interviewee	B1	3	32117
-thriller	B1	3	32174
-calmness	B1	3	32335
-postman	B1	3	32464
-diaper	B1	3	32572
-jog	B1	3	32955
-glint	B1	3	33023
-motherland	B1	3	33208
-adorable	B1	3	33218
-onstage	B1	3	33260
-characterise	B1	3	33277
-brainstorming	B1	3	33509
-faraway	B1	3	33581
-climber	B1	3	33587
-adverbial	B1	3	34370
-oppress	B1	3	34891
-westwards	B1	3	34961
-quake	B1	3	35044
-campsite	B1	3	35355
-innovator	B1	3	35416
-irritate	B1	3	35659
-toothpaste	B1	3	35663
-untidy	B1	3	35696
-penniless	B1	3	36116
-noisily	B1	3	36270
-summarise	B1	3	36343
-guitarist	B1	3	36411
-undress	B1	3	36753
-dishwasher	B1	3	36862
-schoolteacher	B1	3	36869
-talkative	B1	3	36984
-overjoyed	B1	3	37009
-intermission	B1	3	37243
-firefighter	B1	3	37393
-tasteless	B1	3	37666
-shopper	B1	3	37810
-uninterested	B1	3	37937
-entertainer	B1	3	37962
-golfer	B1	3	38115
-unwell	B1	3	38440
-scold	B1	3	38849
-waggon	B1	3	38860
-fluently	B1	3	39110
-skyscraper	B1	3	39239
-advert	B1	3	39873
-upload	B1	3	40030
-thunderous	B1	3	40221
-narrate	B1	3	40521
-sandal	B1	3	40587
-snowstorm	B1	3	40929
-procrastination	B1	3	41030
-dazzle	B1	3	41090
-feverishly	B1	3	41224
-giraffe	B1	3	41429
-daze	B1	3	41653
-overwork	B1	3	41879
-nightlife	B1	3	42942
-hairdresser	B1	3	43478
-unpack	B1	3	43967
-sneeze	B1	3	44352
-sweatshirt	B1	3	44362
-specialise	B1	3	44971
-barman	B1	3	46098
-doze	B1	3	46389
-unafraid	B1	3	46900
-windscreen	B1	3	47453
-environmentalist	B1	3	47815
-phenix	B1	3	47882
-teammate	B1	3	47972
-underage	B1	3	48230
-easygoing	B1	3	49445
-inscribe	B1	3	49530
-instal	B1	3	49565
-sportsmanship	B1	3	49796
-stun	B1	3	50237
-paralyze	B1	3	50455
-babysitter	B1	3	50478
-aerobics	B1	3	52314
-backache	B1	3	52389
-accustom	B1	3	53020
-mountaintop	B1	3	53458
-fascinate	B1	3	54091
-handball	B1	3	55321
-underpants	B1	3	55467
-signpost	B1	3	55637
-backpacking	B1	3	57640
-sundial	B1	3	57786
-lifeguard	B1	3	59236
-wristwatch	B1	3	59239
-devastate	B1	3	59997
-duvet	B1	3	62683
-retell	B1	3	62691
-immigrate	B1	3	64261
-aborigine	B1	3	64437
-goalkeeper	B1	3	65655
-takeaway	B1	3	66119
-antonym	B1	3	66744
-dustbin	B1	3	67856
-pullover	B1	3	69814
-firework	B1	3	70671
-paralyse	B1	3	72448
-categorise	B1	3	73761
-schoolmate	B1	3	73901
-babysit	B1	3	74765
-backpacker	B1	3	79385
-earache	B1	3	80032
-latecomer	B1	3	86873
-memorise	B1	3	89908
-flunk	B1	3	90320
-tracksuit	B1	3	90842
-horrify	B1	3	95489
-reunify	B1	3	96118
-hairdryer	B1	3	105018
-courgette	B1	3	106065
-sunbathe	B1	3	107791
-washbowl	B1	3	117823
-according to	B1	3	
-air conditioning	B1	3	
-air force	B1	3	
-bank account	B1	3	
-because of	B1	3	
-blog	B1	3	
-blogger	B1	3	
-brand-new	B1	3	
-cashpoint	B1	3	
-cd-rom	B1	3	
-central heating	B1	3	
-chat show	B1	3	
-check-in	B1	3	
-check-in counter	B1	3	
-check-in desk	B1	3	
-chest of drawers	B1	3	
-chewing gum	B1	3	
-common sense	B1	3	
-definite article	B1	3	
-disc jockey	B1	3	
-disk jockey	B1	3	
-duty-free	B1	3	
-easy-going	B1	3	
-exchange rate	B1	3	
-extreme sports	B1	3	
-face to face	B1	3	
-face-to-face	B1	3	
-film-maker	B1	3	
-fire station	B1	3	
-first floor	B1	3	
-first lady	B1	3	
-first-floor	B1	3	
-frying pan	B1	3	
-full stop	B1	3	
-full-time	B1	3	
-ground floor	B1	3	
-hand-held	B1	3	
-hard-working	B1	3	
-heart attack	B1	3	
-ice hockey	B1	3	
-ice skating	B1	3	
-identity card	B1	3	
-indefinite article	B1	3	
-instead of	B1	3	
-message board	B1	3	
-middle-aged	B1	3	
-mixing bowl	B1	3	
-modal verb	B1	3	
-navy blue	B1	3	
-next door	B1	3	
-next-door	B1	3	
-noticeboard	B1	3	
-old-fashioned	B1	3	
-on to	B1	3	
-ought to	B1	3	
-out-of-date	B1	3	
-part-time	B1	3	
-per cent	B1	3	
-phrasal verb	B1	3	
-pocket money	B1	3	
-primary school	B1	3	
-public transport	B1	3	
-question mark	B1	3	
-remote control	B1	3	
-science fiction	B1	3	
-second-hand	B1	3	
-secondary school	B1	3	
-self-service	B1	3	
-snowboard	B1	3	
-soap opera	B1	3	
-social networking	B1	3	
-take-off	B1	3	
-traffic jam	B1	3	
-travel agent	B1	3	
-up-to-date	B1	3	
-used to	B1	3	
-vice president	B1	3	
-video clip	B1	3	
-weather forecast	B1	3	
-webcam	B1	3	
-well-dressed	B1	3	
-windsurfing	B1	3	
-united	B2	1	145
-found	B2	1	161
-data	B2	1	173
-means	B2	1	237
-federal	B2	1	300
-god	B2	1	313
-commission	B2	1	316
-known	B2	1	330
-times	B2	1	334
-energy	B2	1	390
-community	B2	1	407
-particular	B2	1	430
-lower	B2	1	484
-project	B2	1	505
-related	B2	1	550
-contract	B2	1	561
-division	B2	1	599
-corporation	B2	1	611
-stock	B2	1	635
-proposed	B2	1	654
-species	B2	1	667
-western	B2	1	743
-determined	B2	1	760
-reference	B2	1	764
-planning	B2	1	803
-expected	B2	1	819
-technical	B2	1	820
-conference	B2	1	821
-prior	B2	1	825
-motion	B2	1	842
-primary	B2	1	858
-trial	B2	1	873
-acid	B2	1	910
-learning	B2	1	925
-investment	B2	1	939
-payment	B2	1	940
-existing	B2	1	947
-facilities	B2	1	951
-environment	B2	1	957
-minister	B2	1	962
-actual	B2	1	963
-understanding	B2	1	975
-procedure	B2	1	997
-factor	B2	1	1005
-phase	B2	1	1006
-executive	B2	1	1073
-senator	B2	1	1087
-index	B2	1	1100
-estate	B2	1	1121
-portion	B2	1	1159
-provision	B2	1	1163
-formation	B2	1	1173
-fixed	B2	1	1177
-resolution	B2	1	1184
-adopted	B2	1	1202
-constant	B2	1	1212
-domestic	B2	1	1217
-estimated	B2	1	1226
-concerning	B2	1	1234
-growing	B2	1	1261
-personnel	B2	1	1262
-employee	B2	1	1265
-master	B2	1	1270
-output	B2	1	1280
-commerce	B2	1	1284
-assembly	B2	1	1306
-neither	B2	1	1307
-legislation	B2	1	1318
-reaction	B2	1	1322
-assessment	B2	1	1330
-administrative	B2	1	1339
-revenue	B2	1	1365
-fiscal	B2	1	1371
-urban	B2	1	1374
-soviet	B2	1	1376
-evaluation	B2	1	1380
-compensation	B2	1	1382
-purchase	B2	1	1384
-rural	B2	1	1406
-remains	B2	1	1413
-publication	B2	1	1418
-developing	B2	1	1424
-relief	B2	1	1434
-faith	B2	1	1445
-secondary	B2	1	1451
-statistics	B2	1	1458
-previously	B2	1	1459
-somewhat	B2	1	1485
-resistance	B2	1	1490
-moving	B2	1	1492
-whereas	B2	1	1502
-media	B2	1	1506
-percentage	B2	1	1507
-convention	B2	1	1534
-circuit	B2	1	1539
-loan	B2	1	1581
-manufacturing	B2	1	1603
-sector	B2	1	1612
-yield	B2	1	1623
-employer	B2	1	1649
-equation	B2	1	1657
-institution	B2	1	1667
-welfare	B2	1	1673
-extension	B2	1	1688
-detailed	B2	1	1705
-external	B2	1	1707
-multiple	B2	1	1715
-adequate	B2	1	1725
-scheme	B2	1	1740
-corresponding	B2	1	1752
-overall	B2	1	1764
-interpretation	B2	1	1767
-grand	B2	1	1784
-profit	B2	1	1795
-relevant	B2	1	1801
-improved	B2	1	1816
-concrete	B2	1	1822
-gross	B2	1	1832
-territory	B2	1	1849
-testimony	B2	1	1851
-aircraft	B2	1	1859
-marketing	B2	1	1877
-divided	B2	1	1880
-remaining	B2	1	1884
-carbon	B2	1	1888
-jury	B2	1	1954
-component	B2	1	1965
-cooperation	B2	1	1966
-discharge	B2	1	1967
-participation	B2	1	1971
-classification	B2	1	1974
-reform	B2	1	1976
-fundamental	B2	1	1978
-expansion	B2	1	1981
-legislative	B2	1	1995
-corporate	B2	1	1999
-revolution	B2	1	2016
-grain	B2	1	2019
-export	B2	1	2034
-billion	B2	1	2041
-sexual	B2	1	2046
-bearing	B2	1	2053
-clause	B2	1	2065
-therapy	B2	1	2078
-specifically	B2	1	2082
-wage	B2	1	2084
-extensive	B2	1	2085
-attached	B2	1	2089
-copper	B2	1	2092
-user	B2	1	2102
-recognition	B2	1	2110
-treaty	B2	1	2120
-consistent	B2	1	2123
-identify	B2	1	2124
-certificate	B2	1	2125
-input	B2	1	2132
-necessarily	B2	1	2145
-core	B2	1	2149
-version	B2	1	2152
-consent	B2	1	2178
-interior	B2	1	2183
-creation	B2	1	2203
-variation	B2	1	2215
-campaign	B2	1	2218
-exception	B2	1	2240
-navy	B2	1	2245
-fluid	B2	1	2250
-savings	B2	1	2253
-cast	B2	1	2256
-significantly	B2	1	2278
-route	B2	1	2293
-identification	B2	1	2296
-necessity	B2	1	2301
-prime	B2	1	2302
-substance	B2	1	2304
-dated	B2	1	2307
-parliament	B2	1	2342
-earnings	B2	1	2352
-transition	B2	1	2361
-psychology	B2	1	2385
-creek	B2	1	2389
-comprehensive	B2	1	2390
-transmission	B2	1	2392
-perspective	B2	1	2399
-contemporary	B2	1	2415
-preliminary	B2	1	2422
-mill	B2	1	2435
-client	B2	1	2441
-wheat	B2	1	2470
-stability	B2	1	2472
-applicant	B2	1	2483
-satisfactory	B2	1	2486
-biological	B2	1	2493
-mixture	B2	1	2502
-willing	B2	1	2503
-universal	B2	1	2515
-considering	B2	1	2520
-province	B2	1	2538
-practically	B2	1	2552
-operator	B2	1	2568
-adjustment	B2	1	2579
-retirement	B2	1	2587
-legislature	B2	1	2593
-evolution	B2	1	2610
-mortgage	B2	1	2612
-salary	B2	1	2625
-readily	B2	1	2629
-naval	B2	1	2638
-acquisition	B2	1	2648
-peak	B2	1	2654
-draft	B2	1	2657
-originally	B2	1	2658
-exceed	B2	1	2660
-faculty	B2	1	2689
-enterprise	B2	1	2694
-manufacture	B2	1	2698
-accordingly	B2	1	2712
-panel	B2	1	2719
-evil	B2	1	2727
-abuse	B2	1	2734
-intellectual	B2	1	2735
-utility	B2	1	2750
-essentially	B2	1	2759
-manual	B2	1	2766
-deputy	B2	1	2768
-acute	B2	1	2786
-desirable	B2	1	2797
-distinguished	B2	1	2815
-exhibit	B2	1	2822
-functional	B2	1	2824
-conventional	B2	1	2830
-effectively	B2	1	2836
-criticism	B2	1	2850
-translation	B2	1	2854
-prevention	B2	1	2859
-dynamic	B2	1	2861
-residence	B2	1	2863
-ph	B2	1	2864
-superintendent	B2	1	2865
-lease	B2	1	2875
-sensitive	B2	1	2876
-obligation	B2	1	2881
-conversion	B2	1	2892
-beam	B2	1	2905
-equity	B2	1	2916
-assumption	B2	1	2920
-vital	B2	1	2922
-axis	B2	1	2945
-valid	B2	1	2949
-liberal	B2	1	2951
-partnership	B2	1	2952
-width	B2	1	2970
-thickness	B2	1	2975
-submit	B2	1	2978
-colonial	B2	1	2981
-cable	B2	1	2982
-dose	B2	1	2986
-devoted	B2	1	2993
-pension	B2	1	2996
-formerly	B2	1	3008
-pa	B2	1	3012
-physician	B2	1	3022
-cooperative	B2	1	3025
-fighting	B2	1	3026
-execution	B2	1	3029
-identical	B2	1	3034
-considerably	B2	1	3048
-consciousness	B2	1	3051
-supervision	B2	1	3060
-striking	B2	1	3093
-priority	B2	1	3095
-completion	B2	1	3099
-adoption	B2	1	3114
-commonwealth	B2	1	3116
-effectiveness	B2	1	3119
-intent	B2	1	3124
-suffering	B2	1	3138
-dna	B2	1	3156
-sufficiently	B2	1	3177
-import	B2	1	3188
-solar	B2	1	3217
-spite	B2	1	3222
-disposal	B2	1	3224
-shipping	B2	1	3242
-ultimate	B2	1	3250
-ultimately	B2	1	3259
-ton	B2	1	3271
-availability	B2	1	3304
-varied	B2	1	3307
-correspondence	B2	1	3311
-dispute	B2	1	3328
-profile	B2	1	3334
-virtue	B2	1	3337
-thereafter	B2	1	3355
-eligible	B2	1	3380
-probable	B2	1	3384
-headquarters	B2	1	3409
-noble	B2	1	3413
-outcome	B2	1	3438
-involvement	B2	1	3442
-clothing	B2	1	3450
-decade	B2	1	3452
-commander	B2	1	3453
-radical	B2	1	3460
-reasonably	B2	1	3465
-saving	B2	1	3475
-manufacturer	B2	1	3485
-candidate	B2	1	3487
-margin	B2	1	3488
-recommendation	B2	1	3494
-discipline	B2	1	3510
-regime	B2	1	3516
-precisely	B2	1	3520
-excessive	B2	1	3528
-regardless	B2	1	3531
-thoroughly	B2	1	3536
-penalty	B2	1	3560
-ethnic	B2	1	3568
-particle	B2	1	3573
-rear	B2	1	3589
-nerve	B2	1	3605
-theme	B2	1	3606
-plot	B2	1	3625
-mathematical	B2	1	3641
-adverse	B2	1	3679
-virtually	B2	1	3697
-inflation	B2	1	3716
-tender	B2	1	3734
-perception	B2	1	3745
-likewise	B2	1	3748
-pine	B2	1	3763
-governmental	B2	1	3767
-replacement	B2	1	3782
-migration	B2	1	3792
-abandoned	B2	1	3799
-friendly	B2	1	3820
-recreation	B2	1	3835
-modification	B2	1	3839
-dental	B2	1	3844
-database	B2	1	3845
-reverse	B2	1	3847
-revolutionary	B2	1	3849
-editorial	B2	1	3862
-lighting	B2	1	3863
-privilege	B2	1	3865
-memorial	B2	1	3867
-evaluate	B2	1	3889
-segment	B2	1	3895
-fleet	B2	1	3898
-separately	B2	1	3899
-laser	B2	1	3920
-hell	B2	1	3924
-disposition	B2	1	3942
-cabinet	B2	1	3943
-attendance	B2	1	3952
-unto	B2	1	3963
-scheduled	B2	1	3982
-convinced	B2	1	3989
-pulse	B2	1	3993
-injection	B2	1	4000
-conception	B2	1	4010
-supplement	B2	1	4030
-initiative	B2	1	4048
-infant	B2	1	4056
-programming	B2	1	4061
-crew	B2	1	4067
-seal	B2	1	4076
-versus	B2	1	4085
-disorder	B2	1	4099
-employ	B2	1	4105
-injured	B2	1	4118
-fiber	B2	1	4120
-inspector	B2	1	4128
-thesis	B2	1	4130
-competent	B2	1	4147
-ease	B2	1	4171
-exclusively	B2	1	4176
-inadequate	B2	1	4179
-assess	B2	1	4183
-implement	B2	1	4185
-aluminum	B2	1	4189
-serial	B2	1	4192
-flexible	B2	1	4195
-ridge	B2	1	4217
-numerical	B2	1	4222
-crucial	B2	1	4225
-undoubtedly	B2	1	4233
-alliance	B2	1	4235
-educated	B2	1	4247
-servant	B2	1	4258
-tail	B2	1	4261
-strictly	B2	1	4270
-subdivision	B2	1	4280
-walker	B2	1	4281
-hunting	B2	1	4283
-fate	B2	1	4295
-tumor	B2	1	4312
-fraud	B2	1	4320
-dimension	B2	1	4322
-complexity	B2	1	4336
-flesh	B2	1	4367
-throat	B2	1	4375
-facilitate	B2	1	4377
-capability	B2	1	4387
-investigate	B2	1	4392
-worship	B2	1	4393
-audit	B2	1	4421
-label	B2	1	4424
-navigation	B2	1	4436
-justify	B2	1	4454
-gear	B2	1	4476
-philosophical	B2	1	4479
-assurance	B2	1	4480
-certification	B2	1	4510
-genuine	B2	1	4513
-arch	B2	1	4514
-verse	B2	1	4518
-assure	B2	1	4525
-hardware	B2	1	4555
-innovation	B2	1	4579
-illustration	B2	1	4589
-polish	B2	1	4593
-controversy	B2	1	4604
-supervisor	B2	1	4609
-presumably	B2	1	4614
-fox	B2	1	4616
-deficit	B2	1	4618
-divorce	B2	1	4622
-bid	B2	1	4632
-underground	B2	1	4633
-withdrawal	B2	1	4640
-informal	B2	1	4643
-illustrate	B2	1	4662
-landing	B2	1	4694
-holder	B2	1	4695
-potentially	B2	1	4708
-possessed	B2	1	4719
-legitimate	B2	1	4729
-forestry	B2	1	4738
-feedback	B2	1	4743
-bankruptcy	B2	1	4750
-offense	B2	1	4756
-presidential	B2	1	4757
-odd	B2	1	4764
-flexibility	B2	1	4766
-balanced	B2	1	4767
-merchandise	B2	1	4777
-evidently	B2	1	4785
-mature	B2	1	4788
-venture	B2	1	4802
-extract	B2	1	4827
-beneficial	B2	1	4830
-hay	B2	1	4833
-amongst	B2	1	4839
-insufficient	B2	1	4840
-alter	B2	1	4867
-skilled	B2	1	4877
-enhance	B2	1	4880
-deduction	B2	1	4953
-approximate	B2	1	4961
-deck	B2	1	4962
-rental	B2	1	4971
-seldom	B2	1	4983
-heritage	B2	1	4991
-gently	B2	1	5007
-postal	B2	1	5011
-geographic	B2	1	5056
-prospect	B2	1	5057
-barrier	B2	1	5062
-tunnel	B2	1	5069
-respiratory	B2	1	5073
-widow	B2	1	5081
-verbal	B2	1	5089
-tribe	B2	1	5127
-conjunction	B2	1	5137
-exclusion	B2	1	5148
-catalogue	B2	1	5154
-medieval	B2	1	5167
-ambassador	B2	1	5175
-stroke	B2	1	5178
-seasonal	B2	1	5180
-ash	B2	1	5183
-impose	B2	1	5190
-specify	B2	1	5193
-successive	B2	1	5197
-hazardous	B2	1	5201
-lifetime	B2	1	5203
-infected	B2	1	5221
-electronics	B2	1	5223
-toxic	B2	1	5224
-tuberculosis	B2	1	5235
-gaze	B2	1	5263
-mobility	B2	1	5266
-catalog	B2	1	5279
-ceiling	B2	1	5280
-fabric	B2	1	5281
-scarcely	B2	1	5284
-vitamin	B2	1	5300
-engagement	B2	1	5306
-decay	B2	1	5307
-frontier	B2	1	5308
-adequately	B2	1	5325
-restriction	B2	1	5353
-pi	B2	1	5359
-outlook	B2	1	5366
-collector	B2	1	5372
-actively	B2	1	5373
-accommodation	B2	1	5377
-pitch	B2	1	5393
-flame	B2	1	5399
-enforce	B2	1	5413
-sharply	B2	1	5427
-stimulation	B2	1	5452
-courtesy	B2	1	5462
-expedition	B2	1	5465
-independently	B2	1	5473
-promptly	B2	1	5477
-crack	B2	1	5486
-compression	B2	1	5505
-alternate	B2	1	5515
-neglect	B2	1	5523
-seller	B2	1	5527
-spin	B2	1	5530
-undertake	B2	1	5533
-packed	B2	1	5557
-cease	B2	1	5563
-trunk	B2	1	5601
-rejection	B2	1	5608
-sanitary	B2	1	5642
-timing	B2	1	5655
-observer	B2	1	5661
-spray	B2	1	5663
-assault	B2	1	5665
-wilderness	B2	1	5681
-proven	B2	1	5693
-dense	B2	1	5695
-literally	B2	1	5726
-solvent	B2	1	5730
-reed	B2	1	5733
-devil	B2	1	5750
-span	B2	1	5768
-dignity	B2	1	5784
-exceptional	B2	1	5786
-interfere	B2	1	5792
-fatal	B2	1	5793
-regulate	B2	1	5802
-incentive	B2	1	5810
-blade	B2	1	5811
-projection	B2	1	5817
-deer	B2	1	5824
-coarse	B2	1	5830
-modest	B2	1	5838
-ritual	B2	1	5840
-conscience	B2	1	5850
-profitable	B2	1	5858
-consensus	B2	1	5874
-symbolic	B2	1	5877
-genius	B2	1	5879
-intimate	B2	1	5884
-authorize	B2	1	5901
-impressed	B2	1	5929
-wolf	B2	1	5935
-surrender	B2	1	5938
-correspond	B2	1	5960
-ideology	B2	1	5963
-shooting	B2	1	5964
-oath	B2	1	5975
-tough	B2	1	5989
-honorable	B2	1	5991
-quote	B2	1	5997
-mercy	B2	1	6000
-publicity	B2	1	6003
-sketch	B2	1	6030
-sophisticated	B2	1	6036
-imprisonment	B2	1	6037
-pursuit	B2	1	6052
-descriptive	B2	1	6061
-artery	B2	1	6067
-chancellor	B2	1	6090
-temporarily	B2	1	6130
-dawn	B2	1	6135
-emergence	B2	1	6138
-detect	B2	1	6141
-boiling	B2	1	6145
-interpret	B2	1	6147
-elect	B2	1	6151
-wit	B2	1	6168
-drain	B2	1	6174
-backward	B2	1	6177
-persistent	B2	1	6189
-ample	B2	1	6192
-sustain	B2	1	6200
-breakdown	B2	1	6204
-thread	B2	1	6222
-gradual	B2	1	6224
-prompt	B2	1	6234
-consult	B2	1	6240
-exclude	B2	1	6241
-secondly	B2	1	6247
-hollow	B2	1	6253
-spare	B2	1	6259
-rocky	B2	1	6269
-ignorance	B2	1	6279
-corruption	B2	1	6293
-withdraw	B2	1	6310
-compulsory	B2	1	6332
-imply	B2	1	6339
-consultant	B2	1	6343
-shield	B2	1	6346
-morality	B2	1	6348
-relieved	B2	1	6351
-shed	B2	1	6365
-relaxation	B2	1	6372
-offence	B2	1	6382
-competence	B2	1	6386
-realization	B2	1	6387
-costly	B2	1	6428
-hybrid	B2	1	6435
-closure	B2	1	6451
-micro	B2	1	6457
-outlet	B2	1	6463
-expectation	B2	1	6465
-advancement	B2	1	6511
-doubtful	B2	1	6512
-midst	B2	1	6513
-metric	B2	1	6529
-revelation	B2	1	6530
-coalition	B2	1	6533
-digest	B2	1	6537
-subtle	B2	1	6576
-sympathetic	B2	1	6583
-unconscious	B2	1	6588
-vigorous	B2	1	6592
-impulse	B2	1	6593
-altitude	B2	1	6606
-radar	B2	1	6610
-compatible	B2	1	6611
-convert	B2	1	6625
-broadly	B2	1	6630
-delegate	B2	1	6638
-keen	B2	1	6645
-olive	B2	1	6649
-swift	B2	1	6660
-attribute	B2	1	6670
-conductor	B2	1	6672
-mighty	B2	1	6680
-sandstone	B2	1	6686
-unreasonable	B2	1	6700
-toll	B2	1	6704
-nerves	B2	1	6712
-vibration	B2	1	6731
-ammonia	B2	1	6732
-economical	B2	1	6737
-peer	B2	1	6745
-cope	B2	1	6756
-deliberately	B2	1	6764
-cemetery	B2	1	6770
-grasp	B2	1	6774
-fame	B2	1	6785
-probe	B2	1	6786
-sue	B2	1	6801
-sulfur	B2	1	6804
-elite	B2	1	6812
-seminar	B2	1	6837
-merger	B2	1	6851
-exhaust	B2	1	6857
-clerical	B2	1	6868
-influential	B2	1	6874
-prose	B2	1	6887
-alongside	B2	1	6896
-demanding	B2	1	6897
-surveillance	B2	1	6899
-grief	B2	1	6901
-mask	B2	1	6910
-hook	B2	1	6927
-simultaneous	B2	1	6934
-eagle	B2	1	6941
-blast	B2	1	6951
-decomposition	B2	1	6954
-legend	B2	1	6964
-sulphur	B2	1	6966
-hygiene	B2	1	6975
-contempt	B2	1	6980
-stimulate	B2	1	6987
-politically	B2	1	6988
-swing	B2	1	7000
-alert	B2	1	7008
-transient	B2	1	7010
-inference	B2	1	7040
-additionally	B2	1	7043
-innovative	B2	1	7061
-intersection	B2	1	7064
-ballot	B2	1	7072
-invisible	B2	1	7073
-cane	B2	1	7080
-burial	B2	1	7085
-missile	B2	1	7092
-stern	B2	1	7100
-cone	B2	1	7138
-utilize	B2	1	7148
-retreat	B2	1	7149
-dock	B2	1	7160
-refuge	B2	1	7161
-cathedral	B2	1	7166
-winding	B2	1	7173
-embassy	B2	1	7179
-privately	B2	1	7228
-pearl	B2	1	7229
-stake	B2	1	7245
-unchanged	B2	1	7265
-invariably	B2	1	7274
-rape	B2	1	7282
-wealthy	B2	1	7284
-relieve	B2	1	7287
-nursery	B2	1	7289
-sage	B2	1	7297
-cottage	B2	1	7303
-testify	B2	1	7306
-triangle	B2	1	7309
-infectious	B2	1	7321
-motivated	B2	1	7322
-perceive	B2	1	7324
-execute	B2	1	7329
-decisive	B2	1	7331
-veteran	B2	1	7352
-embrace	B2	1	7369
-assert	B2	1	7385
-specialty	B2	1	7386
-qualification	B2	1	7395
-conquest	B2	1	7399
-arctic	B2	1	7420
-idle	B2	1	7422
-bloody	B2	1	7438
-offshore	B2	1	7439
-popularity	B2	1	7441
-rival	B2	1	7455
-tuition	B2	1	7466
-analogy	B2	1	7476
-optional	B2	1	7478
-respected	B2	1	7486
-rim	B2	1	7491
-honourable	B2	1	7499
-hood	B2	1	7505
-gang	B2	1	7520
-repetition	B2	1	7533
-madame	B2	1	7542
-stack	B2	1	7543
-ram	B2	1	7544
-instantly	B2	1	7576
-pastor	B2	1	7585
-erect	B2	1	7593
-ban	B2	1	7599
-transparent	B2	1	7607
-prescribe	B2	1	7623
-sensible	B2	1	7627
-utterly	B2	1	7631
-patch	B2	1	7633
-damn	B2	1	7650
-barley	B2	1	7694
-deliberate	B2	1	7703
-medication	B2	1	7705
-rectangular	B2	1	7706
-bind	B2	1	7729
-jaw	B2	1	7733
-mate	B2	1	7750
-dismiss	B2	1	7753
-humble	B2	1	7766
-drought	B2	1	7773
-proximity	B2	1	7779
-nomination	B2	1	7790
-destiny	B2	1	7805
-limb	B2	1	7809
-grip	B2	1	7810
-implication	B2	1	7814
-undergraduate	B2	1	7827
-sail	B2	1	7830
-circumstance	B2	1	7831
-therapist	B2	1	7833
-openly	B2	1	7843
-imperative	B2	1	7845
-revival	B2	1	7849
-query	B2	1	7852
-altar	B2	1	7857
-anchor	B2	1	7868
-supplier	B2	1	7872
-vacant	B2	1	7884
-overtime	B2	1	7886
-stiff	B2	1	7894
-fibre	B2	1	7915
-resume	B2	1	7917
-caring	B2	1	7927
-forthcoming	B2	1	7939
-transmit	B2	1	7943
-unlimited	B2	1	7948
-preventive	B2	1	7961
-clarify	B2	1	7968
-weed	B2	1	7973
-chip	B2	1	7991
-misleading	B2	1	7994
-dramatically	B2	1	8013
-duplicate	B2	1	8017
-foreman	B2	1	8029
-obey	B2	1	8034
-pose	B2	1	8042
-confession	B2	1	8046
-interactive	B2	1	8047
-sincere	B2	1	8059
-investor	B2	1	8080
-prohibit	B2	1	8082
-corridor	B2	1	8091
-charming	B2	1	8092
-presidency	B2	1	8095
-surroundings	B2	1	8105
-catalyst	B2	1	8114
-rightly	B2	1	8123
-booth	B2	1	8128
-imagery	B2	1	8134
-barn	B2	1	8136
-prestige	B2	1	8143
-messenger	B2	1	8160
-cooperate	B2	1	8168
-quotation	B2	1	8169
-anonymous	B2	1	8173
-analyst	B2	1	8180
-microscope	B2	1	8202
-compute	B2	1	8209
-remarkably	B2	1	8212
-pavement	B2	1	8216
-reinforcement	B2	1	8225
-ignorant	B2	1	8231
-finely	B2	1	8271
-overlap	B2	1	8282
-resignation	B2	2	8294
-inflammatory	B2	2	8296
-immigrant	B2	2	8301
-coherent	B2	2	8310
-outbreak	B2	2	8314
-distortion	B2	2	8315
-aluminium	B2	2	8318
-dip	B2	2	8333
-reluctant	B2	2	8337
-vaccine	B2	2	8340
-twisted	B2	2	8345
-microwave	B2	2	8350
-upright	B2	2	8380
-canon	B2	2	8383
-obedience	B2	2	8411
-fulfill	B2	2	8421
-hint	B2	2	8424
-appropriately	B2	2	8431
-transcript	B2	2	8434
-prevail	B2	2	8445
-waist	B2	2	8452
-tomb	B2	2	8469
-lap	B2	2	8476
-neighboring	B2	2	8478
-dye	B2	2	8480
-indispensable	B2	2	8487
-dilemma	B2	2	8501
-decent	B2	2	8507
-attainment	B2	2	8524
-violate	B2	2	8545
-explosive	B2	2	8548
-metaphor	B2	2	8550
-mold	B2	2	8556
-exile	B2	2	8565
-hourly	B2	2	8574
-packet	B2	2	8603
-uncommon	B2	2	8606
-petty	B2	2	8640
-inflammation	B2	2	8642
-cherry	B2	2	8649
-straightforward	B2	2	8652
-berry	B2	2	8693
-diversion	B2	2	8705
-tag	B2	2	8719
-correspondent	B2	2	8724
-terrace	B2	2	8729
-elegant	B2	2	8740
-alternatively	B2	2	8743
-nut	B2	2	8749
-endeavor	B2	2	8755
-compensate	B2	2	8763
-spark	B2	2	8769
-colleague	B2	2	8788
-lecturer	B2	2	8797
-comprehension	B2	2	8803
-bolt	B2	2	8810
-economist	B2	2	8819
-instinct	B2	2	8831
-strand	B2	2	8833
-lest	B2	2	8845
-imitation	B2	2	8859
-sanitation	B2	2	8876
-punch	B2	2	8880
-fierce	B2	2	8888
-microscopic	B2	2	8901
-contradiction	B2	2	8903
-distributor	B2	2	8906
-footnote	B2	2	8908
-amplifier	B2	2	8938
-tan	B2	2	8939
-laundry	B2	2	8943
-genre	B2	2	8947
-offender	B2	2	8948
-unsatisfactory	B2	2	8950
-nationwide	B2	2	8976
-reprint	B2	2	8988
-arena	B2	2	8997
-technically	B2	2	9000
-unsuccessful	B2	2	9020
-porch	B2	2	9022
-doorway	B2	2	9027
-slaughter	B2	2	9039
-dedication	B2	2	9046
-absurd	B2	2	9053
-sweep	B2	2	9057
-decoration	B2	2	9065
-anticipate	B2	2	9074
-lawn	B2	2	9078
-modernization	B2	2	9082
-darling	B2	2	9087
-booklet	B2	2	9098
-plague	B2	2	9101
-torture	B2	2	9112
-journalism	B2	2	9114
-lengthy	B2	2	9116
-devote	B2	2	9150
-utter	B2	2	9164
-conversely	B2	2	9172
-anticipation	B2	2	9176
-relay	B2	2	9194
-turbulent	B2	2	9201
-investigator	B2	2	9204
-dim	B2	2	9207
-rocket	B2	2	9215
-ambiguous	B2	2	9227
-opponent	B2	2	9263
-colon	B2	2	9281
-potent	B2	2	9298
-frankly	B2	2	9303
-linen	B2	2	9307
-unwilling	B2	2	9313
-pastoral	B2	2	9331
-revenge	B2	2	9335
-interpersonal	B2	2	9340
-recession	B2	2	9352
-abruptly	B2	2	9365
-neat	B2	2	9372
-exceptionally	B2	2	9383
-preferably	B2	2	9389
-concession	B2	2	9394
-trailer	B2	2	9397
-gambling	B2	2	9425
-indebted	B2	2	9427
-mama	B2	2	9433
-suspicious	B2	2	9460
-ozone	B2	2	9470
-ineffective	B2	2	9471
-adversely	B2	2	9497
-advent	B2	2	9499
-pad	B2	2	9503
-inquire	B2	2	9507
-confess	B2	2	9509
-glow	B2	2	9512
-inspect	B2	2	9523
-lid	B2	2	9567
-dominate	B2	2	9572
-pneumonia	B2	2	9574
-oval	B2	2	9580
-integrate	B2	2	9585
-compassion	B2	2	9607
-wartime	B2	2	9618
-disregard	B2	2	9626
-royalty	B2	2	9631
-temptation	B2	2	9639
-patriotic	B2	2	9647
-aboriginal	B2	2	9649
-refugee	B2	2	9666
-tray	B2	2	9669
-contradictory	B2	2	9684
-microscopy	B2	2	9712
-astronomy	B2	2	9724
-racism	B2	2	9738
-persistence	B2	2	9744
-indifferent	B2	2	9749
-infringement	B2	2	9765
-weary	B2	2	9786
-decorative	B2	2	9796
-preferable	B2	2	9797
-coral	B2	2	9805
-parade	B2	2	9814
-financially	B2	2	9821
-conceive	B2	2	9823
-corrupt	B2	2	9840
-ambiguity	B2	2	9852
-ally	B2	2	9859
-respiration	B2	2	9873
-exploit	B2	2	9891
-literal	B2	2	9905
-worm	B2	2	9908
-patron	B2	2	9939
-gum	B2	2	9961
-critically	B2	2	9971
-unauthorized	B2	2	9978
-disappearance	B2	2	9988
-deem	B2	2	9989
-helicopter	B2	2	9990
-mortal	B2	2	9992
-suppress	B2	2	9993
-trivial	B2	2	10004
-rack	B2	2	10013
-formidable	B2	2	10050
-miniature	B2	2	10058
-multiply	B2	2	10062
-malaria	B2	2	10063
-bud	B2	2	10085
-bureaucracy	B2	2	10086
-bidding	B2	2	10094
-vigorously	B2	2	10106
-authoritative	B2	2	10107
-narrator	B2	2	10167
-lobby	B2	2	10183
-threaten	B2	2	10189
-exotic	B2	2	10211
-diploma	B2	2	10252
-botany	B2	2	10275
-neighbouring	B2	2	10278
-certify	B2	2	10302
-nuisance	B2	2	10304
-edit	B2	2	10311
-keeper	B2	2	10326
-admirable	B2	2	10331
-hospitality	B2	2	10332
-passionate	B2	2	10337
-teaspoon	B2	2	10345
-stain	B2	2	10356
-goat	B2	2	10360
-villa	B2	2	10377
-unaware	B2	2	10395
-ounce	B2	2	10400
-refrain	B2	2	10418
-solo	B2	2	10424
-paralysis	B2	2	10430
-rebel	B2	2	10435
-penetrate	B2	2	10441
-detachment	B2	2	10463
-paradox	B2	2	10472
-monastery	B2	2	10477
-suspend	B2	2	10487
-optimistic	B2	2	10498
-harmless	B2	2	10499
-thoughtful	B2	2	10502
-intravenous	B2	2	10504
-confront	B2	2	10508
-enduring	B2	2	10515
-persist	B2	2	10516
-desperately	B2	2	10537
-reinforce	B2	2	10550
-banker	B2	2	10552
-mortar	B2	2	10582
-voter	B2	2	10588
-scarlet	B2	2	10603
-mist	B2	2	10607
-bankrupt	B2	2	10631
-coincidence	B2	2	10636
-trait	B2	2	10645
-chemotherapy	B2	2	10665
-grin	B2	2	10672
-strive	B2	2	10680
-righteousness	B2	2	10711
-scent	B2	2	10713
-interruption	B2	2	10728
-litter	B2	2	10738
-telescope	B2	2	10773
-instruct	B2	2	10815
-unacceptable	B2	2	10822
-statewide	B2	2	10841
-snap	B2	2	10865
-madam	B2	2	10866
-boost	B2	2	10868
-germ	B2	2	10876
-addiction	B2	2	10880
-irritation	B2	2	10888
-mastery	B2	2	10896
-loosely	B2	2	10901
-cruelty	B2	2	10923
-allegation	B2	2	10927
-morally	B2	2	10940
-ideally	B2	2	10957
-radically	B2	2	10986
-accumulate	B2	2	10989
-endeavour	B2	2	10998
-spur	B2	2	11011
-supernatural	B2	2	11050
-culturally	B2	2	11056
-ballet	B2	2	11064
-walnut	B2	2	11073
-rider	B2	2	11083
-costume	B2	2	11091
-melody	B2	2	11115
-rainbow	B2	2	11125
-conveniently	B2	2	11150
-foul	B2	2	11163
-alcoholism	B2	2	11174
-penguin	B2	2	11178
-bombing	B2	2	11194
-recipe	B2	2	11202
-prominence	B2	2	11209
-grim	B2	2	11222
-mansion	B2	2	11223
-duplication	B2	2	11235
-shaken	B2	2	11274
-tackle	B2	2	11285
-partisan	B2	2	11288
-surge	B2	2	11299
-expressive	B2	2	11312
-quarrel	B2	2	11314
-generalization	B2	2	11342
-workman	B2	2	11347
-greatness	B2	2	11359
-nobility	B2	2	11364
-exhaustion	B2	2	11381
-reflective	B2	2	11395
-unfamiliar	B2	2	11412
-mint	B2	2	11414
-knot	B2	2	11421
-lastly	B2	2	11423
-madness	B2	2	11425
-repression	B2	2	11435
-leak	B2	2	11455
-interpreter	B2	2	11457
-understandable	B2	2	11470
-tenderness	B2	2	11481
-hedge	B2	2	11487
-refinery	B2	2	11495
-tolerate	B2	2	11496
-hesitation	B2	2	11525
-conceal	B2	2	11530
-negatively	B2	2	11535
-spectacle	B2	2	11547
-dread	B2	2	11557
-recollection	B2	2	11561
-dreadful	B2	2	11563
-zip	B2	2	11572
-eagerly	B2	2	11573
-intrusion	B2	2	11587
-patriotism	B2	2	11607
-dash	B2	2	11608
-captive	B2	2	11620
-gateway	B2	2	11640
-soybean	B2	2	11648
-coincide	B2	2	11677
-scandal	B2	2	11683
-flap	B2	2	11691
-cocoa	B2	2	11693
-venue	B2	2	11702
-novelty	B2	2	11717
-goodwill	B2	2	11721
-narrowly	B2	2	11728
-predictable	B2	2	11739
-superb	B2	2	11740
-genuinely	B2	2	11749
-anchorage	B2	2	11758
-dumb	B2	2	11766
-youthful	B2	2	11781
-brochure	B2	2	11783
-firstly	B2	2	11800
-folly	B2	2	11807
-troop	B2	2	11809
-coherence	B2	2	11826
-whip	B2	2	11829
-endurance	B2	2	11831
-supervise	B2	2	11846
-evolve	B2	2	11874
-uneven	B2	2	11879
-swan	B2	2	11895
-entertaining	B2	2	11904
-strait	B2	2	11908
-bracket	B2	2	11913
-coconut	B2	2	11915
-barren	B2	2	11931
-optimism	B2	2	11933
-equip	B2	2	11943
-hail	B2	2	11954
-elective	B2	2	11956
-peel	B2	2	11959
-influenza	B2	2	11971
-admittedly	B2	2	11976
-backwards	B2	2	11977
-fulfil	B2	2	11981
-eastward	B2	2	11988
-heap	B2	2	11991
-accessibility	B2	2	12011
-outfit	B2	2	12015
-statesman	B2	2	12018
-furious	B2	2	12033
-impartial	B2	2	12043
-reminder	B2	2	12064
-weakly	B2	2	12065
-persuasion	B2	2	12070
-dissatisfaction	B2	2	12074
-needless	B2	2	12089
-mould	B2	2	12101
-cascade	B2	2	12107
-quarantine	B2	2	12117
-peach	B2	2	12119
-infer	B2	2	12130
-squeeze	B2	2	12153
-diarrhea	B2	2	12165
-faulty	B2	2	12181
-temperate	B2	2	12198
-generosity	B2	2	12204
-articulate	B2	2	12212
-northward	B2	2	12233
-untreated	B2	2	12244
-queer	B2	2	12248
-ironically	B2	2	12249
-herb	B2	2	12252
-aspiration	B2	2	12255
-recruit	B2	2	12268
-ox	B2	2	12296
-lance	B2	2	12322
-assemble	B2	2	12324
-stool	B2	2	12334
-puzzled	B2	2	12344
-inert	B2	2	12386
-sack	B2	2	12395
-await	B2	2	12397
-predictive	B2	2	12404
-evacuation	B2	2	12410
-rib	B2	2	12436
-prehistoric	B2	2	12443
-rash	B2	2	12444
-troublesome	B2	2	12452
-icon	B2	2	12460
-awe	B2	2	12473
-plead	B2	2	12498
-haste	B2	2	12503
-blindness	B2	2	12514
-chimney	B2	2	12524
-knowingly	B2	2	12525
-confine	B2	2	12526
-thigh	B2	2	12535
-typhoid	B2	2	12559
-condemn	B2	2	12563
-tyranny	B2	2	12565
-picturesque	B2	2	12566
-exquisite	B2	2	12585
-spokesman	B2	2	12597
-moody	B2	2	12600
-hastily	B2	2	12612
-southward	B2	2	12623
-worldly	B2	2	12637
-irrational	B2	2	12639
-sincerity	B2	2	12656
-backup	B2	2	12660
-discriminate	B2	2	12667
-reverence	B2	2	12675
-inventor	B2	2	12689
-conceivable	B2	2	12715
-immortal	B2	2	12737
-correctness	B2	2	12745
-improperly	B2	2	12751
-agony	B2	2	12771
-originate	B2	2	12772
-educator	B2	2	12782
-humane	B2	2	12785
-insult	B2	2	12793
-excel	B2	2	12797
-battlefield	B2	2	12802
-worthless	B2	2	12808
-retailer	B2	2	12809
-vanity	B2	2	12820
-vigor	B2	2	12825
-tolerant	B2	2	12826
-translator	B2	2	12828
-bitterly	B2	2	12831
-willingly	B2	2	12842
-starvation	B2	2	12845
-unrest	B2	2	12874
-traverse	B2	2	12909
-trader	B2	2	12912
-syllable	B2	2	12918
-merge	B2	2	12925
-transistor	B2	2	12938
-predicate	B2	2	12941
-skip	B2	2	12957
-needy	B2	2	12960
-astonishing	B2	2	12987
-dwarf	B2	2	12995
-impossibility	B2	2	12998
-squad	B2	2	13001
-densely	B2	2	13006
-handicap	B2	2	13009
-reconsider	B2	2	13015
-rally	B2	2	13038
-owl	B2	2	13039
-inaccurate	B2	2	13041
-mock	B2	2	13053
-scar	B2	2	13072
-listener	B2	2	13077
-cellar	B2	2	13085
-outpatient	B2	2	13109
-liner	B2	2	13119
-bio	B2	2	13139
-nicely	B2	2	13145
-rite	B2	2	13147
-donation	B2	2	13157
-holocaust	B2	2	13161
-nightmare	B2	2	13174
-upgrade	B2	2	13196
-benevolent	B2	2	13214
-penicillin	B2	2	13221
-dove	B2	2	13225
-wipe	B2	2	13232
-calmly	B2	2	13262
-misfortune	B2	2	13263
-soaked	B2	2	13268
-vinegar	B2	2	13271
-affordable	B2	2	13275
-roar	B2	2	13279
-risky	B2	2	13286
-overthrow	B2	2	13298
-resign	B2	2	13324
-biotechnology	B2	2	13325
-bothered	B2	2	13340
-crab	B2	2	13344
-astonished	B2	2	13359
-overly	B2	2	13364
-rub	B2	2	13368
-disapproval	B2	2	13369
-viewer	B2	2	13371
-torch	B2	2	13392
-thermometer	B2	2	13400
-wreck	B2	2	13401
-innate	B2	2	13411
-helper	B2	2	13443
-cube	B2	2	13451
-fireplace	B2	2	13461
-catastrophe	B2	2	13464
-tumour	B2	2	13466
-coaching	B2	2	13485
-console	B2	2	13506
-explorer	B2	2	13516
-ramp	B2	2	13582
-tutor	B2	2	13589
-anguish	B2	2	13595
-alphabetical	B2	2	13598
-tub	B2	2	13603
-flip	B2	2	13609
-disguise	B2	2	13626
-resonant	B2	2	13651
-invoke	B2	2	13652
-unavailable	B2	2	13674
-corporal	B2	2	13689
-comfortably	B2	2	13696
-axe	B2	2	13704
-muddy	B2	2	13728
-steer	B2	2	13736
-artificially	B2	2	13739
-unsafe	B2	2	13742
-rhythmic	B2	2	13758
-loneliness	B2	2	13774
-massacre	B2	2	13791
-urgently	B2	2	13807
-chaotic	B2	2	13816
-spa	B2	2	13829
-subtitle	B2	2	13837
-moonlight	B2	2	13855
-redundant	B2	2	13864
-descend	B2	2	13869
-overlook	B2	2	13889
-pedestrian	B2	2	13890
-mentor	B2	2	13891
-lava	B2	2	13901
-aristocracy	B2	2	13909
-converse	B2	2	13936
-dependable	B2	2	13957
-valentine	B2	2	13970
-ornament	B2	2	13986
-radium	B2	2	14030
-massage	B2	2	14035
-unsuitable	B2	2	14036
-legendary	B2	2	14037
-daytime	B2	2	14043
-elemental	B2	2	14063
-prosecute	B2	2	14077
-abolish	B2	2	14101
-incur	B2	2	14102
-functionality	B2	2	14107
-retina	B2	2	14112
-shrink	B2	2	14135
-weaken	B2	2	14139
-retrieve	B2	2	14152
-ranger	B2	2	14157
-manipulate	B2	2	14166
-proudly	B2	2	14172
-simplification	B2	2	14178
-laborer	B2	2	14193
-flee	B2	2	14199
-tread	B2	2	14212
-whiskey	B2	2	14214
-glare	B2	2	14215
-lawsuit	B2	2	14217
-worrying	B2	2	14226
-dissatisfied	B2	2	14252
-tug	B2	2	14278
-accusation	B2	2	14285
-fictional	B2	2	14293
-improbable	B2	2	14316
-ax	B2	2	14319
-lyrics	B2	2	14382
-ling	B2	2	14409
-cardboard	B2	2	14411
-unnatural	B2	2	14413
-yacht	B2	2	14416
-gloomy	B2	2	14436
-microphone	B2	2	14465
-immortality	B2	2	14479
-endorse	B2	2	14510
-suitably	B2	2	14536
-eruption	B2	2	14542
-disciple	B2	2	14560
-trolley	B2	2	14576
-athletics	B2	2	14587
-signify	B2	2	14600
-bony	B2	2	14608
-eloquent	B2	2	14646
-reckon	B2	2	14653
-extraordinarily	B2	2	14671
-blossom	B2	2	14676
-hairy	B2	2	14696
-disgrace	B2	2	14706
-kerosene	B2	2	14720
-thirdly	B2	2	14728
-racist	B2	2	14745
-burglary	B2	2	14750
-cherished	B2	2	14785
-unrealistic	B2	2	14795
-humiliation	B2	2	14827
-originality	B2	2	14859
-toil	B2	2	14874
-paperwork	B2	2	14877
-bizarre	B2	2	14917
-catastrophic	B2	2	14993
-guideline	B2	2	14999
-fascinated	B2	2	15009
-patiently	B2	2	15016
-scientifically	B2	2	15018
-deceive	B2	2	15025
-everlasting	B2	2	15031
-repertoire	B2	2	15037
-unreliable	B2	2	15062
-astonishment	B2	2	15063
-debit	B2	2	15066
-desktop	B2	2	15071
-pint	B2	2	15090
-peg	B2	2	15107
-divert	B2	2	15136
-excursion	B2	2	15137
-casually	B2	2	15160
-fascination	B2	2	15195
-crater	B2	2	15198
-badge	B2	2	15207
-plum	B2	2	15222
-browser	B2	2	15242
-arouse	B2	2	15244
-gardener	B2	2	15254
-communicative	B2	2	15262
-generously	B2	2	15273
-polity	B2	2	15277
-rug	B2	2	15316
-environmentally	B2	2	15340
-icy	B2	2	15374
-ethic	B2	2	15377
-sparkling	B2	2	15386
-whisky	B2	2	15422
-obedient	B2	2	15429
-indulge	B2	2	15462
-trio	B2	2	15465
-deceptive	B2	2	15498
-immoral	B2	2	15525
-postpone	B2	2	15590
-catering	B2	2	15600
-confidently	B2	2	15603
-revive	B2	2	15617
-patriot	B2	2	15648
-trainer	B2	2	15655
-graphically	B2	2	15661
-flax	B2	2	15681
-relativity	B2	2	15683
-thrill	B2	2	15697
-caption	B2	2	15710
-doubly	B2	2	15730
-irresistible	B2	2	15754
-pentagon	B2	2	15772
-guerrilla	B2	2	15776
-contradict	B2	2	15779
-rhyme	B2	2	15809
-infect	B2	2	15819
-rip	B2	2	15824
-diphtheria	B2	2	15844
-salon	B2	2	15848
-idiot	B2	2	15850
-organizer	B2	2	15873
-consolation	B2	2	15899
-affectionate	B2	2	15916
-juror	B2	2	15917
-bomber	B2	2	15986
-murmur	B2	2	16002
-gorge	B2	2	16018
-doom	B2	2	16036
-emphatically	B2	2	16050
-unwise	B2	2	16079
-unofficial	B2	2	16083
-stitch	B2	2	16122
-transfusion	B2	2	16127
-electronically	B2	2	16148
-entrepreneur	B2	2	16176
-ghetto	B2	2	16201
-starving	B2	2	16205
-precede	B2	2	16229
-rehearsal	B2	2	16239
-coma	B2	2	16266
-stanza	B2	2	16274
-outrage	B2	2	16286
-momentarily	B2	2	16293
-concede	B2	2	16340
-momentary	B2	2	16383
-inseparable	B2	2	16385
-rusty	B2	2	16407
-exaggeration	B2	2	16415
-attentive	B2	2	16428
-vanish	B2	2	16430
-inexperienced	B2	2	16449
-skim	B2	2	16452
-amazement	B2	2	16458
-wed	B2	2	16477
-wrongly	B2	2	16486
-rag	B2	2	16504
-outsider	B2	2	16520
-inherit	B2	2	16547
-eloquence	B2	2	16574
-crawl	B2	2	16583
-complexion	B2	2	16610
-atypical	B2	2	16620
-mediaeval	B2	2	16635
-impractical	B2	2	16644
-broaden	B2	2	16672
-draught	B2	2	16675
-disrupt	B2	2	16702
-sparrow	B2	2	16731
-hatching	B2	2	16741
-corona	B2	2	16748
-ballad	B2	2	16770
-unmistakable	B2	2	16778
-weave	B2	2	16792
-obsession	B2	2	16856
-cocktail	B2	2	16879
-predictor	B2	2	16900
-realisation	B2	2	16908
-entitle	B2	2	16910
-luxurious	B2	2	16928
-irresponsible	B2	2	16937
-follower	B2	2	16950
-cheerfully	B2	2	16966
-fabulous	B2	2	16967
-vow	B2	2	16971
-nominee	B2	2	16998
-masterpiece	B2	2	17007
-distraction	B2	2	17014
-betray	B2	2	17039
-sexy	B2	2	17047
-thinker	B2	2	17081
-prestigious	B2	2	17085
-underwear	B2	2	17108
-terrifying	B2	2	17128
-coward	B2	2	17129
-arrogant	B2	2	17142
-irritated	B2	2	17151
-vigour	B2	2	17198
-enthusiastically	B2	2	17200
-compile	B2	2	17261
-childish	B2	2	17263
-elegance	B2	2	17264
-programmer	B2	2	17270
-quantify	B2	2	17290
-nervously	B2	2	17376
-pedal	B2	2	17453
-suburb	B2	2	17455
-enroll	B2	2	17487
-trophy	B2	2	17501
-broadband	B2	2	17509
-globally	B2	2	17523
-psychologically	B2	2	17525
-carnival	B2	2	17534
-stride	B2	2	17567
-unpopular	B2	2	17571
-clumsy	B2	2	17601
-subtract	B2	2	17607
-desperation	B2	2	17611
-tame	B2	2	17655
-leaflet	B2	2	17662
-adaptable	B2	2	17720
-feat	B2	2	17763
-prosper	B2	2	17792
-outskirts	B2	2	17815
-inhabit	B2	2	17828
-flaw	B2	2	17829
-blaze	B2	2	17835
-foresee	B2	2	17850
-lowland	B2	2	17867
-delicacy	B2	2	17903
-tremendously	B2	2	17908
-outwardly	B2	2	17913
-pharmacist	B2	2	17949
-lick	B2	2	17959
-playwright	B2	2	18004
-attractiveness	B2	2	18009
-rosy	B2	2	18041
-lucrative	B2	2	18049
-incense	B2	2	18070
-lame	B2	2	18077
-caravan	B2	2	18117
-marathon	B2	2	18167
-witty	B2	2	18173
-thrilled	B2	2	18201
-curl	B2	2	18240
-hemp	B2	2	18245
-skillful	B2	2	18254
-dictator	B2	2	18259
-chop	B2	2	18275
-fragrance	B2	2	18305
-abnormally	B2	2	18322
-muse	B2	2	18353
-dormitory	B2	2	18357
-squash	B2	2	18413
-tyrant	B2	2	18425
-attainable	B2	2	18426
-nourishment	B2	2	18434
-permanence	B2	2	18439
-serene	B2	2	18447
-visibly	B2	2	18458
-outrageous	B2	2	18475
-standby	B2	2	18476
-compassionate	B2	2	18481
-suck	B2	2	18517
-unsure	B2	2	18533
-pessimistic	B2	2	18544
-aggressively	B2	2	18576
-powerfully	B2	2	18586
-pirate	B2	2	18590
-navigate	B2	2	18630
-polo	B2	2	18632
-irritating	B2	2	18640
-tack	B2	2	18648
-rebellious	B2	2	18660
-widen	B2	2	18684
-rubble	B2	2	18732
-pudding	B2	2	18737
-olympia	B2	2	18742
-chew	B2	2	18750
-donkey	B2	2	18784
-traitor	B2	3	18791
-beak	B2	3	18862
-orator	B2	3	18893
-housewife	B2	3	18895
-diplomat	B2	3	18909
-housekeeper	B2	3	18916
-predicament	B2	3	18935
-brewery	B2	3	18940
-soaking	B2	3	18966
-unforeseen	B2	3	18970
-trainee	B2	3	18974
-firearm	B2	3	19098
-flutter	B2	3	19140
-peacefully	B2	3	19152
-coastline	B2	3	19169
-offend	B2	3	19174
-thickly	B2	3	19181
-backyard	B2	3	19201
-synonym	B2	3	19231
-labourer	B2	3	19248
-motorist	B2	3	19281
-belongings	B2	3	19363
-buzz	B2	3	19366
-legislator	B2	3	19378
-brilliantly	B2	3	19404
-slash	B2	3	19446
-bravery	B2	3	19476
-cuff	B2	3	19508
-displace	B2	3	19523
-blooming	B2	3	19526
-eyebrow	B2	3	19548
-deduce	B2	3	19561
-lush	B2	3	19576
-blur	B2	3	19578
-circuitry	B2	3	19586
-stereotype	B2	3	19617
-perseverance	B2	3	19647
-truthful	B2	3	19663
-stew	B2	3	19683
-cheat	B2	3	19697
-birthplace	B2	3	19703
-soak	B2	3	19705
-orchestral	B2	3	19720
-ointment	B2	3	19722
-firmness	B2	3	19723
-explode	B2	3	19795
-tremor	B2	3	19881
-slap	B2	3	19883
-benevolence	B2	3	19904
-impulsive	B2	3	19914
-bourbon	B2	3	19964
-mutton	B2	3	19983
-laptop	B2	3	20019
-impatiently	B2	3	20025
-defy	B2	3	20036
-mimic	B2	3	20049
-humanist	B2	3	20056
-passionately	B2	3	20057
-thrilling	B2	3	20066
-unbearable	B2	3	20068
-disorderly	B2	3	20073
-culmination	B2	3	20087
-trek	B2	3	20088
-blindly	B2	3	20094
-duel	B2	3	20103
-burdensome	B2	3	20113
-skilful	B2	3	20128
-millimeter	B2	3	20132
-dearly	B2	3	20154
-gleam	B2	3	20192
-discredit	B2	3	20194
-rattle	B2	3	20221
-verbally	B2	3	20222
-sonnet	B2	3	20302
-tramp	B2	3	20330
-downfall	B2	3	20344
-obituary	B2	3	20352
-cursor	B2	3	20370
-purposeful	B2	3	20401
-forcefully	B2	3	20420
-mover	B2	3	20446
-distressing	B2	3	20478
-slang	B2	3	20485
-piracy	B2	3	20528
-underestimate	B2	3	20529
-appreciative	B2	3	20530
-microcomputer	B2	3	20532
-bumper	B2	3	20537
-mamma	B2	3	20548
-addicted	B2	3	20551
-cornerstone	B2	3	20567
-linger	B2	3	20577
-replica	B2	3	20580
-ow	B2	3	20605
-furiously	B2	3	20623
-adventurous	B2	3	20632
-sag	B2	3	20670
-recollect	B2	3	20715
-leisurely	B2	3	20785
-paw	B2	3	20806
-tricky	B2	3	20809
-boxer	B2	3	20813
-exhausting	B2	3	20828
-despise	B2	3	20933
-craftsman	B2	3	20990
-guts	B2	3	21039
-disconnect	B2	3	21104
-delicately	B2	3	21125
-prom	B2	3	21129
-retard	B2	3	21137
-refute	B2	3	21159
-usher	B2	3	21200
-spreadsheet	B2	3	21213
-ponder	B2	3	21223
-generalize	B2	3	21259
-gasp	B2	3	21326
-aspire	B2	3	21380
-distract	B2	3	21386
-bestow	B2	3	21398
-hospice	B2	3	21411
-displeasure	B2	3	21424
-pebble	B2	3	21452
-waterproof	B2	3	21473
-dime	B2	3	21491
-obsessive	B2	3	21627
-stockpile	B2	3	21664
-zoom	B2	3	21665
-figurative	B2	3	21677
-achievable	B2	3	21745
-sneak	B2	3	21750
-funk	B2	3	21751
-shaky	B2	3	21765
-bully	B2	3	21773
-tactile	B2	3	21782
-stab	B2	3	21784
-starve	B2	3	21819
-adversity	B2	3	21824
-leopard	B2	3	21883
-shrug	B2	3	21887
-humiliating	B2	3	21891
-relic	B2	3	21922
-wondrous	B2	3	21934
-overboard	B2	3	22016
-endlessly	B2	3	22022
-unjustly	B2	3	22040
-harrow	B2	3	22081
-lifeless	B2	3	22142
-upbringing	B2	3	22161
-windshield	B2	3	22165
-disapprove	B2	3	22195
-haunting	B2	3	22199
-refresh	B2	3	22236
-tenderly	B2	3	22261
-categorization	B2	3	22296
-timeless	B2	3	22301
-straighten	B2	3	22337
-absentee	B2	3	22344
-chunk	B2	3	22355
-eternally	B2	3	22372
-jeopardize	B2	3	22453
-frantically	B2	3	22480
-addict	B2	3	22513
-standstill	B2	3	22551
-softness	B2	3	22570
-wink	B2	3	22593
-diarrhoea	B2	3	22596
-legislate	B2	3	22598
-amazingly	B2	3	22632
-electrician	B2	3	22634
-smash	B2	3	22677
-commemorate	B2	3	22688
-browse	B2	3	22713
-stimulant	B2	3	22741
-orchid	B2	3	22751
-fluency	B2	3	22780
-neurosis	B2	3	22784
-grieve	B2	3	22798
-pumpkin	B2	3	22802
-setback	B2	3	22817
-unload	B2	3	22825
-theorist	B2	3	22850
-politeness	B2	3	22886
-desolation	B2	3	23032
-shabby	B2	3	23102
-blink	B2	3	23140
-godly	B2	3	23151
-compress	B2	3	23160
-transitive	B2	3	23195
-clearness	B2	3	23267
-priceless	B2	3	23339
-barometer	B2	3	23390
-ecstatic	B2	3	23398
-mango	B2	3	23407
-millionaire	B2	3	23454
-clam	B2	3	23470
-scramble	B2	3	23479
-freak	B2	3	23495
-crease	B2	3	23497
-lark	B2	3	23508
-dishonesty	B2	3	23513
-perspiration	B2	3	23521
-inanimate	B2	3	23528
-unhappiness	B2	3	23531
-tonne	B2	3	23537
-proponent	B2	3	23571
-intruder	B2	3	23579
-cripple	B2	3	23596
-pointless	B2	3	23599
-modernisation	B2	3	23679
-dowry	B2	3	23692
-sprint	B2	3	23721
-tanned	B2	3	23737
-exaggerate	B2	3	23787
-slam	B2	3	23824
-glee	B2	3	23846
-bum	B2	3	23877
-nobleman	B2	3	23926
-revolve	B2	3	23956
-decorate	B2	3	23970
-outing	B2	3	23997
-amuse	B2	3	24052
-salty	B2	3	24104
-hospitable	B2	3	24108
-animate	B2	3	24109
-sob	B2	3	24156
-bun	B2	3	24180
-mediocre	B2	3	24185
-gravitation	B2	3	24227
-donate	B2	3	24245
-breakup	B2	3	24316
-enquire	B2	3	24393
-roam	B2	3	24423
-frigate	B2	3	24481
-pickle	B2	3	24517
-pluck	B2	3	24553
-timeliness	B2	3	24662
-cello	B2	3	24790
-pallet	B2	3	24792
-prefect	B2	3	24831
-prick	B2	3	24856
-referent	B2	3	24866
-misconception	B2	3	24867
-landslide	B2	3	24896
-polio	B2	3	24919
-deforestation	B2	3	24920
-unattractive	B2	3	24944
-peep	B2	3	25050
-modernize	B2	3	25079
-carve	B2	3	25120
-wasp	B2	3	25186
-affectionately	B2	3	25188
-pave	B2	3	25205
-conceit	B2	3	25236
-cozy	B2	3	25297
-tattoo	B2	3	25352
-cowardly	B2	3	25435
-unmistakably	B2	3	25445
-skillfully	B2	3	25485
-soar	B2	3	25490
-crocodile	B2	3	25517
-naughty	B2	3	25534
-micrometer	B2	3	25746
-radiate	B2	3	25794
-dropout	B2	3	25798
-lighten	B2	3	25836
-salesperson	B2	3	25861
-showcase	B2	3	25863
-malady	B2	3	25883
-kneel	B2	3	25962
-gaiety	B2	3	26045
-cruelly	B2	3	26051
-amplify	B2	3	26064
-infringe	B2	3	26081
-disorganized	B2	3	26287
-hover	B2	3	26290
-bartender	B2	3	26328
-stubbornly	B2	3	26383
-reorganize	B2	3	26454
-moustache	B2	3	26488
-commute	B2	3	26571
-mustache	B2	3	26581
-plumber	B2	3	26651
-shortness	B2	3	26700
-invariable	B2	3	26713
-islander	B2	3	26718
-overcoat	B2	3	26721
-unlock	B2	3	26819
-creatively	B2	3	26844
-antibacterial	B2	3	26846
-glamorous	B2	3	26881
-eyelid	B2	3	26910
-homeward	B2	3	27010
-incurable	B2	3	27015
-hush	B2	3	27118
-overtake	B2	3	27136
-adore	B2	3	27157
-suspiciously	B2	3	27165
-uncomfortably	B2	3	27222
-archaeologist	B2	3	27276
-mournful	B2	3	27304
-drapery	B2	3	27324
-evacuate	B2	3	27440
-bustling	B2	3	27459
-filial	B2	3	27481
-clap	B2	3	27497
-bustle	B2	3	27512
-unselfish	B2	3	27585
-inspirational	B2	3	27791
-ruinous	B2	3	27858
-fondly	B2	3	27872
-bewilderment	B2	3	27879
-pee	B2	3	27889
-vomit	B2	3	27913
-indulgent	B2	3	27933
-bloodstream	B2	3	27948
-tiresome	B2	3	27952
-sympathize	B2	3	27993
-innocently	B2	3	28074
-detach	B2	3	28093
-attentively	B2	3	28144
-handicraft	B2	3	28205
-dissident	B2	3	28269
-programing	B2	3	28277
-uneasily	B2	3	28279
-overturn	B2	3	28325
-stepmother	B2	3	28327
-itch	B2	3	28335
-sexism	B2	3	28360
-kangaroo	B2	3	28393
-intrude	B2	3	28438
-utilise	B2	3	28487
-elegantly	B2	3	28497
-familiarize	B2	3	28514
-subculture	B2	3	28585
-solidity	B2	3	28701
-shatter	B2	3	28721
-hone	B2	3	28769
-ecologically	B2	3	28917
-adorn	B2	3	28924
-disqualify	B2	3	28944
-stepfather	B2	3	28950
-nourish	B2	3	28985
-gunshot	B2	3	29022
-subjunctive	B2	3	29025
-shakespearean	B2	3	29056
-unkind	B2	3	29081
-roommate	B2	3	29091
-leash	B2	3	29113
-repress	B2	3	29142
-authorise	B2	3	29143
-fume	B2	3	29156
-dreamy	B2	3	29157
-truthfulness	B2	3	29186
-skilfully	B2	3	29319
-narcissistic	B2	3	29410
-sloppy	B2	3	29420
-practicality	B2	3	29473
-lousy	B2	3	29565
-northwards	B2	3	29612
-stink	B2	3	29755
-nought	B2	3	29847
-artistry	B2	3	29860
-landlady	B2	3	29967
-inborn	B2	3	29993
-sneer	B2	3	30000
-worsen	B2	3	30032
-subside	B2	3	30034
-checkpoint	B2	3	30073
-glorify	B2	3	30115
-bruise	B2	3	30136
-waistcoat	B2	3	30151
-subcontinent	B2	3	30246
-zebra	B2	3	30272
-audition	B2	3	30292
-twinkle	B2	3	30313
-hugely	B2	3	30453
-overestimate	B2	3	30512
-tulip	B2	3	30569
-undressed	B2	3	30674
-lengthen	B2	3	30681
-shipwreck	B2	3	30705
-breathtaking	B2	3	30743
-petrified	B2	3	30807
-carefree	B2	3	30851
-hilarious	B2	3	30950
-vibrate	B2	3	30963
-foolishly	B2	3	30964
-personification	B2	3	31054
-dorm	B2	3	31154
-sniff	B2	3	31219
-tropic	B2	3	31266
-instill	B2	3	31316
-unease	B2	3	31388
-indescribable	B2	3	31398
-pajamas	B2	3	31484
-exactness	B2	3	31538
-permeate	B2	3	31544
-warship	B2	3	31570
-thoughtless	B2	3	31589
-eastwards	B2	3	31628
-cheerfulness	B2	3	31638
-nutshell	B2	3	31726
-countryman	B2	3	31802
-broadcaster	B2	3	31914
-rejoin	B2	3	31919
-publicize	B2	3	32001
-flawless	B2	3	32105
-mausoleum	B2	3	32133
-salesmanship	B2	3	32252
-southwards	B2	3	32272
-selfless	B2	3	32277
-unconcerned	B2	3	32298
-misunderstand	B2	3	32415
-tabloid	B2	3	32475
-mutter	B2	3	32788
-cosy	B2	3	33241
-gangster	B2	3	33242
-gulp	B2	3	33313
-crystallize	B2	3	33363
-regrettably	B2	3	33402
-sociable	B2	3	33528
-unimaginable	B2	3	33597
-gaudy	B2	3	33734
-maestro	B2	3	33897
-contaminate	B2	3	33908
-centigrade	B2	3	33931
-nightclub	B2	3	34000
-sliver	B2	3	34062
-silverware	B2	3	34085
-salsa	B2	3	34098
-scuba	B2	3	34172
-trusty	B2	3	34247
-pandemic	B2	3	34294
-bellow	B2	3	34313
-denim	B2	3	34391
-mogul	B2	3	34460
-magnify	B2	3	34594
-nostril	B2	3	34738
-shopkeeper	B2	3	34743
-unauthorised	B2	3	34769
-rhinoceros	B2	3	34852
-startle	B2	3	34901
-oversize	B2	3	35009
-demolish	B2	3	35028
-bikini	B2	3	35106
-yawn	B2	3	35112
-frugal	B2	3	35307
-exclaim	B2	3	35443
-pancake	B2	3	35512
-soundtrack	B2	3	35556
-beagle	B2	3	35617
-fearsome	B2	3	35824
-exalt	B2	3	35832
-jealously	B2	3	35879
-penalize	B2	3	36032
-stagger	B2	3	36060
-presenter	B2	3	36118
-essayist	B2	3	36120
-semicolon	B2	3	36235
-indent	B2	3	36319
-erupt	B2	3	36455
-clog	B2	3	36605
-intransitive	B2	3	36833
-microorganism	B2	3	36902
-undersea	B2	3	36917
-strangle	B2	3	36924
-immerse	B2	3	37017
-anticancer	B2	3	37029
-creepy	B2	3	37059
-yearn	B2	3	37123
-antiaircraft	B2	3	37221
-generalisation	B2	3	37364
-nomad	B2	3	37426
-handout	B2	3	37623
-snowball	B2	3	37660
-falter	B2	3	37676
-optimist	B2	3	37797
-tickle	B2	3	37995
-punctual	B2	3	38072
-irresistibly	B2	3	38124
-conferencing	B2	3	38163
-brag	B2	3	38164
-inflate	B2	3	38209
-droop	B2	3	38257
-cornet	B2	3	38265
-impressionist	B2	3	38268
-ungodly	B2	3	38302
-jeweler	B2	3	38449
-taunt	B2	3	38519
-offhand	B2	3	38576
-tiredness	B2	3	38764
-cardigan	B2	3	38834
-collocation	B2	3	38972
-dandelion	B2	3	39094
-papaya	B2	3	39180
-tiptoe	B2	3	39344
-sunbeam	B2	3	39376
-villager	B2	3	39400
-socialize	B2	3	39410
-impressionism	B2	3	39440
-tablecloth	B2	3	39529
-pedantic	B2	3	39695
-bulimia	B2	3	39831
-breezy	B2	3	40010
-indignity	B2	3	40029
-flexibly	B2	3	40099
-leek	B2	3	40176
-gymnastic	B2	3	40298
-trample	B2	3	40410
-unhelpful	B2	3	40459
-soliloquy	B2	3	40476
-microbe	B2	3	40496
-scooter	B2	3	40625
-imprison	B2	3	41198
-hyperbole	B2	3	41203
-revolutionize	B2	3	41221
-steely	B2	3	41268
-punctuality	B2	3	41439
-stonework	B2	3	41459
-scythe	B2	3	41624
-getaway	B2	3	41630
-humiliate	B2	3	41828
-rafter	B2	3	42016
-prawn	B2	3	42029
-apostrophe	B2	3	42257
-scholasticism	B2	3	42702
-posh	B2	3	42705
-bestseller	B2	3	42819
-wearisome	B2	3	43304
-hyphen	B2	3	43359
-daft	B2	3	43434
-millimetre	B2	3	43596
-nonprofessional	B2	3	43851
-overshadow	B2	3	43884
-bothersome	B2	3	44363
-aircrew	B2	3	44731
-humbug	B2	3	44888
-cubism	B2	3	44953
-redo	B2	3	45065
-quarrelsome	B2	3	45452
-cyclist	B2	3	45498
-fingernail	B2	3	45525
-workbench	B2	3	45555
-heartbreaking	B2	3	45636
-amaze	B2	3	45647
-engulf	B2	3	45689
-disillusion	B2	3	45699
-overhear	B2	3	45825
-vocalist	B2	3	45956
-furor	B2	3	45959
-scrooge	B2	3	46653
-bookmark	B2	3	46739
-skyward	B2	3	46774
-paramedic	B2	3	46824
-fantastically	B2	3	46894
-schoolgirl	B2	3	46966
-untie	B2	3	46992
-sympathise	B2	3	47052
-doorkeeper	B2	3	47569
-spellbound	B2	3	47587
-stylist	B2	3	47610
-funky	B2	3	47637
-pyjamas	B2	3	47762
-ecologist	B2	3	47989
-countrywide	B2	3	48120
-uncharacteristic	B2	3	48437
-shoplifting	B2	3	48534
-enrol	B2	3	48587
-reggae	B2	3	48637
-popularize	B2	3	48699
-mumble	B2	3	48747
-astonish	B2	3	48765
-stingy	B2	3	49073
-prance	B2	3	49131
-bossy	B2	3	49280
-outlive	B2	3	49296
-unstoppable	B2	3	49494
-newsworthy	B2	3	49550
-playmate	B2	3	49862
-outdo	B2	3	49877
-examinee	B2	3	49881
-outback	B2	3	50036
-pessimist	B2	3	50168
-mutable	B2	3	50224
-beautify	B2	3	50342
-gravestone	B2	3	50462
-exultant	B2	3	50534
-bathhouse	B2	3	50643
-catchy	B2	3	50692
-admiringly	B2	3	50704
-determiner	B2	3	50859
-bombard	B2	3	51150
-cheeky	B2	3	51359
-instil	B2	3	51616
-paintbrush	B2	3	51805
-rainstorm	B2	3	51924
-jeweller	B2	3	52012
-snore	B2	3	52276
-giveaway	B2	3	52362
-judo	B2	3	52405
-stammer	B2	3	52493
-scribble	B2	3	52499
-stopover	B2	3	52669
-tightrope	B2	3	53052
-categorisation	B2	3	53342
-wallboard	B2	3	53384
-predicative	B2	3	53544
-unbeatable	B2	3	53580
-mutability	B2	3	53626
-bookish	B2	3	53721
-citywide	B2	3	53746
-motorbike	B2	3	54440
-outgrow	B2	3	54609
-handrail	B2	3	54798
-skylark	B2	3	54938
-pawnbroker	B2	3	55286
-ageless	B2	3	55452
-cellist	B2	3	55536
-ravage	B2	3	56088
-impolite	B2	3	56267
-preindustrial	B2	3	56574
-wordlessly	B2	3	56630
-barbershop	B2	3	56974
-generalise	B2	3	57069
-archeologist	B2	3	57444
-stopwatch	B2	3	57655
-modernise	B2	3	58240
-impermanent	B2	3	58531
-unfashionable	B2	3	58552
-undreamed	B2	3	59289
-dispensable	B2	3	60016
-cannonball	B2	3	60107
-overemphasize	B2	3	60293
-crossly	B2	3	60590
-reprove	B2	3	60697
-blurt	B2	3	61543
-seesaw	B2	3	61912
-olympiad	B2	3	62003
-armful	B2	3	62027
-picky	B2	3	62280
-smokestack	B2	3	62283
-karaoke	B2	3	62391
-antivirus	B2	3	62430
-disorganised	B2	3	62644
-jeopardise	B2	3	62871
-spokeswoman	B2	3	63000
-dignify	B2	3	63515
-furore	B2	3	63798
-unashamedly	B2	3	63881
-yummy	B2	3	64135
-subplot	B2	3	64489
-overstep	B2	3	64634
-keystroke	B2	3	64660
-lawmaker	B2	3	64737
-reorganise	B2	3	65076
-humanize	B2	3	66103
-personify	B2	3	66338
-prejudge	B2	3	66390
-carpool	B2	3	66990
-tortoiseshell	B2	3	67577
-quotable	B2	3	68137
-ferryboat	B2	3	68260
-skateboard	B2	3	68377
-crystallise	B2	3	68683
-eyelash	B2	3	69353
-hijack	B2	3	69420
-workaholic	B2	3	70167
-splatter	B2	3	71134
-saleswoman	B2	3	71292
-respectably	B2	3	71532
-breakable	B2	3	71768
-unenthusiastic	B2	3	71928
-drinkable	B2	3	72186
-unworldly	B2	3	72463
-heartwarming	B2	3	72545
-pawnshop	B2	3	72748
-iceman	B2	3	73339
-industrialize	B2	3	73919
-newscaster	B2	3	74057
-invitingly	B2	3	75064
-mistrustful	B2	3	75383
-familiarise	B2	3	75455
-untrimmed	B2	3	75528
-repaint	B2	3	75647
-worktable	B2	3	76363
-popularise	B2	3	76444
-birdcage	B2	3	76591
-pillowcase	B2	3	76877
-paratrooper	B2	3	77524
-outshine	B2	3	77595
-antistatic	B2	3	77887
-preoccupy	B2	3	77914
-mistreat	B2	3	78053
-gracefulness	B2	3	78491
-downsize	B2	3	79010
-aubergine	B2	3	79600
-mechanize	B2	3	79870
-toenail	B2	3	80561
-bewilder	B2	3	80588
-mystify	B2	3	81022
-mortify	B2	3	81117
-obsess	B2	3	81165
-penalise	B2	3	81537
-glacis	B2	3	81863
-unimaginably	B2	3	82273
-antipollution	B2	3	82448
-masseur	B2	3	83310
-revolutionise	B2	3	83409
-woodcarving	B2	3	84196
-wornout	B2	3	84664
-walkabout	B2	3	86485
-speeder	B2	3	86587
-socialise	B2	3	87964
-agonize	B2	3	88546
-tatter	B2	3	89489
-recommendable	B2	3	89561
-habitant	B2	3	90994
-anchorman	B2	3	93714
-hospitalize	B2	3	94054
-dehumanize	B2	3	94080
-gook	B2	3	95883
-skywards	B2	3	96445
-housemaster	B2	3	96896
-idolize	B2	3	96996
-balky	B2	3	97336
-italicize	B2	3	97871
-outdistance	B2	3	100409
-shoplifter	B2	3	101678
-coziness	B2	3	103899
-programer	B2	3	104394
-untalented	B2	3	107885
-cosiness	B2	3	113586
-prehuman	B2	3	114001
-moonscape	B2	3	117203
-humanise	B2	3	117962
-unusualness	B2	3	118208
-industrialise	B2	3	118453
-glamourous	B2	3	126757
-unclearly	B2	3	130011
-burgle	B2	3	130877
-impolitely	B2	3	132498
-shoplift	B2	3	132890
-skateboarder	B2	3	136277
-layabout	B2	3	137533
-unthinkably	B2	3	138351
-agonise	B2	3	146017
-idolise	B2	3	157118
-dehumanise	B2	3	157642
-overbook	B2	3	163319
-anchorperson	B2	3	
-bad-tempered	B2	3	
-brother-in-law	B2	3	
-carbon dioxide	B2	3	
-carbon footprint	B2	3	
-carbon monoxide	B2	3	
-climate change	B2	3	
-cyberaddict	B2	3	
-cybercaf?	B2	3	
-cybercafe	B2	3	
-cybercrime	B2	3	
-cyberpet	B2	3	
-cyberschool	B2	3	
-cyberspace	B2	3	
-daughter-in-law	B2	3	
-de facto	B2	3	
-debit card	B2	3	
-environmentally friendly	B2	3	
-exclamation mark	B2	3	
-father-in-law	B2	3	
-fed up	B2	3	
-fire brigade	B2	3	
-first language	B2	3	
-first person	B2	3	
-global warming	B2	3	
-glocal	B2	3	
-grown-up	B2	3	
-hard drive	B2	3	
-health care	B2	3	
-heart-warming	B2	3	
-hi-tech	B2	3	
-high-tech	B2	3	
-hospitalise	B2	3	
-human rights	B2	3	
-inverted commas	B2	3	
-italicise	B2	3	
-junk food	B2	3	
-last minute	B2	3	
-last-minute	B2	3	
-long-distance	B2	3	
-long-term	B2	3	
-martial art	B2	3	
-mechanise	B2	3	
-micrometre	B2	3	
-mother-in-law	B2	3	
-nano	B2	3	
-native speaker	B2	3	
-net surfer	B2	3	
-netsurfer	B2	3	
-non-smoking	B2	3	
-organiser	B2	3	
-overemphasise	B2	3	
-owing to	B2	3	
-paperless	B2	3	
-point of view	B2	3	
-polar bear	B2	3	
-prime minister	B2	3	
-publicise	B2	3	
-real estate	B2	3	
-rush hour	B2	3	
-second person	B2	3	
-self-confidence	B2	3	
-self-confident	B2	3	
-semi-final	B2	3	
-short-term	B2	3	
-showbiz	B2	3	
-sister-in-law	B2	3	
-so-called	B2	3	
-son-in-law	B2	3	
-sparerib	B2	3	
-steering wheel	B2	3	
-stock market	B2	3	
-third person	B2	3	
-upside down	B2	3	
-virtual reality	B2	3	
-well-balanced	B2	3	
-well-built	B2	3	
-well-organised	B2	3	
-well-organized	B2	3	
-well-paid	B2	3	
-worldview	B2	3	
-worn out	B2	3	
-worn-out	B2	3	
-x-ray	B2	3	
+#
+# 版本沿革：v1.15.0 本表为"Google N-Gram 词频三段"（6 档词池）；v1.16.0 起改为上述
+#   复合稀有度四段（8 档词池）。同一 tier 序号因此不再对应同一批词，ledger 里有迁移映射。
+according to	B1	1
+acknowledgment	B1	1
+actress	B1	1
+ad	B1	1
+air conditioning	B1	1
+air force	B1	1
+alcohol	B1	1
+alphabet	B1	1
+ambulance	B1	1
+analyse	B1	1
+ant	B1	1
+ape	B1	1
+applause	B1	1
+army	B1	1
+arrest	B1	1
+arrow	B1	1
+artist	B1	1
+aspirin	B1	1
+assignment	B1	1
+avenue	B1	1
+backpack	B1	1
+bacon	B1	1
+baggage	B1	1
+baker	B1	1
+bakery	B1	1
+bald	B1	1
+bandage	B1	1
+bang	B1	1
+bank account	B1	1
+bark	B1	1
+barrel	B1	1
+basement	B1	1
+bathe	B1	1
+battle	B1	1
+beard	B1	1
+beast	B1	1
+beat	B1	1
+beaver	B1	1
+because of	B1	1
+bin	B1	1
+bleed	B1	1
+blind	B1	1
+bomb	B1	1
+boom	B1	1
+boot	B1	1
+border	B1	1
+bow	B1	1
+boxing	B1	1
+bracelet	B1	1
+brand-new	B1	1
+brass	B1	1
+breast	B1	1
+breath	B1	1
+brick	B1	1
+broccoli	B1	1
+bubble	B1	1
+builder	B1	1
+bull	B1	1
+bullet	B1	1
+bump	B1	1
+bunch	B1	1
+burglar	B1	1
+burning	B1	1
+butcher	B1	1
+buyer	B1	1
+cabbage	B1	1
+cabin	B1	1
+cage	B1	1
+calculator	B1	1
+calf	B1	1
+camel	B1	1
+canal	B1	1
+candle	B1	1
+carpet	B1	1
+carriage	B1	1
+carton	B1	1
+cashpoint	B1	1
+cattle	B1	1
+cave	B1	1
+cd-rom	B1	1
+central heating	B1	1
+challenging	B1	1
+channel	B1	1
+chat show	B1	1
+check-in	B1	1
+check-in counter	B1	1
+check-in desk	B1	1
+chest of drawers	B1	1
+chewing gum	B1	1
+chief	B1	1
+choir	B1	1
+choke	B1	1
+christian	B1	1
+circus	B1	1
+civilisation	B1	1
+cliff	B1	1
+clip	B1	1
+coal	B1	1
+coffin	B1	1
+collar	B1	1
+comet	B1	1
+comma	B1	1
+common sense	B1	1
+connexion	B1	1
+cotton	B1	1
+cough	B1	1
+counselling	B1	1
+counter	B1	1
+crash	B1	1
+crop	B1	1
+crow	B1	1
+cucumber	B1	1
+curly	B1	1
+curtain	B1	1
+curve	B1	1
+cushion	B1	1
+cv	B1	1
+daisy	B1	1
+damaged	B1	1
+darkness	B1	1
+defence	B1	1
+definite article	B1	1
+detective	B1	1
+device	B1	1
+dial	B1	1
+dialog	B1	1
+diaper	B1	1
+dirt	B1	1
+disc jockey	B1	1
+dishwasher	B1	1
+disk	B1	1
+disk jockey	B1	1
+diver	B1	1
+diving	B1	1
+divorced	B1	1
+dj	B1	1
+dolphin	B1	1
+dot	B1	1
+dozen	B1	1
+dump	B1	1
+dusty	B1	1
+duty-free	B1	1
+easy-going	B1	1
+eco	B1	1
+edge	B1	1
+elbow	B1	1
+electricity	B1	1
+emperor	B1	1
+emphasise	B1	1
+encyclopaedia	B1	1
+encyclopedia	B1	1
+engine	B1	1
+englishman	B1	1
+equipment	B1	1
+examination	B1	1
+exchange rate	B1	1
+exit	B1	1
+explosion	B1	1
+extreme sports	B1	1
+face to face	B1	1
+face-to-face	B1	1
+farming	B1	1
+farmland	B1	1
+favourable	B1	1
+feast	B1	1
+ferry	B1	1
+fifth	B1	1
+filling	B1	1
+film-maker	B1	1
+filter	B1	1
+finger	B1	1
+fire station	B1	1
+firefighter	B1	1
+first floor	B1	1
+first lady	B1	1
+first-floor	B1	1
+flavour	B1	1
+flock	B1	1
+flute	B1	1
+fold	B1	1
+foot	B1	1
+forehead	B1	1
+fountain	B1	1
+freezer	B1	1
+freezing	B1	1
+frost	B1	1
+frozen	B1	1
+frying pan	B1	1
+fuel	B1	1
+full stop	B1	1
+full-time	B1	1
+fur	B1	1
+gallon	B1	1
+gardening	B1	1
+garment	B1	1
+gee	B1	1
+giant	B1	1
+ginger	B1	1
+giraffe	B1	1
+goods	B1	1
+gorilla	B1	1
+gown	B1	1
+graph	B1	1
+grave	B1	1
+gravy	B1	1
+greenhouse	B1	1
+grill	B1	1
+groom	B1	1
+ground floor	B1	1
+guide	B1	1
+gym	B1	1
+hairdresser	B1	1
+hammer	B1	1
+hand-held	B1	1
+handkerchief	B1	1
+handshake	B1	1
+handwriting	B1	1
+hang	B1	1
+hanging	B1	1
+harbor	B1	1
+harbour	B1	1
+hard-working	B1	1
+hatch	B1	1
+heart attack	B1	1
+heater	B1	1
+heel	B1	1
+height	B1	1
+helmet	B1	1
+herd	B1	1
+hip	B1	1
+hiv	B1	1
+hop	B1	1
+horizon	B1	1
+horn	B1	1
+household	B1	1
+huge	B1	1
+humour	B1	1
+hunt	B1	1
+hut	B1	1
+ice hockey	B1	1
+ice skating	B1	1
+identity card	B1	1
+indefinite article	B1	1
+indoors	B1	1
+infection	B1	1
+injury	B1	1
+ink	B1	1
+instead of	B1	1
+instructor	B1	1
+invitation	B1	1
+iron	B1	1
+jail	B1	1
+jar	B1	1
+jewel	B1	1
+journal	B1	1
+judgement	B1	1
+jug	B1	1
+juicy	B1	1
+jungle	B1	1
+kettle	B1	1
+keyboard	B1	1
+kitten	B1	1
+knit	B1	1
+lab	B1	1
+laboratory	B1	1
+ladder	B1	1
+lamb	B1	1
+laughter	B1	1
+lay	B1	1
+leap	B1	1
+length	B1	1
+lettuce	B1	1
+librarian	B1	1
+lift	B1	1
+lighter	B1	1
+lightning	B1	1
+limp	B1	1
+liquid	B1	1
+liver	B1	1
+loaf	B1	1
+log	B1	1
+loud	B1	1
+luggage	B1	1
+lung	B1	1
+magician	B1	1
+mailbox	B1	1
+maple	B1	1
+marble	B1	1
+marked	B1	1
+mayor	B1	1
+mechanic	B1	1
+melt	B1	1
+mess	B1	1
+message board	B1	1
+middle-aged	B1	1
+mineral	B1	1
+mixing bowl	B1	1
+modal	B1	1
+modal verb	B1	1
+moisture	B1	1
+monster	B1	1
+monument	B1	1
+mosquito	B1	1
+moss	B1	1
+motor	B1	1
+motorcycle	B1	1
+movement	B1	1
+mud	B1	1
+mule	B1	1
+muscle	B1	1
+mustard	B1	1
+nail	B1	1
+naked	B1	1
+nap	B1	1
+navy blue	B1	1
+necklace	B1	1
+needle	B1	1
+neighborhood	B1	1
+neighbourhood	B1	1
+nephew	B1	1
+ness	B1	1
+newborn	B1	1
+next door	B1	1
+next-door	B1	1
+niece	B1	1
+nod	B1	1
+noticeboard	B1	1
+ocean	B1	1
+old-fashioned	B1	1
+on to	B1	1
+opening	B1	1
+orchestra	B1	1
+organ	B1	1
+organisation	B1	1
+ought to	B1	1
+out-of-date	B1	1
+outdoor	B1	1
+outdoors	B1	1
+package	B1	1
+packing	B1	1
+paddle	B1	1
+paid	B1	1
+pain	B1	1
+pale	B1	1
+palm	B1	1
+parachute	B1	1
+parking	B1	1
+parrot	B1	1
+part-time	B1	1
+pattern	B1	1
+peanut	B1	1
+penny	B1	1
+per cent	B1	1
+performer	B1	1
+pharmacy	B1	1
+phoenix	B1	1
+phrasal verb	B1	1
+pie	B1	1
+pillow	B1	1
+pin	B1	1
+pineapple	B1	1
+pipe	B1	1
+pit	B1	1
+platform	B1	1
+plug	B1	1
+pocket money	B1	1
+poet	B1	1
+poison	B1	1
+pole	B1	1
+pond	B1	1
+popcorn	B1	1
+pork	B1	1
+postcard	B1	1
+postman	B1	1
+pot	B1	1
+pottery	B1	1
+pound	B1	1
+powder	B1	1
+pregnant	B1	1
+preschool	B1	1
+president	B1	1
+press	B1	1
+priest	B1	1
+primary school	B1	1
+prison	B1	1
+prisoner	B1	1
+prize	B1	1
+public transport	B1	1
+pump	B1	1
+pupil	B1	1
+puppy	B1	1
+purse	B1	1
+puzzle	B1	1
+question mark	B1	1
+race	B1	1
+rail	B1	1
+railroad	B1	1
+railway	B1	1
+rainfall	B1	1
+rainforest	B1	1
+raspberry	B1	1
+razor	B1	1
+recognise	B1	1
+recording	B1	1
+referee	B1	1
+remote control	B1	1
+rise	B1	1
+robot	B1	1
+rolling	B1	1
+rough	B1	1
+rubber	B1	1
+runway	B1	1
+salesman	B1	1
+salmon	B1	1
+sand	B1	1
+sandal	B1	1
+saucepan	B1	1
+schoolteacher	B1	1
+science fiction	B1	1
+scratch	B1	1
+sculpture	B1	1
+seawater	B1	1
+seaweed	B1	1
+second-hand	B1	1
+secondary school	B1	1
+self-service	B1	1
+sharp	B1	1
+shave	B1	1
+sheet	B1	1
+shelter	B1	1
+sheriff	B1	1
+shocked	B1	1
+shrimp	B1	1
+sidewalk	B1	1
+signal	B1	1
+signature	B1	1
+silent	B1	1
+silk	B1	1
+skeleton	B1	1
+skin	B1	1
+sleeve	B1	1
+slip	B1	1
+slot	B1	1
+smoker	B1	1
+snowstorm	B1	1
+soap opera	B1	1
+social networking	B1	1
+soil	B1	1
+solid	B1	1
+spelling	B1	1
+sphere	B1	1
+spice	B1	1
+spider	B1	1
+spinach	B1	1
+sponge	B1	1
+stall	B1	1
+stare	B1	1
+steam	B1	1
+steel	B1	1
+stem	B1	1
+stick	B1	1
+sticker	B1	1
+sticky	B1	1
+stir	B1	1
+stormy	B1	1
+straw	B1	1
+strawberry	B1	1
+stream	B1	1
+stressed	B1	1
+stretch	B1	1
+stripe	B1	1
+submarine	B1	1
+sunrise	B1	1
+sunset	B1	1
+surgeon	B1	1
+surgery	B1	1
+sweatshirt	B1	1
+swimmer	B1	1
+switch	B1	1
+sword	B1	1
+tablet	B1	1
+take-off	B1	1
+tank	B1	1
+taste	B1	1
+telecommunications	B1	1
+tent	B1	1
+thumb	B1	1
+thunder	B1	1
+tick	B1	1
+tide	B1	1
+tile	B1	1
+tin	B1	1
+tire	B1	1
+tissue	B1	1
+tobacco	B1	1
+tongue	B1	1
+toothpaste	B1	1
+tornado	B1	1
+toss	B1	1
+traffic jam	B1	1
+trail	B1	1
+trash	B1	1
+travel agent	B1	1
+treat	B1	1
+trigger	B1	1
+trim	B1	1
+trumpet	B1	1
+tuna	B1	1
+turtle	B1	1
+twin	B1	1
+twist	B1	1
+underpants	B1	1
+up-to-date	B1	1
+upward	B1	1
+used to	B1	1
+van	B1	1
+vehicle	B1	1
+vein	B1	1
+vet	B1	1
+vice president	B1	1
+video clip	B1	1
+volcano	B1	1
+volunteer	B1	1
+vowel	B1	1
+wagon	B1	1
+wardrobe	B1	1
+waterfall	B1	1
+wax	B1	1
+weapon	B1	1
+weather forecast	B1	1
+well-dressed	B1	1
+whale	B1	1
+whisper	B1	1
+whistle	B1	1
+wildlife	B1	1
+wing	B1	1
+wire	B1	1
+wizard	B1	1
+workshop	B1	1
+wound	B1	1
+wrap	B1	1
+wrist	B1	1
+written	B1	1
+yell	B1	1
+aboard	B1	2
+absent	B1	2
+absorb	B1	2
+academy	B1	2
+accent	B1	2
+ache	B1	2
+active	B1	2
+agricultural	B1	2
+agriculture	B1	2
+aid	B1	2
+aim	B1	2
+airline	B1	2
+alike	B1	2
+allowance	B1	2
+aloud	B1	2
+amount	B1	2
+anger	B1	2
+angle	B1	2
+animated	B1	2
+animation	B1	2
+announce	B1	2
+announcement	B1	2
+annoyed	B1	2
+antique	B1	2
+apology	B1	2
+applaud	B1	2
+application	B1	2
+approach	B1	2
+architect	B1	2
+arise	B1	2
+arithmetic	B1	2
+arrange	B1	2
+arrival	B1	2
+astronomer	B1	2
+atlantic	B1	2
+attach	B1	2
+attend	B1	2
+babysitter	B1	2
+backache	B1	2
+bare	B1	2
+basin	B1	2
+bedside	B1	2
+beneath	B1	2
+bent	B1	2
+bet	B1	2
+biography	B1	2
+biology	B1	2
+bishop	B1	2
+bitter	B1	2
+blend	B1	2
+bless	B1	2
+blush	B1	2
+bond	B1	2
+bore	B1	2
+bounce	B1	2
+bound	B1	2
+brainstorming	B1	2
+breathless	B1	2
+broadcast	B1	2
+bronze	B1	2
+buddy	B1	2
+bulletin	B1	2
+burst	B1	2
+bust	B1	2
+calculation	B1	2
+caller	B1	2
+calm	B1	2
+campsite	B1	2
+cancer	B1	2
+canned	B1	2
+canteen	B1	2
+capsule	B1	2
+capture	B1	2
+category	B1	2
+celebrity	B1	2
+cell	B1	2
+central	B1	2
+ceremony	B1	2
+champion	B1	2
+characterise	B1	2
+charge	B1	2
+chariot	B1	2
+charity	B1	2
+charm	B1	2
+chase	B1	2
+checkout	B1	2
+chemist	B1	2
+chemistry	B1	2
+chuckle	B1	2
+circular	B1	2
+civilization	B1	2
+climate	B1	2
+climber	B1	2
+clinic	B1	2
+coastal	B1	2
+cod	B1	2
+collapse	B1	2
+combination	B1	2
+combine	B1	2
+comedian	B1	2
+comedy	B1	2
+comfort	B1	2
+comment	B1	2
+commercial	B1	2
+companion	B1	2
+compete	B1	2
+competitor	B1	2
+compliment	B1	2
+composition	B1	2
+connect	B1	2
+connection	B1	2
+consonant	B1	2
+constitution	B1	2
+construction	B1	2
+contain	B1	2
+correction	B1	2
+county	B1	2
+craft	B1	2
+creator	B1	2
+criminal	B1	2
+critic	B1	2
+crossing	B1	2
+crossroads	B1	2
+crush	B1	2
+currency	B1	2
+current	B1	2
+cycle	B1	2
+damage	B1	2
+damp	B1	2
+deadly	B1	2
+deaf	B1	2
+dealer	B1	2
+debris	B1	2
+deed	B1	2
+defeat	B1	2
+defender	B1	2
+definition	B1	2
+delete	B1	2
+delighted	B1	2
+deliver	B1	2
+delivery	B1	2
+demonstration	B1	2
+department	B1	2
+deposit	B1	2
+designer	B1	2
+destination	B1	2
+destruction	B1	2
+diagram	B1	2
+diameter	B1	2
+disability	B1	2
+disabled	B1	2
+disagreement	B1	2
+disaster	B1	2
+disc	B1	2
+disease	B1	2
+dissolve	B1	2
+distance	B1	2
+district	B1	2
+dive	B1	2
+doc	B1	2
+document	B1	2
+downward	B1	2
+drag	B1	2
+drown	B1	2
+drunk	B1	2
+dude	B1	2
+eastern	B1	2
+ecosystem	B1	2
+edition	B1	2
+election	B1	2
+electrical	B1	2
+electronic	B1	2
+element	B1	2
+emotion	B1	2
+empire	B1	2
+employment	B1	2
+encounter	B1	2
+enemy	B1	2
+entertainer	B1	2
+entry	B1	2
+equal	B1	2
+establishment	B1	2
+expand	B1	2
+experiment	B1	2
+exploration	B1	2
+eyesight	B1	2
+facility	B1	2
+faint	B1	2
+fallen	B1	2
+fasten	B1	2
+fax	B1	2
+fellow	B1	2
+fetch	B1	2
+finding	B1	2
+firework	B1	2
+fitness	B1	2
+flash	B1	2
+flavor	B1	2
+flow	B1	2
+flu	B1	2
+folk	B1	2
+formula	B1	2
+foundation	B1	2
+fund	B1	2
+funeral	B1	2
+furnish	B1	2
+gaol	B1	2
+gap	B1	2
+gentleman	B1	2
+geography	B1	2
+giggle	B1	2
+glance	B1	2
+glide	B1	2
+goalkeeper	B1	2
+golfer	B1	2
+governor	B1	2
+grab	B1	2
+graduation	B1	2
+graphics	B1	2
+greeting	B1	2
+grouping	B1	2
+growth	B1	2
+guitarist	B1	2
+gymnastics	B1	2
+habitat	B1	2
+hairdryer	B1	2
+handball	B1	2
+harness	B1	2
+haven	B1	2
+hazard	B1	2
+headline	B1	2
+heal	B1	2
+healing	B1	2
+hearing	B1	2
+hearted	B1	2
+hidden	B1	2
+highlight	B1	2
+hire	B1	2
+homeless	B1	2
+honeymoon	B1	2
+housework	B1	2
+humid	B1	2
+hunger	B1	2
+idol	B1	2
+illness	B1	2
+illuminate	B1	2
+individual	B1	2
+ingredient	B1	2
+inhale	B1	2
+initial	B1	2
+inject	B1	2
+inspection	B1	2
+institute	B1	2
+instruction	B1	2
+interrupt	B1	2
+introduction	B1	2
+invasion	B1	2
+ironing	B1	2
+isle	B1	2
+ivory	B1	2
+jade	B1	2
+jazz	B1	2
+jog	B1	2
+jogging	B1	2
+joint	B1	2
+journalist	B1	2
+jumper	B1	2
+killing	B1	2
+landlord	B1	2
+launch	B1	2
+layer	B1	2
+leading	B1	2
+league	B1	2
+lean	B1	2
+lecture	B1	2
+liar	B1	2
+lifeguard	B1	2
+link	B1	2
+literature	B1	2
+locate	B1	2
+location	B1	2
+lodge	B1	2
+logo	B1	2
+lottery	B1	2
+loudspeaker	B1	2
+main	B1	2
+mankind	B1	2
+marine	B1	2
+marriage	B1	2
+mash	B1	2
+mass	B1	2
+massive	B1	2
+mathematician	B1	2
+mathematics	B1	2
+maximum	B1	2
+measure	B1	2
+measurement	B1	2
+mechanical	B1	2
+medium	B1	2
+membership	B1	2
+memorize	B1	2
+mend	B1	2
+merchant	B1	2
+messy	B1	2
+mile	B1	2
+minimise	B1	2
+misty	B1	2
+monitor	B1	2
+monk	B1	2
+monthly	B1	2
+mount	B1	2
+mountaintop	B1	2
+murderer	B1	2
+narrow	B1	2
+nearby	B1	2
+nectar	B1	2
+newcomer	B1	2
+nickname	B1	2
+none	B1	2
+northeast	B1	2
+northeastern	B1	2
+northern	B1	2
+northwest	B1	2
+northwestern	B1	2
+novelist	B1	2
+object	B1	2
+obstacle	B1	2
+obtain	B1	2
+occupy	B1	2
+oily	B1	2
+oneself	B1	2
+onstage	B1	2
+operation	B1	2
+oral	B1	2
+orbit	B1	2
+organism	B1	2
+organization	B1	2
+outer	B1	2
+outlaw	B1	2
+outline	B1	2
+overnight	B1	2
+oxygen	B1	2
+pace	B1	2
+painful	B1	2
+parcel	B1	2
+participant	B1	2
+participate	B1	2
+passport	B1	2
+password	B1	2
+patrol	B1	2
+percent	B1	2
+permanent	B1	2
+permit	B1	2
+photocopy	B1	2
+phrase	B1	2
+poetry	B1	2
+poisonous	B1	2
+politician	B1	2
+port	B1	2
+prayer	B1	2
+prescription	B1	2
+presentation	B1	2
+professor	B1	2
+proof	B1	2
+property	B1	2
+protect	B1	2
+protest	B1	2
+pub	B1	2
+publisher	B1	2
+pullover	B1	2
+punish	B1	2
+punishment	B1	2
+quake	B1	2
+questionnaire	B1	2
+rage	B1	2
+rapid	B1	2
+react	B1	2
+rearrange	B1	2
+rebuild	B1	2
+recite	B1	2
+recover	B1	2
+recovery	B1	2
+recycled	B1	2
+reef	B1	2
+reflection	B1	2
+refreshments	B1	2
+refund	B1	2
+refusal	B1	2
+region	B1	2
+register	B1	2
+registration	B1	2
+relative	B1	2
+remainder	B1	2
+remark	B1	2
+remedy	B1	2
+remove	B1	2
+reproduce	B1	2
+rescue	B1	2
+researcher	B1	2
+resident	B1	2
+resort	B1	2
+rest	B1	2
+reward	B1	2
+ripe	B1	2
+roadside	B1	2
+rotten	B1	2
+runaway	B1	2
+safari	B1	2
+safety	B1	2
+satellite	B1	2
+saucer	B1	2
+scan	B1	2
+scare	B1	2
+scared	B1	2
+scary	B1	2
+scatter	B1	2
+schoolmate	B1	2
+scope	B1	2
+score	B1	2
+season	B1	2
+security	B1	2
+seize	B1	2
+separation	B1	2
+series	B1	2
+server	B1	2
+setting	B1	2
+settlement	B1	2
+settler	B1	2
+sex	B1	2
+shadowy	B1	2
+shallow	B1	2
+sheer	B1	2
+shiny	B1	2
+shiver	B1	2
+shopper	B1	2
+sickness	B1	2
+sigh	B1	2
+signpost	B1	2
+skyscraper	B1	2
+slavery	B1	2
+slope	B1	2
+sneeze	B1	2
+sore	B1	2
+sort	B1	2
+sour	B1	2
+southeast	B1	2
+southern	B1	2
+southwest	B1	2
+souvenir	B1	2
+sparkle	B1	2
+spectator	B1	2
+spicy	B1	2
+spiral	B1	2
+spoil	B1	2
+sports	B1	2
+stable	B1	2
+steep	B1	2
+storage	B1	2
+storyteller	B1	2
+strain	B1	2
+strip	B1	2
+stuck	B1	2
+studio	B1	2
+stuffed	B1	2
+stumble	B1	2
+substitute	B1	2
+suffix	B1	2
+suicide	B1	2
+summarise	B1	2
+summit	B1	2
+sundial	B1	2
+supply	B1	2
+supporter	B1	2
+surface	B1	2
+surrounding	B1	2
+survivor	B1	2
+swarm	B1	2
+swell	B1	2
+swollen	B1	2
+symptom	B1	2
+takeoff	B1	2
+tale	B1	2
+tasty	B1	2
+tax	B1	2
+teaching	B1	2
+teammate	B1	2
+tease	B1	2
+teen	B1	2
+telegram	B1	2
+teller	B1	2
+temper	B1	2
+term	B1	2
+terminal	B1	2
+theft	B1	2
+thirst	B1	2
+threat	B1	2
+thump	B1	2
+tighten	B1	2
+tiny	B1	2
+total	B1	2
+tournament	B1	2
+trace	B1	2
+transport	B1	2
+transportation	B1	2
+treatment	B1	2
+tremble	B1	2
+tropical	B1	2
+tumble	B1	2
+turning	B1	2
+uncover	B1	2
+underneath	B1	2
+undress	B1	2
+unfold	B1	2
+union	B1	2
+universe	B1	2
+unpack	B1	2
+upper	B1	2
+vacancy	B1	2
+vegetarian	B1	2
+vessel	B1	2
+victim	B1	2
+victory	B1	2
+violence	B1	2
+virus	B1	2
+visible	B1	2
+vision	B1	2
+visual	B1	2
+volume	B1	2
+voyage	B1	2
+waggon	B1	2
+warmth	B1	2
+warn	B1	2
+warning	B1	2
+warrior	B1	2
+waste	B1	2
+westward	B1	2
+wetland	B1	2
+witness	B1	2
+working	B1	2
+workout	B1	2
+workplace	B1	2
+worn	B1	2
+wrapping	B1	2
+wristwatch	B1	2
+abandon	B1	3
+able	B1	3
+absence	B1	3
+absolutely	B1	3
+acceptance	B1	3
+access	B1	3
+accessory	B1	3
+accidental	B1	3
+accompany	B1	3
+accomplish	B1	3
+accountant	B1	3
+accurately	B1	3
+achievement	B1	3
+acknowledgement	B1	3
+acquaintance	B1	3
+acquire	B1	3
+adapt	B1	3
+addressee	B1	3
+administration	B1	3
+admission	B1	3
+adopt	B1	3
+advance	B1	3
+adverb	B1	3
+advertise	B1	3
+adviser	B1	3
+advisor	B1	3
+aerobics	B1	3
+affection	B1	3
+afford	B1	3
+afterwards	B1	3
+agenda	B1	3
+aggressive	B1	3
+agreement	B1	3
+alcoholic	B1	3
+allergic	B1	3
+alternative	B1	3
+altogether	B1	3
+amusing	B1	3
+annually	B1	3
+anti	B1	3
+anxiety	B1	3
+appetite	B1	3
+approval	B1	3
+approximately	B1	3
+arrangement	B1	3
+artistic	B1	3
+aside	B1	3
+assign	B1	3
+assist	B1	3
+assistance	B1	3
+associate	B1	3
+athletic	B1	3
+atmosphere	B1	3
+atomic	B1	3
+attachment	B1	3
+attract	B1	3
+attraction	B1	3
+authority	B1	3
+available	B1	3
+aware	B1	3
+babysit	B1	3
+backpacker	B1	3
+backpacking	B1	3
+balance	B1	3
+behave	B1	3
+benefit	B1	3
+bilingual	B1	3
+blessing	B1	3
+boast	B1	3
+bold	B1	3
+booking	B1	3
+breed	B1	3
+breeding	B1	3
+brief	B1	3
+brightly	B1	3
+broad	B1	3
+brotherhood	B1	3
+burden	B1	3
+bureau	B1	3
+calculate	B1	3
+cancel	B1	3
+capable	B1	3
+capacity	B1	3
+career	B1	3
+categorize	B1	3
+caution	B1	3
+chaos	B1	3
+cheerful	B1	3
+chronological	B1	3
+citizenship	B1	3
+classical	B1	3
+classify	B1	3
+closely	B1	3
+columnist	B1	3
+command	B1	3
+complicated	B1	3
+compose	B1	3
+compound	B1	3
+concentration	B1	3
+conduct	B1	3
+confidence	B1	3
+confirm	B1	3
+confirmation	B1	3
+conflict	B1	3
+confusing	B1	3
+congratulate	B1	3
+conquer	B1	3
+construct	B1	3
+consume	B1	3
+consumer	B1	3
+consumption	B1	3
+content	B1	3
+continuously	B1	3
+contribute	B1	3
+council	B1	3
+counseling	B1	3
+crisis	B1	3
+critical	B1	3
+cruel	B1	3
+cure	B1	3
+curious	B1	3
+currently	B1	3
+curriculum	B1	3
+customs	B1	3
+dare	B1	3
+dating	B1	3
+dazzle	B1	3
+deadline	B1	3
+debt	B1	3
+decision	B1	3
+decline	B1	3
+decrease	B1	3
+dedicate	B1	3
+defend	B1	3
+defense	B1	3
+define	B1	3
+definite	B1	3
+delicate	B1	3
+delight	B1	3
+delightful	B1	3
+demand	B1	3
+demonstrate	B1	3
+deny	B1	3
+depart	B1	3
+departure	B1	3
+dependent	B1	3
+depth	B1	3
+destructive	B1	3
+determine	B1	3
+development	B1	3
+dialogue	B1	3
+digital	B1	3
+directly	B1	3
+disable	B1	3
+disastrous	B1	3
+discomfort	B1	3
+discount	B1	3
+discovery	B1	3
+disgusting	B1	3
+distant	B1	3
+distribute	B1	3
+distribution	B1	3
+disturbance	B1	3
+documentary	B1	3
+doze	B1	3
+dramatic	B1	3
+dull	B1	3
+dustbin	B1	3
+duty	B1	3
+earache	B1	3
+educate	B1	3
+eliminate	B1	3
+embarrass	B1	3
+embarrassed	B1	3
+embarrassment	B1	3
+emerge	B1	3
+enclose	B1	3
+encouragement	B1	3
+encouraging	B1	3
+engaged	B1	3
+enjoyment	B1	3
+enquiry	B1	3
+entertain	B1	3
+enthusiasm	B1	3
+enthusiastic	B1	3
+entire	B1	3
+environmental	B1	3
+estimate	B1	3
+evenly	B1	3
+eventually	B1	3
+exact	B1	3
+examine	B1	3
+examiner	B1	3
+excellence	B1	3
+excess	B1	3
+excitement	B1	3
+exhausted	B1	3
+expense	B1	3
+expose	B1	3
+extend	B1	3
+extinct	B1	3
+extinction	B1	3
+extraordinary	B1	3
+fade	B1	3
+failure	B1	3
+faithful	B1	3
+fake	B1	3
+faraway	B1	3
+farewell	B1	3
+farther	B1	3
+festive	B1	3
+finance	B1	3
+firm	B1	3
+firmly	B1	3
+forecast	B1	3
+forgive	B1	3
+formal	B1	3
+format	B1	3
+former	B1	3
+forth	B1	3
+fortnight	B1	3
+fragment	B1	3
+freely	B1	3
+frequency	B1	3
+frequent	B1	3
+freshman	B1	3
+friendliness	B1	3
+fright	B1	3
+frustrated	B1	3
+frustration	B1	3
+furthest	B1	3
+fuss	B1	3
+gain	B1	3
+gay	B1	3
+gene	B1	3
+generous	B1	3
+genetic	B1	3
+genetics	B1	3
+geographical	B1	3
+geology	B1	3
+glimpse	B1	3
+global	B1	3
+goddess	B1	3
+gorgeous	B1	3
+gossip	B1	3
+graceful	B1	3
+grant	B1	3
+graphic	B1	3
+gratitude	B1	3
+guidance	B1	3
+guilt	B1	3
+guilty	B1	3
+hasty	B1	3
+hearty	B1	3
+heaven	B1	3
+helpless	B1	3
+hesitate	B1	3
+historian	B1	3
+holy	B1	3
+honest	B1	3
+horrible	B1	3
+humanity	B1	3
+humor	B1	3
+humorous	B1	3
+ignore	B1	3
+imaginary	B1	3
+imitate	B1	3
+immediate	B1	3
+immediately	B1	3
+impression	B1	3
+improvement	B1	3
+incident	B1	3
+including	B1	3
+income	B1	3
+incorrect	B1	3
+industrial	B1	3
+industry	B1	3
+inform	B1	3
+inhabitant	B1	3
+inscribe	B1	3
+inscription	B1	3
+insist	B1	3
+instal	B1	3
+install	B1	3
+insurance	B1	3
+intense	B1	3
+interact	B1	3
+interaction	B1	3
+internal	B1	3
+interval	B1	3
+interviewee	B1	3
+investigation	B1	3
+involve	B1	3
+irregular	B1	3
+isolation	B1	3
+jealous	B1	3
+kindness	B1	3
+largely	B1	3
+lasting	B1	3
+leadership	B1	3
+lessen	B1	3
+lightly	B1	3
+likeness	B1	3
+limit	B1	3
+limitation	B1	3
+limited	B1	3
+loss	B1	3
+luxury	B1	3
+magical	B1	3
+maintain	B1	3
+maintenance	B1	3
+majority	B1	3
+management	B1	3
+meditation	B1	3
+mediterranean	B1	3
+mental	B1	3
+mild	B1	3
+minimum	B1	3
+minor	B1	3
+minority	B1	3
+minus	B1	3
+miracle	B1	3
+mission	B1	3
+modem	B1	3
+modify	B1	3
+molecule	B1	3
+motionless	B1	3
+mutual	B1	3
+myth	B1	3
+narrate	B1	3
+narrative	B1	3
+nasty	B1	3
+nervousness	B1	3
+network	B1	3
+newly	B1	3
+nonsense	B1	3
+normally	B1	3
+noticeable	B1	3
+nowhere	B1	3
+nuclear	B1	3
+nucleus	B1	3
+numerous	B1	3
+nutrient	B1	3
+nutrition	B1	3
+nutritious	B1	3
+objection	B1	3
+observation	B1	3
+observe	B1	3
+obvious	B1	3
+occasion	B1	3
+onto	B1	3
+option	B1	3
+orderly	B1	3
+outstanding	B1	3
+outward	B1	3
+overcome	B1	3
+owe	B1	3
+paradise	B1	3
+paralyze	B1	3
+parental	B1	3
+partial	B1	3
+passive	B1	3
+pause	B1	3
+permanently	B1	3
+personally	B1	3
+phantom	B1	3
+phenix	B1	3
+philosopher	B1	3
+physics	B1	3
+plain	B1	3
+policy	B1	3
+politics	B1	3
+pollutant	B1	3
+positive	B1	3
+possession	B1	3
+poverty	B1	3
+praise	B1	3
+precious	B1	3
+prefix	B1	3
+prejudice	B1	3
+preparation	B1	3
+presence	B1	3
+preserve	B1	3
+previous	B1	3
+primitive	B1	3
+proceed	B1	3
+process	B1	3
+producer	B1	3
+productive	B1	3
+profession	B1	3
+progress	B1	3
+promotion	B1	3
+pronoun	B1	3
+proposal	B1	3
+propose	B1	3
+protection	B1	3
+protective	B1	3
+proud	B1	3
+prove	B1	3
+proverb	B1	3
+provided	B1	3
+publicly	B1	3
+pure	B1	3
+quantity	B1	3
+radiation	B1	3
+rank	B1	3
+rapidly	B1	3
+rare	B1	3
+ration	B1	3
+realistic	B1	3
+reception	B1	3
+recognize	B1	3
+recycling	B1	3
+reduce	B1	3
+reduction	B1	3
+refuse	B1	3
+regional	B1	3
+reject	B1	3
+relation	B1	3
+relationship	B1	3
+relaxing	B1	3
+religion	B1	3
+religious	B1	3
+repay	B1	3
+repeatedly	B1	3
+representative	B1	3
+republic	B1	3
+require	B1	3
+requirement	B1	3
+reservation	B1	3
+residential	B1	3
+resist	B1	3
+resource	B1	3
+respect	B1	3
+respond	B1	3
+restore	B1	3
+restrict	B1	3
+retail	B1	3
+revision	B1	3
+rewrite	B1	3
+rid	B1	3
+riddle	B1	3
+routine	B1	3
+rubbish	B1	3
+sadness	B1	3
+scenic	B1	3
+scholar	B1	3
+scholarship	B1	3
+scold	B1	3
+secure	B1	3
+select	B1	3
+selection	B1	3
+selfish	B1	3
+sensation	B1	3
+sequence	B1	3
+serious	B1	3
+service	B1	3
+session	B1	3
+settle	B1	3
+severe	B1	3
+shame	B1	3
+shift	B1	3
+shocking	B1	3
+shortage	B1	3
+shortly	B1	3
+similarly	B1	3
+simultaneously	B1	3
+slogan	B1	3
+snowboard	B1	3
+sometimes	B1	3
+sophomore	B1	3
+sorrow	B1	3
+soul	B1	3
+specialise	B1	3
+specialist	B1	3
+sponsor	B1	3
+steadily	B1	3
+steady	B1	3
+strengthen	B1	3
+stress	B1	3
+struggle	B1	3
+stubborn	B1	3
+stun	B1	3
+stupid	B1	3
+suddenly	B1	3
+suffer	B1	3
+surround	B1	3
+survival	B1	3
+suspect	B1	3
+swear	B1	3
+takeaway	B1	3
+talented	B1	3
+talkative	B1	3
+teamwork	B1	3
+temporary	B1	3
+tense	B1	3
+tension	B1	3
+terrific	B1	3
+terrified	B1	3
+terror	B1	3
+threatening	B1	3
+throughout	B1	3
+thunderous	B1	3
+tightly	B1	3
+tiring	B1	3
+tourism	B1	3
+tracksuit	B1	3
+tragic	B1	3
+transfer	B1	3
+transform	B1	3
+transformation	B1	3
+translate	B1	3
+trustworthy	B1	3
+turbulence	B1	3
+unclear	B1	3
+undo	B1	3
+unemployment	B1	3
+unfriendly	B1	3
+unheard	B1	3
+unite	B1	3
+unpredictable	B1	3
+untidy	B1	3
+unwanted	B1	3
+unwell	B1	3
+update	B1	3
+urgent	B1	3
+valuable	B1	3
+variety	B1	3
+various	B1	3
+visa	B1	3
+visually	B1	3
+ward	B1	3
+warranty	B1	3
+washbowl	B1	3
+wasteful	B1	3
+weakness	B1	3
+westwards	B1	3
+whenever	B1	3
+whoever	B1	3
+widespread	B1	3
+windscreen	B1	3
+wither	B1	3
+worth	B1	3
+yoga	B1	3
+abnormal	B1	4
+aborigine	B1	4
+absolute	B1	4
+abstract	B1	4
+abundance	B1	4
+abundant	B1	4
+academic	B1	4
+accessible	B1	4
+accidentally	B1	4
+accuracy	B1	4
+accurate	B1	4
+accuse	B1	4
+accustom	B1	4
+acknowledge	B1	4
+admiration	B1	4
+adorable	B1	4
+adverbial	B1	4
+advert	B1	4
+affect	B1	4
+afterward	B1	4
+amazed	B1	4
+amazing	B1	4
+ambitious	B1	4
+analysis	B1	4
+analyze	B1	4
+annoyance	B1	4
+annual	B1	4
+antonym	B1	4
+anxiously	B1	4
+anyhow	B1	4
+apparent	B1	4
+appeal	B1	4
+appoint	B1	4
+appreciation	B1	4
+approve	B1	4
+ashamed	B1	4
+aspect	B1	4
+assume	B1	4
+attain	B1	4
+auxiliary	B1	4
+awareness	B1	4
+awesome	B1	4
+awkward	B1	4
+barely	B1	4
+barman	B1	4
+basis	B1	4
+beautifully	B1	4
+behalf	B1	4
+belief	B1	4
+beloved	B1	4
+biochemistry	B1	4
+blog	B1	4
+blogger	B1	4
+boldly	B1	4
+boredom	B1	4
+bravely	B1	4
+breakthrough	B1	4
+briefly	B1	4
+calmness	B1	4
+careless	B1	4
+carelessly	B1	4
+carelessness	B1	4
+casual	B1	4
+categorise	B1	4
+cautious	B1	4
+certainty	B1	4
+characteristic	B1	4
+characterize	B1	4
+cherish	B1	4
+civil	B1	4
+commit	B1	4
+commonly	B1	4
+comparison	B1	4
+competitive	B1	4
+complement	B1	4
+completely	B1	4
+complex	B1	4
+complicate	B1	4
+compromise	B1	4
+concept	B1	4
+concerned	B1	4
+conclude	B1	4
+conclusion	B1	4
+confusion	B1	4
+conscious	B1	4
+consequently	B1	4
+conservation	B1	4
+conservative	B1	4
+considerable	B1	4
+consideration	B1	4
+constantly	B1	4
+constitute	B1	4
+continual	B1	4
+continually	B1	4
+continuous	B1	4
+contrary	B1	4
+contribution	B1	4
+controversial	B1	4
+convey	B1	4
+convince	B1	4
+copyright	B1	4
+countless	B1	4
+courage	B1	4
+courageous	B1	4
+courgette	B1	4
+cultivate	B1	4
+cultural	B1	4
+curiosity	B1	4
+curiously	B1	4
+dangerously	B1	4
+daze	B1	4
+declaration	B1	4
+declare	B1	4
+deficiency	B1	4
+definitely	B1	4
+democracy	B1	4
+democratic	B1	4
+depressed	B1	4
+depressing	B1	4
+depression	B1	4
+deprive	B1	4
+derive	B1	4
+deserve	B1	4
+desire	B1	4
+despair	B1	4
+desperate	B1	4
+despite	B1	4
+determination	B1	4
+devastate	B1	4
+devastating	B1	4
+devotion	B1	4
+differ	B1	4
+diligence	B1	4
+diligent	B1	4
+dioxide	B1	4
+disappoint	B1	4
+disappointment	B1	4
+discourage	B1	4
+discrimination	B1	4
+distinction	B1	4
+distinctly	B1	4
+distinguish	B1	4
+diverse	B1	4
+divine	B1	4
+duvet	B1	4
+dynasty	B1	4
+eager	B1	4
+eagerness	B1	4
+earnest	B1	4
+easygoing	B1	4
+ecological	B1	4
+ecology	B1	4
+economic	B1	4
+economics	B1	4
+economy	B1	4
+ecstasy	B1	4
+effective	B1	4
+efficiency	B1	4
+efficient	B1	4
+electron	B1	4
+emotional	B1	4
+emotionally	B1	4
+emphasis	B1	4
+emphasize	B1	4
+enable	B1	4
+endanger	B1	4
+endless	B1	4
+endure	B1	4
+engage	B1	4
+engineering	B1	4
+enjoyable	B1	4
+enrich	B1	4
+ensure	B1	4
+enthusiast	B1	4
+entirely	B1	4
+environmentalist	B1	4
+equality	B1	4
+equally	B1	4
+era	B1	4
+essence	B1	4
+essential	B1	4
+eternal	B1	4
+eternity	B1	4
+evident	B1	4
+excitedly	B1	4
+exclusive	B1	4
+existence	B1	4
+experienced	B1	4
+extensively	B1	4
+extent	B1	4
+extreme	B1	4
+fantasy	B1	4
+farthest	B1	4
+fascinate	B1	4
+fashionable	B1	4
+favorable	B1	4
+feverishly	B1	4
+financial	B1	4
+fluent	B1	4
+fluently	B1	4
+flunk	B1	4
+fond	B1	4
+fondness	B1	4
+foolish	B1	4
+forbidden	B1	4
+formally	B1	4
+fortunate	B1	4
+frequently	B1	4
+furthermore	B1	4
+gall	B1	4
+general	B1	4
+generally	B1	4
+generate	B1	4
+genetically	B1	4
+gesture	B1	4
+gifted	B1	4
+glint	B1	4
+glorious	B1	4
+glory	B1	4
+goodness	B1	4
+govern	B1	4
+guarantee	B1	4
+handy	B1	4
+hardship	B1	4
+hatred	B1	4
+haunt	B1	4
+heavenly	B1	4
+highly	B1	4
+historic	B1	4
+historical	B1	4
+honestly	B1	4
+honesty	B1	4
+hopeful	B1	4
+hopefully	B1	4
+hopeless	B1	4
+horrify	B1	4
+hostel	B1	4
+hurriedly	B1	4
+identity	B1	4
+idiom	B1	4
+illegally	B1	4
+immigrate	B1	4
+immigration	B1	4
+impair	B1	4
+impressive	B1	4
+improper	B1	4
+inconvenient	B1	4
+increasingly	B1	4
+incredible	B1	4
+incredibly	B1	4
+independent	B1	4
+indirect	B1	4
+indirectly	B1	4
+inevitable	B1	4
+infinitive	B1	4
+informative	B1	4
+initially	B1	4
+innermost	B1	4
+innocent	B1	4
+innovator	B1	4
+inquiry	B1	4
+insane	B1	4
+insight	B1	4
+inspire	B1	4
+instance	B1	4
+intend	B1	4
+intensive	B1	4
+intention	B1	4
+intentionally	B1	4
+intermediate	B1	4
+intermission	B1	4
+internationally	B1	4
+invest	B1	4
+involuntarily	B1	4
+involved	B1	4
+irritate	B1	4
+judgment	B1	4
+justice	B1	4
+latecomer	B1	4
+lately	B1	4
+lawful	B1	4
+legal	B1	4
+legally	B1	4
+liberate	B1	4
+liberation	B1	4
+lifelong	B1	4
+literary	B1	4
+logic	B1	4
+lorry	B1	4
+lovingly	B1	4
+loyal	B1	4
+loyalty	B1	4
+magnificent	B1	4
+meaningful	B1	4
+meanwhile	B1	4
+meditate	B1	4
+memorable	B1	4
+memorise	B1	4
+mentally	B1	4
+mere	B1	4
+merely	B1	4
+minimize	B1	4
+mischief	B1	4
+miserable	B1	4
+misery	B1	4
+mislead	B1	4
+misunderstanding	B1	4
+moderate	B1	4
+moral	B1	4
+moreover	B1	4
+motherland	B1	4
+motivate	B1	4
+motivation	B1	4
+motive	B1	4
+motto	B1	4
+mourn	B1	4
+nationalist	B1	4
+naturally	B1	4
+negotiate	B1	4
+negotiation	B1	4
+neutral	B1	4
+nevertheless	B1	4
+nightlife	B1	4
+noisily	B1	4
+nonetheless	B1	4
+nor	B1	4
+notion	B1	4
+notorious	B1	4
+objective	B1	4
+obviously	B1	4
+occasional	B1	4
+occasionally	B1	4
+occur	B1	4
+offensive	B1	4
+officially	B1	4
+opposition	B1	4
+oppress	B1	4
+oppression	B1	4
+ordinary	B1	4
+organic	B1	4
+origin	B1	4
+otherwise	B1	4
+outweigh	B1	4
+overjoyed	B1	4
+overwhelm	B1	4
+overwhelming	B1	4
+overwork	B1	4
+owing	B1	4
+paralyse	B1	4
+participle	B1	4
+particularly	B1	4
+passion	B1	4
+patience	B1	4
+peculiar	B1	4
+penniless	B1	4
+per	B1	4
+persuade	B1	4
+persuasive	B1	4
+phenomenon	B1	4
+philosophy	B1	4
+piety	B1	4
+pleasantly	B1	4
+politely	B1	4
+positively	B1	4
+possess	B1	4
+possessive	B1	4
+possibility	B1	4
+potential	B1	4
+practical	B1	4
+preference	B1	4
+prepared	B1	4
+preposition	B1	4
+preservation	B1	4
+primarily	B1	4
+principle	B1	4
+privacy	B1	4
+probability	B1	4
+proclaim	B1	4
+procrastination	B1	4
+prohibition	B1	4
+prominent	B1	4
+promote	B1	4
+properly	B1	4
+proportion	B1	4
+prosperity	B1	4
+prosperous	B1	4
+psychological	B1	4
+purify	B1	4
+qualified	B1	4
+qualify	B1	4
+queue	B1	4
+racial	B1	4
+rarely	B1	4
+rational	B1	4
+reality	B1	4
+reasonable	B1	4
+recall	B1	4
+reclaim	B1	4
+recommend	B1	4
+regain	B1	4
+regard	B1	4
+regarding	B1	4
+regulation	B1	4
+relate	B1	4
+relatively	B1	4
+reliable	B1	4
+rely	B1	4
+remarkable	B1	4
+remembrance	B1	4
+renew	B1	4
+reputation	B1	4
+resemble	B1	4
+reserve	B1	4
+resolve	B1	4
+respectable	B1	4
+responsibility	B1	4
+responsible	B1	4
+retain	B1	4
+retell	B1	4
+retrospect	B1	4
+reunification	B1	4
+reunify	B1	4
+revise	B1	4
+ridiculous	B1	4
+risk	B1	4
+rudely	B1	4
+sacred	B1	4
+safeguard	B1	4
+safely	B1	4
+satisfaction	B1	4
+satisfied	B1	4
+secretly	B1	4
+severely	B1	4
+shameful	B1	4
+significance	B1	4
+similarity	B1	4
+simplify	B1	4
+slight	B1	4
+slightly	B1	4
+socially	B1	4
+somehow	B1	4
+someplace	B1	4
+sometime	B1	4
+soothe	B1	4
+specialize	B1	4
+specially	B1	4
+spectacular	B1	4
+spirit	B1	4
+spiritual	B1	4
+sportsmanship	B1	4
+standard	B1	4
+status	B1	4
+strangely	B1	4
+strategic	B1	4
+stressful	B1	4
+stricken	B1	4
+stunning	B1	4
+stylish	B1	4
+subconscious	B1	4
+substantial	B1	4
+sufficient	B1	4
+summarize	B1	4
+sunbathe	B1	4
+superior	B1	4
+superstition	B1	4
+supportive	B1	4
+suppose	B1	4
+supposedly	B1	4
+surely	B1	4
+surprisingly	B1	4
+suspicion	B1	4
+sympathy	B1	4
+syndrome	B1	4
+systematic	B1	4
+tasteless	B1	4
+technique	B1	4
+technological	B1	4
+tempt	B1	4
+tend	B1	4
+tendency	B1	4
+terribly	B1	4
+terrorism	B1	4
+thankful	B1	4
+theory	B1	4
+thorough	B1	4
+thriller	B1	4
+thus	B1	4
+timely	B1	4
+totally	B1	4
+traditionally	B1	4
+tragedy	B1	4
+transitional	B1	4
+tremendous	B1	4
+trend	B1	4
+triumph	B1	4
+typical	B1	4
+typically	B1	4
+unable	B1	4
+unafraid	B1	4
+unbelievable	B1	4
+uncertainty	B1	4
+uncontrollable	B1	4
+underage	B1	4
+undergo	B1	4
+unemployed	B1	4
+unexpected	B1	4
+unexpectedly	B1	4
+unfairly	B1	4
+unfit	B1	4
+unfortunate	B1	4
+unify	B1	4
+uninterested	B1	4
+uninteresting	B1	4
+unique	B1	4
+unless	B1	4
+unlikely	B1	4
+unlucky	B1	4
+unrelated	B1	4
+unusually	B1	4
+uplifted	B1	4
+upload	B1	4
+urge	B1	4
+usage	B1	4
+useless	B1	4
+vague	B1	4
+vain	B1	4
+vary	B1	4
+vast	B1	4
+via	B1	4
+vice	B1	4
+viewpoint	B1	4
+violently	B1	4
+virtual	B1	4
+vivid	B1	4
+vividly	B1	4
+warmly	B1	4
+webcam	B1	4
+weird	B1	4
+wherever	B1	4
+whether	B1	4
+whichever	B1	4
+wildly	B1	4
+willingness	B1	4
+windsurfing	B1	4
+worthwhile	B1	4
+worthy	B1	4
+acid	B2	1
+aircraft	B2	1
+altar	B2	1
+aluminium	B2	1
+aluminum	B2	1
+anchor	B2	1
+anchorperson	B2	1
+arch	B2	1
+arena	B2	1
+ash	B2	1
+assembly	B2	1
+authorise	B2	1
+ax	B2	1
+axe	B2	1
+backward	B2	1
+backwards	B2	1
+backyard	B2	1
+bad-tempered	B2	1
+badge	B2	1
+ballet	B2	1
+ballot	B2	1
+banker	B2	1
+barbershop	B2	1
+barley	B2	1
+barn	B2	1
+barrier	B2	1
+bartender	B2	1
+battlefield	B2	1
+beagle	B2	1
+beak	B2	1
+beam	B2	1
+berry	B2	1
+bikini	B2	1
+billion	B2	1
+blade	B2	1
+blast	B2	1
+blaze	B2	1
+blindness	B2	1
+blink	B2	1
+bloody	B2	1
+blooming	B2	1
+blossom	B2	1
+boiling	B2	1
+bolt	B2	1
+bomber	B2	1
+bombing	B2	1
+booklet	B2	1
+bookmark	B2	1
+booth	B2	1
+bothered	B2	1
+boxer	B2	1
+bracket	B2	1
+brochure	B2	1
+brother-in-law	B2	1
+bruise	B2	1
+bud	B2	1
+bully	B2	1
+bum	B2	1
+bumper	B2	1
+bun	B2	1
+buzz	B2	1
+cabinet	B2	1
+cable	B2	1
+cane	B2	1
+cannonball	B2	1
+canon	B2	1
+caravan	B2	1
+carbon dioxide	B2	1
+carbon footprint	B2	1
+carbon monoxide	B2	1
+cardboard	B2	1
+carnival	B2	1
+carve	B2	1
+cast	B2	1
+catalog	B2	1
+catalogue	B2	1
+catering	B2	1
+cathedral	B2	1
+ceiling	B2	1
+cellar	B2	1
+cello	B2	1
+cemetery	B2	1
+certificate	B2	1
+cherished	B2	1
+cherry	B2	1
+chew	B2	1
+chimney	B2	1
+chip	B2	1
+chop	B2	1
+clam	B2	1
+clap	B2	1
+climate change	B2	1
+clothing	B2	1
+coastline	B2	1
+cocoa	B2	1
+coconut	B2	1
+collector	B2	1
+commander	B2	1
+community	B2	1
+concrete	B2	1
+conductor	B2	1
+cone	B2	1
+contract	B2	1
+copper	B2	1
+coral	B2	1
+core	B2	1
+corridor	B2	1
+costume	B2	1
+cosy	B2	1
+cottage	B2	1
+crab	B2	1
+crack	B2	1
+crater	B2	1
+crawl	B2	1
+crease	B2	1
+creek	B2	1
+crew	B2	1
+crocodile	B2	1
+cube	B2	1
+cuff	B2	1
+curl	B2	1
+cyberaddict	B2	1
+cybercaf?	B2	1
+cybercafe	B2	1
+cybercrime	B2	1
+cyberpet	B2	1
+cyberschool	B2	1
+cyclist	B2	1
+dandelion	B2	1
+dated	B2	1
+daughter-in-law	B2	1
+dawn	B2	1
+daytime	B2	1
+de facto	B2	1
+debit card	B2	1
+decay	B2	1
+deck	B2	1
+decoration	B2	1
+deer	B2	1
+denim	B2	1
+deputy	B2	1
+desktop	B2	1
+developing	B2	1
+devil	B2	1
+diarrhea	B2	1
+diarrhoea	B2	1
+dim	B2	1
+dime	B2	1
+dip	B2	1
+diploma	B2	1
+disguise	B2	1
+dna	B2	1
+dock	B2	1
+donkey	B2	1
+doorway	B2	1
+doubly	B2	1
+dove	B2	1
+drain	B2	1
+drought	B2	1
+dwarf	B2	1
+dye	B2	1
+eagle	B2	1
+earnings	B2	1
+eastward	B2	1
+educator	B2	1
+electrician	B2	1
+electronics	B2	1
+embrace	B2	1
+employee	B2	1
+endeavour	B2	1
+energy	B2	1
+environmentally friendly	B2	1
+equation	B2	1
+eruption	B2	1
+estimated	B2	1
+exclamation mark	B2	1
+execution	B2	1
+expected	B2	1
+explode	B2	1
+explorer	B2	1
+eyebrow	B2	1
+eyelash	B2	1
+eyelid	B2	1
+fabric	B2	1
+facilities	B2	1
+father-in-law	B2	1
+fed up	B2	1
+fibre	B2	1
+fighting	B2	1
+fingernail	B2	1
+fire brigade	B2	1
+fireplace	B2	1
+first language	B2	1
+first person	B2	1
+flame	B2	1
+flap	B2	1
+flesh	B2	1
+flip	B2	1
+fluid	B2	1
+fox	B2	1
+fulfil	B2	1
+gang	B2	1
+gardener	B2	1
+gasp	B2	1
+gateway	B2	1
+gear	B2	1
+germ	B2	1
+global warming	B2	1
+glocal	B2	1
+glow	B2	1
+goat	B2	1
+grain	B2	1
+grasp	B2	1
+gravestone	B2	1
+grin	B2	1
+grip	B2	1
+gross	B2	1
+grown-up	B2	1
+guideline	B2	1
+gulp	B2	1
+gum	B2	1
+gunshot	B2	1
+guts	B2	1
+hail	B2	1
+hairy	B2	1
+handrail	B2	1
+hard drive	B2	1
+hardware	B2	1
+harrow	B2	1
+haunting	B2	1
+hay	B2	1
+headquarters	B2	1
+health care	B2	1
+heap	B2	1
+heart-warming	B2	1
+hedge	B2	1
+helicopter	B2	1
+helper	B2	1
+herb	B2	1
+hi-tech	B2	1
+high-tech	B2	1
+holder	B2	1
+hollow	B2	1
+holocaust	B2	1
+honourable	B2	1
+hood	B2	1
+hook	B2	1
+hospitalise	B2	1
+housekeeper	B2	1
+housewife	B2	1
+human rights	B2	1
+hunting	B2	1
+icy	B2	1
+illustration	B2	1
+impressed	B2	1
+improved	B2	1
+index	B2	1
+infant	B2	1
+injured	B2	1
+inspector	B2	1
+inventor	B2	1
+inverted commas	B2	1
+investigator	B2	1
+irritated	B2	1
+italicise	B2	1
+jaw	B2	1
+junk food	B2	1
+kangaroo	B2	1
+kneel	B2	1
+knot	B2	1
+label	B2	1
+labourer	B2	1
+landing	B2	1
+lap	B2	1
+laser	B2	1
+last minute	B2	1
+last-minute	B2	1
+laundry	B2	1
+lava	B2	1
+lawn	B2	1
+leak	B2	1
+leash	B2	1
+lecturer	B2	1
+leopard	B2	1
+lick	B2	1
+lid	B2	1
+lighting	B2	1
+limb	B2	1
+linen	B2	1
+liner	B2	1
+listener	B2	1
+litter	B2	1
+lobby	B2	1
+long-distance	B2	1
+long-term	B2	1
+lyrics	B2	1
+madam	B2	1
+mama	B2	1
+mamma	B2	1
+mango	B2	1
+mansion	B2	1
+manual	B2	1
+martial art	B2	1
+mask	B2	1
+mate	B2	1
+mechanise	B2	1
+media	B2	1
+mediaeval	B2	1
+medication	B2	1
+melody	B2	1
+memorial	B2	1
+merchandise	B2	1
+messenger	B2	1
+micrometre	B2	1
+microphone	B2	1
+microscope	B2	1
+microwave	B2	1
+mill	B2	1
+minister	B2	1
+mint	B2	1
+missile	B2	1
+mist	B2	1
+mixture	B2	1
+modernisation	B2	1
+mold	B2	1
+monastery	B2	1
+moonlight	B2	1
+mother-in-law	B2	1
+motion	B2	1
+motivated	B2	1
+motorbike	B2	1
+motorist	B2	1
+moustache	B2	1
+moving	B2	1
+muddy	B2	1
+mustache	B2	1
+nano	B2	1
+narrator	B2	1
+native speaker	B2	1
+naval	B2	1
+navy	B2	1
+neighbouring	B2	1
+nerves	B2	1
+net surfer	B2	1
+netsurfer	B2	1
+non-smoking	B2	1
+nostril	B2	1
+nought	B2	1
+nursery	B2	1
+nut	B2	1
+nutshell	B2	1
+ointment	B2	1
+olive	B2	1
+olympia	B2	1
+operator	B2	1
+orchid	B2	1
+organiser	B2	1
+ornament	B2	1
+ounce	B2	1
+outfit	B2	1
+outlet	B2	1
+oval	B2	1
+overcoat	B2	1
+overemphasise	B2	1
+ow	B2	1
+owing to	B2	1
+owl	B2	1
+ox	B2	1
+pa	B2	1
+packed	B2	1
+packet	B2	1
+pad	B2	1
+paintbrush	B2	1
+pajamas	B2	1
+pancake	B2	1
+panel	B2	1
+paperwork	B2	1
+parade	B2	1
+pastor	B2	1
+patch	B2	1
+pavement	B2	1
+paw	B2	1
+payment	B2	1
+peach	B2	1
+peak	B2	1
+pearl	B2	1
+pebble	B2	1
+pedal	B2	1
+pee	B2	1
+peel	B2	1
+peg	B2	1
+penguin	B2	1
+penicillin	B2	1
+pentagon	B2	1
+ph	B2	1
+physician	B2	1
+pickle	B2	1
+pillowcase	B2	1
+pine	B2	1
+pint	B2	1
+pirate	B2	1
+pitch	B2	1
+planning	B2	1
+plum	B2	1
+plumber	B2	1
+point of view	B2	1
+polar bear	B2	1
+polish	B2	1
+polity	B2	1
+porch	B2	1
+portion	B2	1
+prime minister	B2	1
+programing	B2	1
+proposed	B2	1
+publicise	B2	1
+pudding	B2	1
+pumpkin	B2	1
+punch	B2	1
+pyjamas	B2	1
+rack	B2	1
+radar	B2	1
+rag	B2	1
+rainbow	B2	1
+rainstorm	B2	1
+ram	B2	1
+ramp	B2	1
+ranger	B2	1
+rash	B2	1
+rattle	B2	1
+real estate	B2	1
+realisation	B2	1
+rear	B2	1
+recipe	B2	1
+rectangular	B2	1
+reed	B2	1
+remains	B2	1
+residence	B2	1
+respected	B2	1
+reverse	B2	1
+rhinoceros	B2	1
+rhyme	B2	1
+rib	B2	1
+rider	B2	1
+ridge	B2	1
+rim	B2	1
+rip	B2	1
+roar	B2	1
+rocket	B2	1
+rocky	B2	1
+rub	B2	1
+rubble	B2	1
+rug	B2	1
+rush hour	B2	1
+rusty	B2	1
+sack	B2	1
+sail	B2	1
+salesperson	B2	1
+salon	B2	1
+salty	B2	1
+sandstone	B2	1
+scar	B2	1
+scent	B2	1
+scheduled	B2	1
+schoolgirl	B2	1
+scooter	B2	1
+scuba	B2	1
+seal	B2	1
+second person	B2	1
+seesaw	B2	1
+self-confidence	B2	1
+self-confident	B2	1
+seller	B2	1
+semi-final	B2	1
+semicolon	B2	1
+senator	B2	1
+servant	B2	1
+shakespearean	B2	1
+shed	B2	1
+shield	B2	1
+shooting	B2	1
+shopkeeper	B2	1
+short-term	B2	1
+shrink	B2	1
+shrug	B2	1
+silverware	B2	1
+sister-in-law	B2	1
+sketch	B2	1
+skilfully	B2	1
+skip	B2	1
+slam	B2	1
+slap	B2	1
+smash	B2	1
+snap	B2	1
+sniff	B2	1
+snore	B2	1
+snowball	B2	1
+so-called	B2	1
+soak	B2	1
+soaking	B2	1
+solar	B2	1
+son-in-law	B2	1
+spark	B2	1
+sparrow	B2	1
+spin	B2	1
+spokesman	B2	1
+spray	B2	1
+spur	B2	1
+squash	B2	1
+squeeze	B2	1
+stab	B2	1
+stack	B2	1
+stain	B2	1
+stake	B2	1
+steer	B2	1
+steering wheel	B2	1
+stepmother	B2	1
+stew	B2	1
+stiff	B2	1
+stink	B2	1
+stitch	B2	1
+stock	B2	1
+stock market	B2	1
+stool	B2	1
+strand	B2	1
+strangle	B2	1
+stroke	B2	1
+subtract	B2	1
+suck	B2	1
+sunbeam	B2	1
+superintendent	B2	1
+supervisor	B2	1
+surroundings	B2	1
+swan	B2	1
+sweep	B2	1
+swing	B2	1
+tablecloth	B2	1
+tack	B2	1
+tackle	B2	1
+tag	B2	1
+tail	B2	1
+tan	B2	1
+tanned	B2	1
+tattoo	B2	1
+teaspoon	B2	1
+telescope	B2	1
+terrace	B2	1
+thermometer	B2	1
+thickness	B2	1
+thigh	B2	1
+third person	B2	1
+thread	B2	1
+throat	B2	1
+tickle	B2	1
+tightrope	B2	1
+tiptoe	B2	1
+ton	B2	1
+tonne	B2	1
+torch	B2	1
+trailer	B2	1
+tray	B2	1
+triangle	B2	1
+tribe	B2	1
+trio	B2	1
+trolley	B2	1
+troop	B2	1
+trophy	B2	1
+trunk	B2	1
+tub	B2	1
+tug	B2	1
+tulip	B2	1
+tumor	B2	1
+tumour	B2	1
+tunnel	B2	1
+tutor	B2	1
+underground	B2	1
+undersea	B2	1
+underwear	B2	1
+unlock	B2	1
+untie	B2	1
+upright	B2	1
+upside down	B2	1
+utilise	B2	1
+vaccine	B2	1
+veteran	B2	1
+viewer	B2	1
+vigour	B2	1
+villa	B2	1
+vinegar	B2	1
+virtual reality	B2	1
+vitamin	B2	1
+vomit	B2	1
+voter	B2	1
+waist	B2	1
+walker	B2	1
+walnut	B2	1
+wasp	B2	1
+weed	B2	1
+well-balanced	B2	1
+well-built	B2	1
+well-organised	B2	1
+well-organized	B2	1
+well-paid	B2	1
+wheat	B2	1
+whip	B2	1
+whiskey	B2	1
+whisky	B2	1
+widow	B2	1
+width	B2	1
+winding	B2	1
+windshield	B2	1
+wink	B2	1
+wipe	B2	1
+wolf	B2	1
+workbench	B2	1
+workman	B2	1
+worm	B2	1
+worn out	B2	1
+worn-out	B2	1
+wreck	B2	1
+x-ray	B2	1
+yacht	B2	1
+yawn	B2	1
+zebra	B2	1
+zip	B2	1
+abandoned	B2	2
+abuse	B2	2
+accommodation	B2	2
+actual	B2	2
+adjustment	B2	2
+adoption	B2	2
+aircrew	B2	2
+alert	B2	2
+alongside	B2	2
+alphabetical	B2	2
+alter	B2	2
+alternate	B2	2
+altitude	B2	2
+ambassador	B2	2
+ammonia	B2	2
+amongst	B2	2
+amplifier	B2	2
+analyst	B2	2
+anchorman	B2	2
+animate	B2	2
+anticancer	B2	2
+apostrophe	B2	2
+applicant	B2	2
+archaeologist	B2	2
+arctic	B2	2
+artery	B2	2
+assault	B2	2
+assemble	B2	2
+astonishment	B2	2
+astronomy	B2	2
+athletics	B2	2
+attached	B2	2
+attendance	B2	2
+audition	B2	2
+balanced	B2	2
+ballad	B2	2
+barometer	B2	2
+bathhouse	B2	2
+bearing	B2	2
+belongings	B2	2
+bid	B2	2
+bidding	B2	2
+bind	B2	2
+biological	B2	2
+birdcage	B2	2
+birthplace	B2	2
+bloodstream	B2	2
+blur	B2	2
+bony	B2	2
+boost	B2	2
+bourbon	B2	2
+breakdown	B2	2
+breezy	B2	2
+brewery	B2	2
+broadcaster	B2	2
+browse	B2	2
+burglary	B2	2
+burial	B2	2
+candidate	B2	2
+caption	B2	2
+captive	B2	2
+carbon	B2	2
+cardigan	B2	2
+certification	B2	2
+chancellor	B2	2
+charming	B2	2
+cheat	B2	2
+chemotherapy	B2	2
+childish	B2	2
+chunk	B2	2
+circuit	B2	2
+clearness	B2	2
+client	B2	2
+clog	B2	2
+clumsy	B2	2
+coaching	B2	2
+coarse	B2	2
+cocktail	B2	2
+collocation	B2	2
+colon	B2	2
+colonial	B2	2
+coma	B2	2
+commute	B2	2
+completion	B2	2
+component	B2	2
+compress	B2	2
+conceal	B2	2
+concession	B2	2
+conference	B2	2
+confess	B2	2
+confession	B2	2
+confine	B2	2
+conquest	B2	2
+console	B2	2
+consultant	B2	2
+cooperative	B2	2
+cornerstone	B2	2
+cornet	B2	2
+corona	B2	2
+correspondence	B2	2
+coward	B2	2
+craftsman	B2	2
+creation	B2	2
+cripple	B2	2
+cursor	B2	2
+darling	B2	2
+dash	B2	2
+data	B2	2
+decade	B2	2
+decorate	B2	2
+deliberately	B2	2
+demolish	B2	2
+dense	B2	2
+dental	B2	2
+descend	B2	2
+descriptive	B2	2
+detach	B2	2
+detailed	B2	2
+dictator	B2	2
+digest	B2	2
+diplomat	B2	2
+discharge	B2	2
+disciple	B2	2
+discipline	B2	2
+disconnect	B2	2
+dismiss	B2	2
+disorder	B2	2
+distributor	B2	2
+divided	B2	2
+division	B2	2
+divorce	B2	2
+donate	B2	2
+donation	B2	2
+doorkeeper	B2	2
+dorm	B2	2
+dormitory	B2	2
+dose	B2	2
+draft	B2	2
+drapery	B2	2
+dreadful	B2	2
+drinkable	B2	2
+droop	B2	2
+dropout	B2	2
+duel	B2	2
+dumb	B2	2
+duplicate	B2	2
+eastwards	B2	2
+edit	B2	2
+elect	B2	2
+embassy	B2	2
+employer	B2	2
+enforce	B2	2
+engagement	B2	2
+enrol	B2	2
+environment	B2	2
+erupt	B2	2
+essayist	B2	2
+estate	B2	2
+evacuate	B2	2
+evacuation	B2	2
+exclude	B2	2
+excursion	B2	2
+executive	B2	2
+exhaust	B2	2
+exhaustion	B2	2
+exhibit	B2	2
+expedition	B2	2
+explosive	B2	2
+extension	B2	2
+external	B2	2
+extract	B2	2
+factor	B2	2
+faculty	B2	2
+fatal	B2	2
+ferryboat	B2	2
+fiber	B2	2
+fierce	B2	2
+firearm	B2	2
+firmness	B2	2
+fixed	B2	2
+flaw	B2	2
+flee	B2	2
+fleet	B2	2
+flexibility	B2	2
+flexible	B2	2
+flutter	B2	2
+follower	B2	2
+footnote	B2	2
+foreman	B2	2
+forestry	B2	2
+formation	B2	2
+foul	B2	2
+found	B2	2
+fragrance	B2	2
+freak	B2	2
+friendly	B2	2
+frontier	B2	2
+fume	B2	2
+functional	B2	2
+gambling	B2	2
+gangster	B2	2
+gaze	B2	2
+generalisation	B2	2
+genius	B2	2
+geographic	B2	2
+ghetto	B2	2
+glare	B2	2
+globally	B2	2
+god	B2	2
+goodwill	B2	2
+gorge	B2	2
+grief	B2	2
+growing	B2	2
+guerrilla	B2	2
+gymnastic	B2	2
+handicap	B2	2
+handicraft	B2	2
+handout	B2	2
+hatching	B2	2
+hazardous	B2	2
+hell	B2	2
+hemp	B2	2
+hint	B2	2
+hover	B2	2
+hush	B2	2
+hygiene	B2	2
+hyphen	B2	2
+iceman	B2	2
+icon	B2	2
+identical	B2	2
+identification	B2	2
+identify	B2	2
+idiot	B2	2
+idle	B2	2
+illustrate	B2	2
+imitation	B2	2
+immigrant	B2	2
+imprisonment	B2	2
+impulse	B2	2
+incense	B2	2
+infect	B2	2
+infected	B2	2
+inflammation	B2	2
+inflate	B2	2
+influenza	B2	2
+injection	B2	2
+inspect	B2	2
+instantly	B2	2
+instil	B2	2
+institution	B2	2
+instruct	B2	2
+insult	B2	2
+interior	B2	2
+interpreter	B2	2
+interruption	B2	2
+intersection	B2	2
+intruder	B2	2
+investment	B2	2
+investor	B2	2
+invisible	B2	2
+islander	B2	2
+itch	B2	2
+jeweler	B2	2
+jeweller	B2	2
+judo	B2	2
+juror	B2	2
+jury	B2	2
+keeper	B2	2
+kerosene	B2	2
+lance	B2	2
+landlady	B2	2
+landslide	B2	2
+laptop	B2	2
+lark	B2	2
+lawmaker	B2	2
+leaflet	B2	2
+learning	B2	2
+lease	B2	2
+leek	B2	2
+legend	B2	2
+legislation	B2	2
+legislator	B2	2
+lengthen	B2	2
+lengthy	B2	2
+lest	B2	2
+lifeless	B2	2
+lighten	B2	2
+loan	B2	2
+lower	B2	2
+luxurious	B2	2
+madame	B2	2
+maestro	B2	2
+magnify	B2	2
+malaria	B2	2
+manufacture	B2	2
+manufacturer	B2	2
+manufacturing	B2	2
+marathon	B2	2
+margin	B2	2
+massacre	B2	2
+massage	B2	2
+master	B2	2
+masterpiece	B2	2
+mathematical	B2	2
+mentor	B2	2
+merge	B2	2
+metric	B2	2
+microscopic	B2	2
+mighty	B2	2
+migration	B2	2
+millimeter	B2	2
+millimetre	B2	2
+millionaire	B2	2
+mimic	B2	2
+miniature	B2	2
+mortar	B2	2
+mould	B2	2
+mover	B2	2
+multiple	B2	2
+multiply	B2	2
+mumble	B2	2
+mutter	B2	2
+nationwide	B2	2
+neat	B2	2
+needy	B2	2
+nerve	B2	2
+newscaster	B2	2
+nightclub	B2	2
+nightmare	B2	2
+nobleman	B2	2
+nomad	B2	2
+nominee	B2	2
+northward	B2	2
+nourishment	B2	2
+numerical	B2	2
+obey	B2	2
+obituary	B2	2
+observer	B2	2
+offence	B2	2
+offender	B2	2
+offshore	B2	2
+opponent	B2	2
+organizer	B2	2
+outbreak	B2	2
+outgrow	B2	2
+outing	B2	2
+outskirts	B2	2
+overboard	B2	2
+overlap	B2	2
+overtime	B2	2
+overturn	B2	2
+pallet	B2	2
+papaya	B2	2
+paralysis	B2	2
+paramedic	B2	2
+parliament	B2	2
+participation	B2	2
+particle	B2	2
+particular	B2	2
+partnership	B2	2
+patriot	B2	2
+pave	B2	2
+pawnshop	B2	2
+pedestrian	B2	2
+peep	B2	2
+peer	B2	2
+penalty	B2	2
+penetrate	B2	2
+percentage	B2	2
+personnel	B2	2
+perspiration	B2	2
+petrified	B2	2
+pharmacist	B2	2
+phase	B2	2
+plague	B2	2
+playmate	B2	2
+playwright	B2	2
+plot	B2	2
+pluck	B2	2
+pneumonia	B2	2
+polo	B2	2
+pose	B2	2
+possessed	B2	2
+postal	B2	2
+powerfully	B2	2
+prance	B2	2
+prescribe	B2	2
+presenter	B2	2
+presidency	B2	2
+prick	B2	2
+primary	B2	2
+prime	B2	2
+probe	B2	2
+procedure	B2	2
+profile	B2	2
+profit	B2	2
+programming	B2	2
+project	B2	2
+projection	B2	2
+prom	B2	2
+province	B2	2
+publication	B2	2
+pulse	B2	2
+purchase	B2	2
+pursuit	B2	2
+quarrel	B2	2
+quotation	B2	2
+quote	B2	2
+racist	B2	2
+rafter	B2	2
+rally	B2	2
+rape	B2	2
+reaction	B2	2
+rebel	B2	2
+recreation	B2	2
+recruit	B2	2
+redo	B2	2
+reference	B2	2
+refinery	B2	2
+refuge	B2	2
+refugee	B2	2
+rehearsal	B2	2
+related	B2	2
+relaxation	B2	2
+relay	B2	2
+relic	B2	2
+relief	B2	2
+relieve	B2	2
+remaining	B2	2
+reminder	B2	2
+repaint	B2	2
+repetition	B2	2
+replacement	B2	2
+replica	B2	2
+reprint	B2	2
+resistance	B2	2
+respiration	B2	2
+respiratory	B2	2
+retailer	B2	2
+retard	B2	2
+retina	B2	2
+retirement	B2	2
+retreat	B2	2
+retrieve	B2	2
+revive	B2	2
+revolution	B2	2
+revolve	B2	2
+rival	B2	2
+roam	B2	2
+roommate	B2	2
+rosy	B2	2
+route	B2	2
+royalty	B2	2
+rural	B2	2
+sag	B2	2
+sage	B2	2
+salary	B2	2
+saleswoman	B2	2
+salsa	B2	2
+sanitary	B2	2
+sanitation	B2	2
+savings	B2	2
+scarlet	B2	2
+scramble	B2	2
+scribble	B2	2
+seasonal	B2	2
+secondary	B2	2
+segment	B2	2
+sensitive	B2	2
+separately	B2	2
+shaken	B2	2
+shaky	B2	2
+shatter	B2	2
+shipping	B2	2
+shipwreck	B2	2
+shoplifting	B2	2
+shortness	B2	2
+showbiz	B2	2
+showcase	B2	2
+skateboard	B2	2
+skilful	B2	2
+skim	B2	2
+skylark	B2	2
+slash	B2	2
+slaughter	B2	2
+sliver	B2	2
+sloppy	B2	2
+smokestack	B2	2
+sneak	B2	2
+sneer	B2	2
+soaked	B2	2
+soar	B2	2
+sob	B2	2
+softness	B2	2
+solo	B2	2
+soundtrack	B2	2
+southward	B2	2
+southwards	B2	2
+soviet	B2	2
+soybean	B2	2
+spa	B2	2
+spare	B2	2
+sparerib	B2	2
+sparkling	B2	2
+specialty	B2	2
+species	B2	2
+spectacle	B2	2
+splatter	B2	2
+sprint	B2	2
+squad	B2	2
+stagger	B2	2
+starvation	B2	2
+starve	B2	2
+starving	B2	2
+statistics	B2	2
+stepfather	B2	2
+stern	B2	2
+stimulate	B2	2
+stimulation	B2	2
+stockpile	B2	2
+stopwatch	B2	2
+straighten	B2	2
+strait	B2	2
+stride	B2	2
+striking	B2	2
+stylist	B2	2
+subdivision	B2	2
+submit	B2	2
+substance	B2	2
+subtitle	B2	2
+suburb	B2	2
+suffering	B2	2
+sulphur	B2	2
+supplier	B2	2
+surge	B2	2
+surrender	B2	2
+suspend	B2	2
+swift	B2	2
+syllable	B2	2
+sympathise	B2	2
+synonym	B2	2
+tabloid	B2	2
+taunt	B2	2
+tender	B2	2
+territory	B2	2
+testimony	B2	2
+theme	B2	2
+therapist	B2	2
+thinker	B2	2
+thirdly	B2	2
+threaten	B2	2
+thrill	B2	2
+times	B2	2
+timing	B2	2
+tiredness	B2	2
+toenail	B2	2
+toll	B2	2
+tomb	B2	2
+tortoiseshell	B2	2
+torture	B2	2
+tough	B2	2
+toxic	B2	2
+trader	B2	2
+trainee	B2	2
+trainer	B2	2
+traitor	B2	2
+tramp	B2	2
+trample	B2	2
+translation	B2	2
+translator	B2	2
+transmission	B2	2
+transmit	B2	2
+transparent	B2	2
+tread	B2	2
+treaty	B2	2
+trek	B2	2
+tremor	B2	2
+trial	B2	2
+tuition	B2	2
+twinkle	B2	2
+twisted	B2	2
+tyrant	B2	2
+unauthorised	B2	2
+undressed	B2	2
+uneven	B2	2
+united	B2	2
+unload	B2	2
+urban	B2	2
+user	B2	2
+usher	B2	2
+utter	B2	2
+vacant	B2	2
+valentine	B2	2
+vanish	B2	2
+varied	B2	2
+verbal	B2	2
+verse	B2	2
+vibrate	B2	2
+vibration	B2	2
+villager	B2	2
+vocalist	B2	2
+wage	B2	2
+waistcoat	B2	2
+wallboard	B2	2
+warship	B2	2
+wartime	B2	2
+waterproof	B2	2
+weaken	B2	2
+wealthy	B2	2
+weary	B2	2
+weave	B2	2
+wed	B2	2
+western	B2	2
+widen	B2	2
+wilderness	B2	2
+withdraw	B2	2
+woodcarving	B2	2
+worktable	B2	2
+worrying	B2	2
+worship	B2	2
+yield	B2	2
+youthful	B2	2
+yummy	B2	2
+zoom	B2	2
+abolish	B2	3
+abruptly	B2	3
+absentee	B2	3
+accessibility	B2	3
+accumulate	B2	3
+accusation	B2	3
+achievable	B2	3
+actively	B2	3
+addict	B2	3
+addiction	B2	3
+additionally	B2	3
+adequate	B2	3
+adopted	B2	3
+adore	B2	3
+advent	B2	3
+adverse	B2	3
+affectionate	B2	3
+affordable	B2	3
+aggressively	B2	3
+agony	B2	3
+alcoholism	B2	3
+alliance	B2	3
+ally	B2	3
+amaze	B2	3
+amazement	B2	3
+ample	B2	3
+amplify	B2	3
+amuse	B2	3
+anchorage	B2	3
+anonymous	B2	3
+antiaircraft	B2	3
+antibacterial	B2	3
+anticipation	B2	3
+archeologist	B2	3
+aristocracy	B2	3
+armful	B2	3
+arrogant	B2	3
+assess	B2	3
+astonished	B2	3
+attainable	B2	3
+attractiveness	B2	3
+audit	B2	3
+authorize	B2	3
+availability	B2	3
+awe	B2	3
+axis	B2	3
+backup	B2	3
+ban	B2	3
+bankrupt	B2	3
+bankruptcy	B2	3
+barren	B2	3
+beautify	B2	3
+bellow	B2	3
+bestseller	B2	3
+betray	B2	3
+bio	B2	3
+bizarre	B2	3
+blindly	B2	3
+blurt	B2	3
+bossy	B2	3
+botany	B2	3
+brag	B2	3
+bravery	B2	3
+breakable	B2	3
+breakup	B2	3
+broaden	B2	3
+browser	B2	3
+calmly	B2	3
+campaign	B2	3
+capability	B2	3
+carpool	B2	3
+cascade	B2	3
+catalyst	B2	3
+catastrophe	B2	3
+catastrophic	B2	3
+categorisation	B2	3
+categorization	B2	3
+cease	B2	3
+cellist	B2	3
+centigrade	B2	3
+certify	B2	3
+chaotic	B2	3
+checkpoint	B2	3
+cheerfully	B2	3
+cheerfulness	B2	3
+circuitry	B2	3
+citywide	B2	3
+classification	B2	3
+clause	B2	3
+clerical	B2	3
+coherence	B2	3
+coincide	B2	3
+colleague	B2	3
+commonwealth	B2	3
+communicative	B2	3
+compassion	B2	3
+compatible	B2	3
+compensate	B2	3
+compensation	B2	3
+compile	B2	3
+complexion	B2	3
+compression	B2	3
+compute	B2	3
+conceive	B2	3
+conception	B2	3
+concerning	B2	3
+confront	B2	3
+conjunction	B2	3
+conscience	B2	3
+consciousness	B2	3
+consent	B2	3
+consistent	B2	3
+constant	B2	3
+consult	B2	3
+contaminate	B2	3
+contradict	B2	3
+contradiction	B2	3
+controversy	B2	3
+convention	B2	3
+converse	B2	3
+conversion	B2	3
+convert	B2	3
+convinced	B2	3
+cooperate	B2	3
+cooperation	B2	3
+cope	B2	3
+corporal	B2	3
+corporate	B2	3
+corporation	B2	3
+correctness	B2	3
+correspondent	B2	3
+corresponding	B2	3
+corruption	B2	3
+costly	B2	3
+countryman	B2	3
+courtesy	B2	3
+cowardly	B2	3
+cozy	B2	3
+creepy	B2	3
+criticism	B2	3
+crucial	B2	3
+cruelty	B2	3
+crystallise	B2	3
+crystallize	B2	3
+damn	B2	3
+database	B2	3
+debit	B2	3
+decent	B2	3
+decorative	B2	3
+dedication	B2	3
+deduction	B2	3
+deem	B2	3
+delegate	B2	3
+delicacy	B2	3
+demanding	B2	3
+densely	B2	3
+dependable	B2	3
+desperately	B2	3
+detect	B2	3
+devote	B2	3
+devoted	B2	3
+dignity	B2	3
+dimension	B2	3
+disappearance	B2	3
+disapproval	B2	3
+disapprove	B2	3
+discriminate	B2	3
+disgrace	B2	3
+dishonesty	B2	3
+disorderly	B2	3
+disorganised	B2	3
+displace	B2	3
+disposal	B2	3
+dispute	B2	3
+disqualify	B2	3
+disrupt	B2	3
+dissatisfied	B2	3
+distinguished	B2	3
+distract	B2	3
+distraction	B2	3
+divert	B2	3
+domestic	B2	3
+dominate	B2	3
+doubtful	B2	3
+draught	B2	3
+dread	B2	3
+dreamy	B2	3
+duplication	B2	3
+dynamic	B2	3
+ease	B2	3
+ecologically	B2	3
+ecologist	B2	3
+economist	B2	3
+editorial	B2	3
+educated	B2	3
+effectively	B2	3
+electronically	B2	3
+elegance	B2	3
+elegant	B2	3
+eligible	B2	3
+emergence	B2	3
+employ	B2	3
+engulf	B2	3
+enhance	B2	3
+enquire	B2	3
+enroll	B2	3
+entertaining	B2	3
+enthusiastically	B2	3
+entrepreneur	B2	3
+equip	B2	3
+erect	B2	3
+ethnic	B2	3
+evaluate	B2	3
+evaluation	B2	3
+everlasting	B2	3
+evil	B2	3
+evolution	B2	3
+exaggerate	B2	3
+exaggeration	B2	3
+examinee	B2	3
+exception	B2	3
+exceptional	B2	3
+excessive	B2	3
+exclaim	B2	3
+exclusion	B2	3
+execute	B2	3
+exhausting	B2	3
+existing	B2	3
+exotic	B2	3
+expansion	B2	3
+export	B2	3
+expressive	B2	3
+fabulous	B2	3
+faith	B2	3
+fame	B2	3
+fascination	B2	3
+faulty	B2	3
+fearsome	B2	3
+feat	B2	3
+feedback	B2	3
+fictional	B2	3
+financially	B2	3
+finely	B2	3
+flawless	B2	3
+flax	B2	3
+flexibly	B2	3
+fondly	B2	3
+forcefully	B2	3
+frantically	B2	3
+fulfill	B2	3
+furious	B2	3
+furore	B2	3
+gaiety	B2	3
+generalise	B2	3
+generosity	B2	3
+gently	B2	3
+genuine	B2	3
+getaway	B2	3
+giveaway	B2	3
+glamorous	B2	3
+gleam	B2	3
+glee	B2	3
+gloomy	B2	3
+governmental	B2	3
+gradual	B2	3
+grand	B2	3
+graphically	B2	3
+greatness	B2	3
+grieve	B2	3
+grim	B2	3
+habitant	B2	3
+harmless	B2	3
+haste	B2	3
+hastily	B2	3
+heritage	B2	3
+hesitation	B2	3
+hijack	B2	3
+hilarious	B2	3
+homeward	B2	3
+honorable	B2	3
+hospice	B2	3
+hospitality	B2	3
+hospitalize	B2	3
+hourly	B2	3
+humble	B2	3
+humiliation	B2	3
+imagery	B2	3
+immerse	B2	3
+import	B2	3
+imprison	B2	3
+impulsive	B2	3
+inaccurate	B2	3
+inanimate	B2	3
+indent	B2	3
+indulge	B2	3
+infectious	B2	3
+inflation	B2	3
+informal	B2	3
+inhabit	B2	3
+inherit	B2	3
+initiative	B2	3
+input	B2	3
+inquire	B2	3
+inseparable	B2	3
+interactive	B2	3
+interfere	B2	3
+interpret	B2	3
+intrude	B2	3
+intrusion	B2	3
+invariable	B2	3
+investigate	B2	3
+irresponsible	B2	3
+irritating	B2	3
+irritation	B2	3
+jeopardise	B2	3
+journalism	B2	3
+karaoke	B2	3
+keystroke	B2	3
+laborer	B2	3
+lame	B2	3
+lastly	B2	3
+lawsuit	B2	3
+legendary	B2	3
+legislature	B2	3
+lifetime	B2	3
+likewise	B2	3
+ling	B2	3
+linger	B2	3
+literally	B2	3
+loneliness	B2	3
+loosely	B2	3
+lousy	B2	3
+lowland	B2	3
+lush	B2	3
+madness	B2	3
+manipulate	B2	3
+mastery	B2	3
+mature	B2	3
+mausoleum	B2	3
+means	B2	3
+medieval	B2	3
+mercy	B2	3
+micro	B2	3
+microbe	B2	3
+microcomputer	B2	3
+micrometer	B2	3
+microorganism	B2	3
+midst	B2	3
+mobility	B2	3
+mock	B2	3
+modernise	B2	3
+modernization	B2	3
+modest	B2	3
+modification	B2	3
+mogul	B2	3
+moody	B2	3
+mortal	B2	3
+mortgage	B2	3
+murmur	B2	3
+mutability	B2	3
+mutton	B2	3
+narrowly	B2	3
+naughty	B2	3
+navigate	B2	3
+navigation	B2	3
+necessity	B2	3
+needless	B2	3
+negatively	B2	3
+neglect	B2	3
+neighboring	B2	3
+neither	B2	3
+nicely	B2	3
+nobility	B2	3
+nomination	B2	3
+northwards	B2	3
+nourish	B2	3
+nuisance	B2	3
+oath	B2	3
+obedience	B2	3
+obedient	B2	3
+odd	B2	3
+offense	B2	3
+olympiad	B2	3
+optional	B2	3
+orator	B2	3
+orchestral	B2	3
+originally	B2	3
+originate	B2	3
+outback	B2	3
+outcome	B2	3
+outlive	B2	3
+outpatient	B2	3
+output	B2	3
+outrage	B2	3
+outsider	B2	3
+outwardly	B2	3
+overall	B2	3
+overhear	B2	3
+overlook	B2	3
+overshadow	B2	3
+oversize	B2	3
+overtake	B2	3
+overthrow	B2	3
+ozone	B2	3
+patriotic	B2	3
+patriotism	B2	3
+patron	B2	3
+peacefully	B2	3
+pension	B2	3
+persist	B2	3
+persistence	B2	3
+persistent	B2	3
+perspective	B2	3
+petty	B2	3
+pi	B2	3
+picky	B2	3
+piracy	B2	3
+plead	B2	3
+pointless	B2	3
+polio	B2	3
+politeness	B2	3
+popularity	B2	3
+postpone	B2	3
+potent	B2	3
+prawn	B2	3
+precede	B2	3
+precisely	B2	3
+predicative	B2	3
+predictor	B2	3
+prefect	B2	3
+preferably	B2	3
+prehistoric	B2	3
+presidential	B2	3
+presumably	B2	3
+prevention	B2	3
+prior	B2	3
+privilege	B2	3
+profitable	B2	3
+programmer	B2	3
+prompt	B2	3
+promptly	B2	3
+proponent	B2	3
+prose	B2	3
+prosecute	B2	3
+prospect	B2	3
+prosper	B2	3
+proven	B2	3
+provision	B2	3
+proximity	B2	3
+publicity	B2	3
+punctuality	B2	3
+puzzled	B2	3
+quarantine	B2	3
+racism	B2	3
+radium	B2	3
+reasonably	B2	3
+rebellious	B2	3
+reckon	B2	3
+recognition	B2	3
+recommendation	B2	3
+reconsider	B2	3
+referent	B2	3
+reflective	B2	3
+refrain	B2	3
+refresh	B2	3
+reggae	B2	3
+regime	B2	3
+reinforce	B2	3
+reinforcement	B2	3
+rejection	B2	3
+rejoin	B2	3
+relieved	B2	3
+rental	B2	3
+reorganise	B2	3
+reorganize	B2	3
+repress	B2	3
+resignation	B2	3
+resolution	B2	3
+restriction	B2	3
+resume	B2	3
+revelation	B2	3
+revenge	B2	3
+revenue	B2	3
+revival	B2	3
+revolutionary	B2	3
+rhythmic	B2	3
+rite	B2	3
+ritual	B2	3
+satisfactory	B2	3
+saving	B2	3
+scheme	B2	3
+scrooge	B2	3
+scythe	B2	3
+secondly	B2	3
+sector	B2	3
+seldom	B2	3
+seminar	B2	3
+serial	B2	3
+sexual	B2	3
+sexy	B2	3
+shabby	B2	3
+sharply	B2	3
+shoplifter	B2	3
+sincere	B2	3
+sincerity	B2	3
+skateboarder	B2	3
+skilled	B2	3
+skyward	B2	3
+slang	B2	3
+socialize	B2	3
+solidity	B2	3
+solvent	B2	3
+sonnet	B2	3
+span	B2	3
+specify	B2	3
+speeder	B2	3
+spokeswoman	B2	3
+spreadsheet	B2	3
+stability	B2	3
+stammer	B2	3
+standby	B2	3
+standstill	B2	3
+stanza	B2	3
+startle	B2	3
+statesman	B2	3
+statewide	B2	3
+stimulant	B2	3
+stonework	B2	3
+stopover	B2	3
+straightforward	B2	3
+strictly	B2	3
+strive	B2	3
+subcontinent	B2	3
+successive	B2	3
+sue	B2	3
+sulfur	B2	3
+supervise	B2	3
+supervision	B2	3
+supplement	B2	3
+surveillance	B2	3
+suspicious	B2	3
+sustain	B2	3
+symbolic	B2	3
+sympathetic	B2	3
+tame	B2	3
+technical	B2	3
+temperate	B2	3
+temporarily	B2	3
+temptation	B2	3
+tenderness	B2	3
+terrifying	B2	3
+testify	B2	3
+therapy	B2	3
+thesis	B2	3
+thickly	B2	3
+thoroughly	B2	3
+thoughtful	B2	3
+thrilled	B2	3
+thrilling	B2	3
+tiresome	B2	3
+toil	B2	3
+trait	B2	3
+transcript	B2	3
+transfusion	B2	3
+transistor	B2	3
+transition	B2	3
+tricky	B2	3
+tropic	B2	3
+troublesome	B2	3
+trusty	B2	3
+truthful	B2	3
+truthfulness	B2	3
+tuberculosis	B2	3
+typhoid	B2	3
+unattractive	B2	3
+unauthorized	B2	3
+unavailable	B2	3
+unchanged	B2	3
+uncomfortably	B2	3
+uncommon	B2	3
+unconscious	B2	3
+underestimate	B2	3
+undergraduate	B2	3
+understandable	B2	3
+understanding	B2	3
+undreamed	B2	3
+unease	B2	3
+unfamiliar	B2	3
+unhappiness	B2	3
+unkind	B2	3
+unlimited	B2	3
+unpopular	B2	3
+unreliable	B2	3
+unrest	B2	3
+unsafe	B2	3
+unsatisfactory	B2	3
+unstoppable	B2	3
+unsuccessful	B2	3
+unsure	B2	3
+untreated	B2	3
+unwilling	B2	3
+unwise	B2	3
+upbringing	B2	3
+upgrade	B2	3
+utility	B2	3
+valid	B2	3
+variation	B2	3
+venture	B2	3
+venue	B2	3
+verbally	B2	3
+version	B2	3
+versus	B2	3
+vigor	B2	3
+vigorous	B2	3
+vigorously	B2	3
+visibly	B2	3
+vital	B2	3
+vow	B2	3
+weakly	B2	3
+welfare	B2	3
+willing	B2	3
+withdrawal	B2	3
+witty	B2	3
+worthless	B2	3
+abnormally	B2	4
+aboriginal	B2	4
+absurd	B2	4
+accordingly	B2	4
+acquisition	B2	4
+acute	B2	4
+adaptable	B2	4
+addicted	B2	4
+adequately	B2	4
+administrative	B2	4
+admirable	B2	4
+admiringly	B2	4
+admittedly	B2	4
+adorn	B2	4
+advancement	B2	4
+adventurous	B2	4
+adversely	B2	4
+adversity	B2	4
+affectionately	B2	4
+ageless	B2	4
+agonise	B2	4
+agonize	B2	4
+allegation	B2	4
+alternatively	B2	4
+amazingly	B2	4
+ambiguity	B2	4
+ambiguous	B2	4
+analogy	B2	4
+anguish	B2	4
+anticipate	B2	4
+antipollution	B2	4
+antistatic	B2	4
+antivirus	B2	4
+appreciative	B2	4
+appropriately	B2	4
+approximate	B2	4
+arouse	B2	4
+articulate	B2	4
+artificially	B2	4
+artistry	B2	4
+aspiration	B2	4
+aspire	B2	4
+assert	B2	4
+assessment	B2	4
+assumption	B2	4
+assurance	B2	4
+assure	B2	4
+astonish	B2	4
+astonishing	B2	4
+attainment	B2	4
+attentive	B2	4
+attentively	B2	4
+attribute	B2	4
+atypical	B2	4
+aubergine	B2	4
+authoritative	B2	4
+await	B2	4
+balky	B2	4
+beneficial	B2	4
+benevolence	B2	4
+benevolent	B2	4
+bestow	B2	4
+bewilder	B2	4
+bewilderment	B2	4
+biotechnology	B2	4
+bitterly	B2	4
+bombard	B2	4
+bookish	B2	4
+bothersome	B2	4
+breathtaking	B2	4
+brilliantly	B2	4
+broadband	B2	4
+broadly	B2	4
+bulimia	B2	4
+burdensome	B2	4
+bureaucracy	B2	4
+burgle	B2	4
+bustle	B2	4
+bustling	B2	4
+carefree	B2	4
+caring	B2	4
+casually	B2	4
+catchy	B2	4
+cheeky	B2	4
+circumstance	B2	4
+clarify	B2	4
+closure	B2	4
+coalition	B2	4
+coherent	B2	4
+coincidence	B2	4
+comfortably	B2	4
+commemorate	B2	4
+commerce	B2	4
+commission	B2	4
+compassionate	B2	4
+competence	B2	4
+competent	B2	4
+complexity	B2	4
+comprehension	B2	4
+comprehensive	B2	4
+compulsory	B2	4
+concede	B2	4
+conceit	B2	4
+conceivable	B2	4
+condemn	B2	4
+conferencing	B2	4
+confidently	B2	4
+consensus	B2	4
+considerably	B2	4
+considering	B2	4
+consolation	B2	4
+contemporary	B2	4
+contempt	B2	4
+contradictory	B2	4
+conveniently	B2	4
+conventional	B2	4
+conversely	B2	4
+correspond	B2	4
+corrupt	B2	4
+cosiness	B2	4
+countrywide	B2	4
+coziness	B2	4
+creatively	B2	4
+critically	B2	4
+crossly	B2	4
+cruelly	B2	4
+cubism	B2	4
+culmination	B2	4
+culturally	B2	4
+cyberspace	B2	4
+daft	B2	4
+dearly	B2	4
+deceive	B2	4
+deceptive	B2	4
+decisive	B2	4
+decomposition	B2	4
+deduce	B2	4
+deficit	B2	4
+deforestation	B2	4
+defy	B2	4
+dehumanise	B2	4
+dehumanize	B2	4
+deliberate	B2	4
+delicately	B2	4
+desirable	B2	4
+desolation	B2	4
+desperation	B2	4
+despise	B2	4
+destiny	B2	4
+detachment	B2	4
+determined	B2	4
+determiner	B2	4
+dignify	B2	4
+dilemma	B2	4
+diphtheria	B2	4
+discredit	B2	4
+disillusion	B2	4
+disorganized	B2	4
+dispensable	B2	4
+displeasure	B2	4
+disposition	B2	4
+disregard	B2	4
+dissatisfaction	B2	4
+dissident	B2	4
+distortion	B2	4
+distressing	B2	4
+diversion	B2	4
+doom	B2	4
+downfall	B2	4
+downsize	B2	4
+dowry	B2	4
+dramatically	B2	4
+eagerly	B2	4
+economical	B2	4
+ecstatic	B2	4
+effectiveness	B2	4
+elective	B2	4
+elegantly	B2	4
+elemental	B2	4
+elite	B2	4
+eloquence	B2	4
+eloquent	B2	4
+emphatically	B2	4
+endeavor	B2	4
+endlessly	B2	4
+endorse	B2	4
+endurance	B2	4
+enduring	B2	4
+enterprise	B2	4
+entitle	B2	4
+environmentally	B2	4
+equity	B2	4
+essentially	B2	4
+eternally	B2	4
+ethic	B2	4
+evidently	B2	4
+evolve	B2	4
+exactness	B2	4
+exalt	B2	4
+exceed	B2	4
+excel	B2	4
+exceptionally	B2	4
+exclusively	B2	4
+exile	B2	4
+expectation	B2	4
+exploit	B2	4
+exquisite	B2	4
+extensive	B2	4
+extraordinarily	B2	4
+exultant	B2	4
+facilitate	B2	4
+falter	B2	4
+familiarise	B2	4
+familiarize	B2	4
+fantastically	B2	4
+fascinated	B2	4
+fate	B2	4
+federal	B2	4
+figurative	B2	4
+filial	B2	4
+firstly	B2	4
+fiscal	B2	4
+fluency	B2	4
+folly	B2	4
+foolishly	B2	4
+foresee	B2	4
+formerly	B2	4
+formidable	B2	4
+forthcoming	B2	4
+frankly	B2	4
+fraud	B2	4
+frigate	B2	4
+frugal	B2	4
+functionality	B2	4
+fundamental	B2	4
+funk	B2	4
+funky	B2	4
+furiously	B2	4
+furor	B2	4
+gaudy	B2	4
+generalization	B2	4
+generalize	B2	4
+generously	B2	4
+genre	B2	4
+genuinely	B2	4
+glacis	B2	4
+glamourous	B2	4
+glorify	B2	4
+godly	B2	4
+gook	B2	4
+gracefulness	B2	4
+gravitation	B2	4
+heartbreaking	B2	4
+heartwarming	B2	4
+hone	B2	4
+hospitable	B2	4
+housemaster	B2	4
+hugely	B2	4
+humane	B2	4
+humanise	B2	4
+humanist	B2	4
+humanize	B2	4
+humbug	B2	4
+humiliate	B2	4
+humiliating	B2	4
+hybrid	B2	4
+hyperbole	B2	4
+ideally	B2	4
+ideology	B2	4
+idolise	B2	4
+idolize	B2	4
+ignorance	B2	4
+ignorant	B2	4
+immoral	B2	4
+immortal	B2	4
+immortality	B2	4
+impartial	B2	4
+impatiently	B2	4
+imperative	B2	4
+impermanent	B2	4
+implement	B2	4
+implication	B2	4
+imply	B2	4
+impolite	B2	4
+impolitely	B2	4
+impose	B2	4
+impossibility	B2	4
+impractical	B2	4
+impressionism	B2	4
+impressionist	B2	4
+improbable	B2	4
+improperly	B2	4
+inadequate	B2	4
+inborn	B2	4
+incentive	B2	4
+incur	B2	4
+incurable	B2	4
+indebted	B2	4
+independently	B2	4
+indescribable	B2	4
+indifferent	B2	4
+indignity	B2	4
+indispensable	B2	4
+indulgent	B2	4
+industrialise	B2	4
+industrialize	B2	4
+ineffective	B2	4
+inert	B2	4
+inexperienced	B2	4
+infer	B2	4
+inference	B2	4
+inflammatory	B2	4
+influential	B2	4
+infringe	B2	4
+infringement	B2	4
+innate	B2	4
+innocently	B2	4
+innovation	B2	4
+innovative	B2	4
+inspirational	B2	4
+instill	B2	4
+instinct	B2	4
+insufficient	B2	4
+integrate	B2	4
+intellectual	B2	4
+intent	B2	4
+interpersonal	B2	4
+interpretation	B2	4
+intimate	B2	4
+intransitive	B2	4
+intravenous	B2	4
+invariably	B2	4
+invitingly	B2	4
+invoke	B2	4
+involvement	B2	4
+ironically	B2	4
+irrational	B2	4
+irresistible	B2	4
+irresistibly	B2	4
+italicize	B2	4
+jealously	B2	4
+jeopardize	B2	4
+justify	B2	4
+keen	B2	4
+knowingly	B2	4
+known	B2	4
+layabout	B2	4
+legislate	B2	4
+legislative	B2	4
+legitimate	B2	4
+leisurely	B2	4
+liberal	B2	4
+literal	B2	4
+lucrative	B2	4
+malady	B2	4
+marketing	B2	4
+masseur	B2	4
+mechanize	B2	4
+mediocre	B2	4
+merger	B2	4
+metaphor	B2	4
+microscopy	B2	4
+misconception	B2	4
+misfortune	B2	4
+misleading	B2	4
+mistreat	B2	4
+mistrustful	B2	4
+misunderstand	B2	4
+modernize	B2	4
+momentarily	B2	4
+momentary	B2	4
+moonscape	B2	4
+morality	B2	4
+morally	B2	4
+mortify	B2	4
+mournful	B2	4
+muse	B2	4
+mutable	B2	4
+mystify	B2	4
+narcissistic	B2	4
+necessarily	B2	4
+nervously	B2	4
+neurosis	B2	4
+newsworthy	B2	4
+noble	B2	4
+nonprofessional	B2	4
+novelty	B2	4
+obligation	B2	4
+obsess	B2	4
+obsession	B2	4
+obsessive	B2	4
+offend	B2	4
+offhand	B2	4
+openly	B2	4
+optimism	B2	4
+optimist	B2	4
+optimistic	B2	4
+originality	B2	4
+outdistance	B2	4
+outdo	B2	4
+outlook	B2	4
+outrageous	B2	4
+outshine	B2	4
+overbook	B2	4
+overemphasize	B2	4
+overestimate	B2	4
+overly	B2	4
+overstep	B2	4
+pandemic	B2	4
+paperless	B2	4
+paradox	B2	4
+paratrooper	B2	4
+partisan	B2	4
+passionate	B2	4
+passionately	B2	4
+pastoral	B2	4
+patiently	B2	4
+pawnbroker	B2	4
+pedantic	B2	4
+penalise	B2	4
+penalize	B2	4
+perceive	B2	4
+perception	B2	4
+permanence	B2	4
+permeate	B2	4
+perseverance	B2	4
+personification	B2	4
+personify	B2	4
+persuasion	B2	4
+pessimist	B2	4
+pessimistic	B2	4
+philosophical	B2	4
+picturesque	B2	4
+politically	B2	4
+ponder	B2	4
+popularise	B2	4
+popularize	B2	4
+posh	B2	4
+potentially	B2	4
+practicality	B2	4
+practically	B2	4
+predicament	B2	4
+predicate	B2	4
+predictable	B2	4
+predictive	B2	4
+preferable	B2	4
+prehuman	B2	4
+preindustrial	B2	4
+prejudge	B2	4
+preliminary	B2	4
+preoccupy	B2	4
+prestige	B2	4
+prestigious	B2	4
+prevail	B2	4
+preventive	B2	4
+previously	B2	4
+priceless	B2	4
+priority	B2	4
+privately	B2	4
+probable	B2	4
+programer	B2	4
+prohibit	B2	4
+prominence	B2	4
+proudly	B2	4
+psychologically	B2	4
+psychology	B2	4
+publicize	B2	4
+punctual	B2	4
+purposeful	B2	4
+qualification	B2	4
+quantify	B2	4
+quarrelsome	B2	4
+queer	B2	4
+query	B2	4
+quotable	B2	4
+radiate	B2	4
+radical	B2	4
+radically	B2	4
+ravage	B2	4
+readily	B2	4
+realization	B2	4
+recession	B2	4
+recollect	B2	4
+recollection	B2	4
+recommendable	B2	4
+redundant	B2	4
+reform	B2	4
+refute	B2	4
+regardless	B2	4
+regrettably	B2	4
+regulate	B2	4
+relativity	B2	4
+relevant	B2	4
+reluctant	B2	4
+remarkably	B2	4
+repertoire	B2	4
+repression	B2	4
+reprove	B2	4
+resign	B2	4
+resonant	B2	4
+respectably	B2	4
+reverence	B2	4
+revolutionise	B2	4
+revolutionize	B2	4
+righteousness	B2	4
+rightly	B2	4
+risky	B2	4
+ruinous	B2	4
+salesmanship	B2	4
+scandal	B2	4
+scarcely	B2	4
+scholasticism	B2	4
+scientifically	B2	4
+selfless	B2	4
+sensible	B2	4
+serene	B2	4
+setback	B2	4
+sexism	B2	4
+shoplift	B2	4
+significantly	B2	4
+signify	B2	4
+simplification	B2	4
+simultaneous	B2	4
+skillful	B2	4
+skillfully	B2	4
+skywards	B2	4
+sociable	B2	4
+socialise	B2	4
+soliloquy	B2	4
+somewhat	B2	4
+sophisticated	B2	4
+specifically	B2	4
+spellbound	B2	4
+spite	B2	4
+steely	B2	4
+stereotype	B2	4
+stingy	B2	4
+stubbornly	B2	4
+subculture	B2	4
+subjunctive	B2	4
+subplot	B2	4
+subside	B2	4
+subtle	B2	4
+sufficiently	B2	4
+suitably	B2	4
+superb	B2	4
+supernatural	B2	4
+suppress	B2	4
+suspiciously	B2	4
+sympathize	B2	4
+tactile	B2	4
+tatter	B2	4
+technically	B2	4
+tenderly	B2	4
+theorist	B2	4
+thereafter	B2	4
+thoughtless	B2	4
+timeless	B2	4
+timeliness	B2	4
+tolerant	B2	4
+tolerate	B2	4
+transient	B2	4
+transitive	B2	4
+traverse	B2	4
+tremendously	B2	4
+trivial	B2	4
+turbulent	B2	4
+tyranny	B2	4
+ultimate	B2	4
+ultimately	B2	4
+unacceptable	B2	4
+unashamedly	B2	4
+unaware	B2	4
+unbearable	B2	4
+unbeatable	B2	4
+uncharacteristic	B2	4
+unclearly	B2	4
+unconcerned	B2	4
+undertake	B2	4
+undoubtedly	B2	4
+uneasily	B2	4
+unenthusiastic	B2	4
+unfashionable	B2	4
+unforeseen	B2	4
+ungodly	B2	4
+unhelpful	B2	4
+unimaginable	B2	4
+unimaginably	B2	4
+universal	B2	4
+unjustly	B2	4
+unmistakable	B2	4
+unmistakably	B2	4
+unnatural	B2	4
+unofficial	B2	4
+unrealistic	B2	4
+unreasonable	B2	4
+unselfish	B2	4
+unsuitable	B2	4
+untalented	B2	4
+unthinkably	B2	4
+unto	B2	4
+untrimmed	B2	4
+unusualness	B2	4
+unworldly	B2	4
+urgently	B2	4
+utilize	B2	4
+utterly	B2	4
+vanity	B2	4
+violate	B2	4
+virtually	B2	4
+virtue	B2	4
+walkabout	B2	4
+wearisome	B2	4
+whereas	B2	4
+willingly	B2	4
+wit	B2	4
+wondrous	B2	4
+wordlessly	B2	4
+workaholic	B2	4
+worldly	B2	4
+worldview	B2	4
+wornout	B2	4
+worsen	B2	4
+wrongly	B2	4
+yearn	B2	4

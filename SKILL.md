@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.15.0
+version: 1.16.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -60,24 +60,29 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, but are subject to the same-day lock.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定负荷画像 + 事前协商（起草前必做）：** 读 `pool` 输出的 `calibration`（最近的对账）与
-   [难度量规](references/difficulty-rubric.md)，给本篇定下四维画像（vocab/syntax/discourse/background 各 1–3）。
+   **定负荷画像 + 事前协商（起草前必做）：** 读 `pool`/`status` 输出的 `axes`（五轴当前档位）与
+   `calibration`（最近的对账），对照 [难度量规](references/difficulty-rubric.md) 给本篇定下四维画像
+   （vocab/syntax/discourse/background 各 1–3）。
    然后**把画像用一句人话讲给学习者听**（例：「今天这篇我打算：词略生、句子常规、衔接紧、话题熟」），
    等他点头或否决 —— 他否决/点菜就照他说的改，改完的那份写 `meta.requested`；你自己原来那份**照旧写 `meta.predicted`**，
-   两个都要写。画像仍然**不驱动任何生成参数**（tier/syntaxCalm/配额逻辑照旧），
+   两个都要写。画像仍然**不驱动任何生成参数**（五轴档位/配额逻辑照旧），
    但 `requested` 让这次协商可对账：`predicted→requested` 量你的手估值不值钱，`requested→feel` 量这一篇交得合不合意。
+   **五轴可点菜（v1.16.0）：** 学习者可以直接点名要哪个轴紧/松（「今天想读衔接松一点的」「句子可以长」「换个陌生话题」）——
+   照他说的改 `ledger.mjs axes`（见下方五轴表），这不影响 `predicted` 的独立判断。
    **探针（同一处顺带判）：** 若 `calibration` 里**最近连续 3 篇** predicted 四维之和 ≤7 且 feel 全为 `ok`，
-   说明一直待在无聊区、传感器没有信号 —— 本篇按轮转把**一维顶到 3**（顺序 discourse → background → syntax → vocab），
-   其余维压到合计 ≤5 保住总负荷守恒。探针也是先协商再动手：告诉学习者「这篇我故意在 X 上加码」，他不想就直接跳过。
-   冲突规则：**点菜不能突破硬闸**（生词率/句长上限照旧），也**不能动 tier**（词池是测量问题，归脚本闸门）；
-   若点菜要加负荷而 `syntaxCalm > 0`（有实际受挫证据），**以 `syntaxCalm` 为准**——愿望不覆盖受挫证据。
+   说明一直待在无聊区、传感器没有信号 —— 本篇按轮转把**一个轴顶到最紧/最难档**
+   （顺序：语篇 → 背景 → 句法 → 词汇 → 题型），其余轴压住不动。
+   探针也是先协商再动手：告诉学习者「这篇我故意在 X 上加码」，他不想就直接跳过。
+   冲突规则：**点菜不能突破硬闸**（生词率/句长/小句/衔接上下限照旧），**不能动词汇档**（词池是测量问题，归脚本闸门）；
+   若点菜要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于 1），**以那个更紧的档为准**——愿望不覆盖受挫证据。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
-   (`{"topic","targets":[],"reunion":[],"names":[],"predicted":{"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3},"requested":{…同形状，学习者点菜后的那份…}}` — names = proper nouns)
+   (`{"topic","targets":[],"reunion":[],"names":[],"quizMix":{"literal":n,"inference":n},"predicted":{"vocab":1-3,"syntax":1-3,"discourse":1-3,"background":1-3},"requested":{…同形状，学习者点菜后的那份…}}` — names = proper nouns)
    to temp files and run
-   `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> --max-sentence <n> --avg-sentence <n>`，
-   句长上限取 `pool` 输出的 `sentenceCaps`（句式档 0–3 对应 20/12 · 18/11 · 16/10 · 13/8），**每篇都显式传**，别只在自己记得的时候传。
+   `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> <gateFlags>`，
+   其中 `<gateFlags>` **逐字复制** `pool`/`status` 输出的 `gateFlags` 字段（句长/小句/被动/衔接上下限全套），
+   别自己拼、也别只在自己记得的时候传。
    On FAIL: revise and re-check (max 3 attempts) without showing the learner不合格品; on the 4th
    failure report the structural blocker honestly instead of shipping a bad passage. Keep the exact
    passage file — step 6 archives those bytes and the report's `passageSha256` pins them.
@@ -91,9 +96,9 @@ alive in fresh contexts.
 7. **Show** the formatted passage in chat. If `status` shows pending sessions older than today, append
    one gentle line — never nag twice about the same one.
 8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
-   a 体感 in one prompt — always present the five-level load scale so it is one tap to answer:
-   「① 太简单(flow) ② 刚好(ok) ③ 生词太多(wordy) ④ 句子太难(dense) ⑤ 背景/话题陌生(context)」(→ `flow` / `ok` /
-   `wordy` / `dense` / `context`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
+   a 体感 in one prompt — always present the six-level load scale so it is one tap to answer:
+   「① 太简单(flow) ② 刚好(ok) ③ 生词太多(wordy) ④ 句子太难(dense) ⑤ 背景/话题陌生(context) ⑥ 接不上/读着跳(choppy)」(→ `flow` / `ok` /
+   `wordy` / `dense` / `context` / `choppy`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
    --score a/b --feel ...` (feel absent and unanswered once → ask once more; still absent → omit the
    flag, never guess). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
    --session <id>`; zero accounting, and void also deletes the archived `$STATE/passages/<id>.md`
@@ -173,26 +178,27 @@ the learner explicitly asks for.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
-- 250–350 words；句长上限由**句式档**决定（0 常规 ≤20/≤12 · 1 偏静 ≤18/≤11 · 2 冷静 ≤16/≤10 · 3 最静 ≤13/≤8），
-  每篇按 `pool` 输出的 `sentenceCaps` 显式传 `--max-sentence <n> --avg-sentence <n>`。
+- 250–350 words。句长 / 小句 / 被动 / 衔接的上下限**全部由五轴档位推出**，`pool`/`status` 会输出一串
+  现成的 `gateFlags` —— 起草后**逐字复制**它去跑 passage-check，别自己拼。
 - 4–5 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
 - Zero undeclared above-level words: anything above CEFR A2 must be a declared target, reunion word,
   whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and irregular forms
   are handled; anything else fails.
 
-## Dynamic difficulty
+## Dynamic difficulty（v1.16.0：五轴）
 
-体感 is a **load-type diagnosis**, and each answer pulls a different lever:
+体感 is a **load-type diagnosis**, and each answer pulls only its own lever:
 
-| 体感 / 成绩 | 词汇档 tier（1–6） | 句式档（0–3） |
-|---|---|---|
-| flow ① + 正确率 ≥80% | `streakGood++`，**连续 2 次**才 +1 档 | 不变 |
-| ok ②（甜区，i+1） | **保持**（甜区就是目标态，不是超标信号）；连击清零 | −1 档（下限 0） |
-| wordy ③（生词太多） | 立即 −1 档（下限 1）；连击清零 | −1 档 |
-| dense ④（句子太难） | **不变**（词汇达标）；连击清零 | **+1 档**（从 0 起跳到 2，已在 2 以上再紧一档，封顶 3） |
-| context ⑤（背景/话题陌生） | **保持**（纯诊断记录，本版本不调档）；连击清零 | −1 档 |
-| 正确率 <60% | −1 档；连击清零 | **+1 档**（同上） |
+| 体感 / 成绩 | 词汇 tier(1–8) | 句法 syntax(0–4) | 语篇 cohesion(0–3) | 背景 background(0–2) |
+|---|---|---|---|---|
+| flow ① + 正确率 ≥80% | `streakGood++`，**连续 2 次**才 +1 | 不变 | 不变 | 不变 |
+| ok ②（甜区，i+1） | 保持；连击清零 | −1（**止于常规 1**） | 不变 | 不变 |
+| wordy ③（生词太多） | 立即 −1（下限 1） | −1（止于常规 1） | 不变 | 不变 |
+| dense ④（句子太难） | 不变 | **至少跳到 3**（16/10），已在 3 以上再紧一档，封顶 4 | 不变 | 不变 |
+| context ⑤（背景陌生） | 保持 | −1 | 不变 | **−1**（v1.16.0 起它终于是可调档） |
+| choppy ⑥（接不上/读着跳） | 保持 | −1 | **−1** | 不变 |
+| 正确率 <60% | −1 | **至少跳到 3**（同上） | 不变 | 不变 |
 
 > **负荷画像与校准回路（v1.13.0；v1.15.0 加 requested）**：`predicted`（你自己的判断）与 `requested`（协商后学习者要的）
 > 在 pend 时落盘、archive 时进 frontmatter、confirm 时与 feel/score 并排记账；`pool` 的 `calibration` 字段把最近 8 条喂回起草环节。
@@ -200,15 +206,25 @@ the learner explicitly asks for.
 > Phase 纪律：**画像只记录、只校准判断，不驱动任何参数**——画像驱动补偿调档（Phase 2）需 ≥8 条校准数据 + 学习者显式批准。
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
+**语篇档与题型档没有自动漂移**——只由体感、点菜、探针驱动。不发明没校准过的动力学。
 
-**词汇档 1–6（v1.15.0，旧版 3 档）** 只控制候选池，按 Google N-Gram 词频把 B1/B2 各切三段、逐档并入
-（726 / 1452 / 2178 / 3010 / 3842 / 4675 词，见 `assets/word-bands.tsv`）：档越高，允许出现的生僻词越多。
-旧档位映射：旧 1（全部 B1）= 新 3，旧 2/3 = 新 6（`state.version < 2` 时自动迁移，见 `load()`）。
-目标词数六档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。
+### 五轴各是什么
 
-**句式档 0–3（v1.15.0，旧版只有 0/1 两态）**：由 `status`/`pool`/`confirm` 输出的 `syntaxCalm` 与 `sentenceCaps` 读出。
-单次 dense/低分至少跳到 2 档（= 旧的 16/10，首篇效果与旧版一致），反复受挫会累积到 3 档（旧版做不到）；
-平稳篇每 confirm 松开一档（下限 0），恢复是渐进的而非开关。每次 confirm 词汇档至多 ±1 档，不存在连跳。
+| 轴 | 档位 | 谁在动它 | 依据 |
+|---|---|---|---|
+| **词汇** tier | 1–8 | wordy / flow×2 | 复合稀有度 = 词频 + AoA + 具体性（见 `assets/word-bands.tsv` 头部）。档越高允许出现的难词越多 |
+| **句法** syntax | 0–4 | dense / 低分 / ok 松档 / 点菜 | 一个「句法包」：句长 + **每句小句数** + 全篇被动数。0 放宽（24/14）· 1 常规（20/12，默认）· 2 偏静（18/11）· 3 冷静（16/10）· 4 最静（13/8） |
+| **语篇** cohesion | 0–3 | choppy / 点菜 / 探针 | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
+| **背景** background | 0–2 | context / 点菜 | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现 |
+| **题型** quiz | 0–2 | 点菜 / 探针 | 以事实检索为主 · 各半 · 以推断为主。同样只申报不强检 |
+
+**改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3`（任一轴，可只给一部分）。
+**为什么句长不再是唯一**：实测 13 篇存量档平均句长 8.8 词而上限 12，句长轴几乎是饱和的；
+真正的难度差藏在**小句密度**（实测最多 2–3 小句/句）和**衔接**（重叠 0.006–0.133，差 20 倍）里。
+目标词数八档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。
+
+**迁移**：`state.version < 2` 走 v1.14.0 三档 → 六档；`< 3` 走六档 → 八档（旧 3 = B1 全量 2178 词 ≡ 新 4）
+并把手动计的 `syntaxCalm` 转成新档位索引（+1），串联执行，见 `load()`。
 起始参数由 2026-09-22 试炼校准（5 词、2.5–3.5%、3/3、"偶尔吃力"）。
 
 ## Files
@@ -220,14 +236,14 @@ BOOTSTRAP.md                      新机器/新 agent 的一句话记忆：发�
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
 references/difficulty-rubric.md   四维难度量规（大模型自评打分用，脚本只校验形状）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
-scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate|import-anki|pool|interest
+scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
 scripts/state-git.mjs             台账跨机同步：pull(会话开始)/push(会话结束)，分叉时停下问人
 scripts/skill-update.mjs          会话必过路径上的 skill 落后检查（24h 节流、软失败、只读）
 scripts/ship.mjs                  唯一发布路径：绿测试 + 版本联动 lint + 远端移动守卫，fail-closed
 scripts/lib-layers.mjs            rule 层定义（scripts/SKILL.md/references/assets），lint 与 check 共用
 assets/cefr-j-words.tsv           CEFR-J/Octanove 词表（拷贝自 anki-flashcard，独立演化）
-assets/word-bands.tsv             B1/B2 的词频三段（Google N-Gram，MIT 源）——6 档词池的过滤依据
+assets/word-bands.tsv             B1/B2 的复合稀有度四段（词频 + AoA + 具体性，非商业研究数据）——8 档词池的过滤依据
 assets/allow-extra.txt            白名单（已知专业词：sensors 等）
 assets/irregular-forms.txt        不规则变化不算超纲
 tests/acceptance.sh               验收套件

@@ -21,37 +21,90 @@ const knownFile = join(stateDir, 'known-words.txt');
 const ankiFile = join(stateDir, 'anki-words.json');
 const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD, not UTC
 
-// v1.15.0 — 6 档单调阶梯（旧版 3 档）。
-// 词池按 Google N-Gram 词频把 B1 / B2 各切三段（assets/word-bands.tsv），每一档在上一档
-// 基础上再多放进一个频段：越往上，允许出现的生僻词越多。旧档位的池子大小并不单调
-// （B1 2178 / B1+B2 4675 / 仅 B2 2497），新阶梯改成包含式，档位严格递增。
+// v1.16.0 — 8 档单调阶梯（v1.15.0 是 6 档，按纯词频分带）。
+// 词池改按「复合稀有度」分档：assets/word-bands.tsv 里的 band 由 词频 + AoA + 具体性
+// 三项等权百分位合成（理由见该文件头部）。B1 / B2 各切四段，逐档并入 —— 档越高，
+// 允许出现的难词越多。旧 6 档的池子大小仍被保留为迁移锚点：旧 3（B1 全量）= 新 4。
 const TIERS = {
-  1: { b1: [1], b2: [], targets: [4, 5], label: 'B1 高频段' },
-  2: { b1: [1, 2], b2: [], targets: [4, 5], label: 'B1 高频+中频' },
-  3: { b1: [1, 2, 3], b2: [], targets: [4, 5], label: 'B1 全量' },
-  4: { b1: [1, 2, 3], b2: [1], targets: [4, 5], label: 'B1 全量 + B2 高频' },
-  5: { b1: [1, 2, 3], b2: [1, 2], targets: [4, 5], label: 'B1 全量 + B2 高频+中频' },
-  6: { b1: [1, 2, 3], b2: [1, 2, 3], targets: [4, 5], label: 'B1+B2 全量' },
+  1: { b1: [1], b2: [], targets: [4, 5], label: 'B1 易段' },
+  2: { b1: [1, 2], b2: [], targets: [4, 5], label: 'B1 易+中易' },
+  3: { b1: [1, 2, 3], b2: [], targets: [4, 5], label: 'B1 易+中易+中难' },
+  4: { b1: [1, 2, 3, 4], b2: [], targets: [4, 5], label: 'B1 全量' },
+  5: { b1: [1, 2, 3, 4], b2: [1], targets: [4, 5], label: 'B1 全量 + B2 易段' },
+  6: { b1: [1, 2, 3, 4], b2: [1, 2], targets: [4, 5], label: 'B1 全量 + B2 易+中易' },
+  7: { b1: [1, 2, 3, 4], b2: [1, 2, 3], targets: [4, 5], label: 'B1 全量 + B2 易+中易+中难' },
+  8: { b1: [1, 2, 3, 4], b2: [1, 2, 3, 4], targets: [4, 5], label: 'B1+B2 全量' },
 };
-const MAX_TIER = 6;
-// v1.15.0 — 句式档 0–3（旧版只有 0/1 两态，且 >0 一律 16/10）。
-// 0 = 现行默认 20/12；每 +1 收紧一档。dense 报一次升一档（可累积到 3），每次 confirm 落一档。
+const MAX_TIER = 8;
+// v1.16.0 — 句式档 5 档（v1.15.0 是 4 档，且只卡句长）。句长轴过去是饱和的：实测 13 篇
+// 存量档平均句长 8.8 词而上限是 12，几乎没有咬合；真正的难度藏在「小句密度」里
+// （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句法包」：
+// 句长 + 每句小句数 + 全篇被动句数一起收紧。索引 1 = 常规（默认，各项均不咬合存量档），
+// 0 是放宽档（双向）。clauses/passives 的上限取自 13 篇存档的实测分布，不是猜的。
 const SYNTAX_LADDER = [
-  { max: 20, avg: 12, label: '常规' },
-  { max: 18, avg: 11, label: '偏静' },
-  { max: 16, avg: 10, label: '冷静' },
-  { max: 13, avg: 8, label: '最静' },
+  { max: 24, avg: 14, clauses: 5, passives: 4, label: '放宽' },
+  { max: 20, avg: 12, clauses: 4, passives: 2, label: '常规' },
+  { max: 18, avg: 11, clauses: 3, passives: 1, label: '偏静' },
+  { max: 16, avg: 10, clauses: 2, passives: 1, label: '冷静' },
+  { max: 13, avg: 8, clauses: 2, passives: 0, label: '最静' },
 ];
 const MAX_SYNTAX = SYNTAX_LADDER.length - 1;
-const syntaxLevel = (s) => SYNTAX_LADDER[Math.min(MAX_SYNTAX, Math.max(0, s.difficulty.syntaxCalm || 0))];
+const SANE_SYNTAX = 1; // 常规：新台账的起点，也是旧 syntaxCalm=0 的映射目标
+// v1.16.0 — 语篇档 4 档，**双向**：易端设衔接下限，难端设衔接上限。
+// 只设下限是不行的：实测邻句实词重叠率中位仅 0.035（区间 0.006–0.133），任何有意义的默认
+// 下限都会否掉一半存量档，等于偷偷改了校准过的默认行为。所以默认档（2）不设约束，
+// 「更难」= 主动少用显性衔接（重叠 ≤0.03、连接词 ≤0.30），让读者自己补关系；
+// 「更易」= 强制显性衔接。阈值取自 13 篇实测分布（重叠 0.006–0.133/中位 0.035，
+// 连接词 0.24–0.63/中位 0.42）。
+// ⚠️ 诚实标注：易端两档（0/1）是**验证最少的两档** —— 存量 13 篇里没有任何一篇能同时
+// 满足它们的两个下限（高重叠那篇连接词只有 0.28，13 篇里 0 篇通过）。数值已按可达性放缓，
+// 但到底好不好用要等第一次实际使用；届时按实测回调。
+const COHESION_LADDER = [
+  { minOverlap: 0.07, minConnectives: 0.48, maxOverlap: 1, maxConnectives: 99, label: '紧扣' },
+  { minOverlap: 0.05, minConnectives: 0.40, maxOverlap: 1, maxConnectives: 99, label: '偏紧' },
+  { minOverlap: 0, minConnectives: 0, maxOverlap: 1, maxConnectives: 99, label: '常规' },
+  { minOverlap: 0, minConnectives: 0, maxOverlap: 0.03, maxConnectives: 0.30, label: '松' },
+];
+const MAX_COHESION = COHESION_LADDER.length - 1;
+const SANE_COHESION = 2;
+// 背景档与题型档不由脚本测量（需要读者模型 / 题目语义），只由 agent 在选题和出题时兑现，
+// 并在 meta 里申报、archive 时进 frontmatter，让校准回路能看到有没有兑现。
+const BACKGROUND_LADDER = ['兴趣内话题', '通识话题', '新领域话题'];
+const QUIZ_LADDER = ['以事实检索为主', '事实+推断各半', '以推断为主'];
+const MAX_BACKGROUND = BACKGROUND_LADDER.length - 1;
+const MAX_QUIZ = QUIZ_LADDER.length - 1;
+
+const clamp = (v, max) => Math.min(max, Math.max(0, v));
+const syntaxLevel = (s) => SYNTAX_LADDER[clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX)];
+const cohesionLevel = (s) => COHESION_LADDER[clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION)];
+// 硬闸命令行串：agent 必须逐字复制，不再靠"记得传"
+const gateFlags = (s) => {
+  const sx = syntaxLevel(s), co = cohesionLevel(s);
+  return `--max-sentence ${sx.max} --avg-sentence ${sx.avg} --max-clauses ${sx.clauses} --max-passives ${sx.passives}`
+    + ` --min-overlap ${co.minOverlap} --min-connectives ${co.minConnectives}`
+    + ` --max-overlap ${co.maxOverlap} --max-connectives ${co.maxConnectives}`;
+};
+const cohesionText = (co) => {
+  const floor = co.minOverlap || co.minConnectives ? `重叠≥${co.minOverlap} 连接词≥${co.minConnectives}` : '';
+  const ceil = co.maxOverlap !== 1 || co.maxConnectives !== 99 ? `重叠≤${co.maxOverlap} 连接词≤${co.maxConnectives}` : '';
+  return [floor, ceil].filter(Boolean).join(' · ') || '无约束';
+};
 // shared difficulty view so status / confirm / pool can never disagree on the numbers
 const difficultyOut = (s) => {
   const t = TIERS[s.difficulty.tier];
-  const sx = syntaxLevel(s);
+  const sx = syntaxLevel(s), co = cohesionLevel(s);
+  const bg = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
+  const qz = clamp(s.difficulty.quiz ?? 1, MAX_QUIZ);
   return {
     tier: s.difficulty.tier, tierLabel: t.label, targetsRange: t.targets, streakGood: s.difficulty.streakGood,
-    syntaxCalm: s.difficulty.syntaxCalm || 0, syntaxLabel: sx.label,
-    sentenceCaps: `最长 ${sx.max} 词 / 平均 ${sx.avg} 词`,
+    axes: {
+      词汇: `tier ${s.difficulty.tier}/8 · ${t.label}`,
+      句法: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
+      语篇: `cohesion ${s.difficulty.cohesion ?? SANE_COHESION}/3 · ${co.label} · ${cohesionText(co)}`,
+      背景: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
+      题型: `quiz ${qz}/2 · ${QUIZ_LADDER[qz]}`,
+    },
+    gateFlags: gateFlags(s),
   };
 };
 const GRADUATE_AT = +arg('graduate-at', 6);
@@ -79,16 +132,30 @@ function tierPool(tier) {
 // map to the top of the new one. Applied on every read (status/pool never save), stamped by
 // the next save — without it, a v1.14.0 state would be read as new-tier-1 and silently
 // hand the learner the narrowest, easiest pool.
-const TIER_MIGRATION = { 1: 3, 2: 6, 3: 6 };
+// 档位迁移（串联两代，读时应用、下次写入时落盘——status/pool 不写盘）。
+// v1.14.0 三档 → v1.15.0 六档：旧 1 = 全部 B1 = 新 3；旧 2/3 是那条非单调阶梯的两端，都并入顶部。
+const TIER_V1 = { 1: 3, 2: 6, 3: 6 };
+// v1.15.0 六档 → v1.16.0 八档：按池子大小就近映射。锚点：旧 3（B1 全量 2178 词）≡ 新 4（2178 词）。
+const TIER_V2 = { 1: 1, 2: 3, 3: 4, 4: 5, 5: 7, 6: 8 };
+const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1, quiz: 1 };
 function load() {
   if (!existsSync(stateFile)) {
     if (cmd !== 'init') { console.error('no state at ' + stateFile + ' — run `ledger.mjs init` first'); process.exit(2); }
-    return { version: 2, difficulty: { tier: 3, streakGood: 0 }, words: {}, sessions: [], interests: [] };
+    return { version: 3, difficulty: { ...DEFAULT_AXES, streakGood: 0 }, words: {}, sessions: [], interests: [] };
   }
   const s = JSON.parse(readFileSync(stateFile, 'utf8'));
-  if ((s.version || 1) < 2) {
-    s.difficulty.tier = TIER_MIGRATION[s.difficulty.tier] || 3;
-    s.version = 2;
+  const v = s.version || 1;
+  if (v < 2) { s.difficulty.tier = TIER_V1[s.difficulty.tier] || 3; s.version = 2; }
+  if (v < 3) {
+    s.difficulty.tier = TIER_V2[s.difficulty.tier] || DEFAULT_AXES.tier;
+    // 旧 syntaxCalm 0/1/2/3 → 新 syntax 1/2/3/4（0 = 常规在两边都成立，只是索引整体后移一格；
+    // v1.16.0 新增的 0 档是"放宽"，旧台账永远不会落在那里，所以不可能静默变难）
+    s.difficulty.syntax = clamp((s.difficulty.syntaxCalm ?? 0) + 1, MAX_SYNTAX);
+    delete s.difficulty.syntaxCalm;
+    s.difficulty.cohesion = DEFAULT_AXES.cohesion;
+    s.difficulty.background = DEFAULT_AXES.background;
+    s.difficulty.quiz = DEFAULT_AXES.quiz;
+    s.version = 3;
   }
   return s;
 }
@@ -116,7 +183,7 @@ if (cmd === 'init') {
   mkdirSync(join(stateDir, 'passages'), { recursive: true });
   if (!existsSync(knownFile)) writeFileSync(knownFile, '# graduated + explicitly known words, one per line\n');
   const s = load();
-  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 2, difficulty: { tier: 3, streakGood: 0 }, words: {}, sessions: [], interests: [] }, null, 2));
+  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 3, difficulty: { ...DEFAULT_AXES, streakGood: 0 }, words: {}, sessions: [], interests: [] }, null, 2));
   console.log('initialized ' + stateFile);
 }
 
@@ -167,7 +234,7 @@ else if (cmd === 'confirm') {
   if (sess.status === 'counted') { console.error('already counted'); process.exit(2); }
   sess.status = 'counted'; sess.date_confirmed = today;
   const score = arg('score', null); // "3/3"
-  const feel = arg('feel', null);   // flow|ok|wordy|dense|context（context=背景/语篇型负荷：纯诊断记录，路由同 ok——hold tier、清零连击、不武装 syntaxCalm）
+  const feel = arg('feel', null);   // flow|ok|wordy|dense|context|choppy —— 6 类负荷诊断，各拉各的杆（见下方路由表）
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
   if (feel) sess.feel = feel;
   // One exposure per word per day: a second same-day appearance is still read, but not
@@ -188,16 +255,29 @@ else if (cmd === 'confirm') {
   //   context = background overload -> diagnostic only, routes like ok (v1.13.0)
   //   score < 60%               -> both levers ease at once
   // sentence ladder: 0 常规 20/12 (default) · 1 偏静 18/11 · 2 冷静 16/10 · 3 最静 13/8
-  // 阶梯：先判本篇算不算"受挫"，受挫的篇不衰减（否则衰减会把升级吃掉，反复 dense 永远卡在 2 档）。
+  // dynamic difficulty（v1.16.0：5 轴，体感是负荷类型诊断，每一类只拉自己那根杆）
+  //   flow    = i+0 材料滑到 i 以下 → 词汇档 +1（连击 2 次）
+  //   ok      = i+1 甜区 → 词汇档保持；句法档松开一档
+  //   wordy   = 生词太多 → 词汇档 −1
+  //   dense   = 句子太难 → 句法档 +1（可累积）
+  //   context = 背景/话题陌生 → 背景档 −1（v1.16.0 起它终于有轴可调，旧版只能记录）
+  //   choppy  = 语篇接不上/读着跳 → 语篇档 −1（v1.16.0 新增的第 6 个体感）
+  //   score<60% → 词汇 −1 且 句法 +1（双手一起放开）
+  // 语篇档与题型档没有自动漂移，只由体感/点菜/探针驱动 —— 不发明没校准过的动力学。
   const failHard = sess.score != null && sess.score < 0.6;
-  s.difficulty.syntaxCalm = s.difficulty.syntaxCalm || 0; // 老台账可能没有这个字段
+  s.difficulty.syntax = clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX); // 老台账可能没有
+  s.difficulty.background = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
+  s.difficulty.cohesion = clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION);
   const failed = failHard || feel === 'wordy';
   const flow = feel === 'flow' && (sess.score == null || sess.score >= 0.8);
   const tightening = failHard || feel === 'dense';
-  if (!tightening && s.difficulty.syntaxCalm > 0) s.difficulty.syntaxCalm--; // 平稳篇：松开一档
-  // 单次 dense / 低分：至少跳到 2 档（= 旧版的 16/10，首篇效果与旧版一致），
-  // 已经在 2 以上则再紧一档 —— 反复受挫会累积到 3 档（13/8），旧版做不到这一点。
-  const tighten = () => { s.difficulty.syntaxCalm = Math.min(MAX_SYNTAX, Math.max(s.difficulty.syntaxCalm, 1) + 1); };
+  // 平稳篇松开一档，但**止于常规**：自动动力学不该把句法放到比校准过的默认档更松的地方，
+  // 「放宽」只能由学习者点菜进入（否则第一篇 ok 就会静默变成最松档）。
+  if (!tightening && s.difficulty.syntax > SANE_SYNTAX) s.difficulty.syntax--;
+  // 单次 dense/低分：至少跳到 3 档（= 16/10，与旧版首篇效果一致），已在 3 以上再紧一档。
+  // 起点是 max(syntax,2) 而非 max(syntax,1)：新阶梯的 1 是"常规"，2 是"偏静"，
+  // 从常规一步应该到 16/10（3），不是到 18/11（2）。
+  const tighten = () => { s.difficulty.syntax = Math.min(MAX_SYNTAX, Math.max(s.difficulty.syntax, 2) + 1); };
   if (failed) {
     s.difficulty.streakGood = 0;
     if (s.difficulty.tier > 1) s.difficulty.tier--;
@@ -205,11 +285,17 @@ else if (cmd === 'confirm') {
   } else if (feel === 'dense') {
     s.difficulty.streakGood = 0;
     tighten();
+  } else if (feel === 'context') {
+    s.difficulty.streakGood = 0;
+    if (s.difficulty.background > 0) s.difficulty.background--;
+  } else if (feel === 'choppy') {
+    s.difficulty.streakGood = 0;
+    if (s.difficulty.cohesion > 0) s.difficulty.cohesion--;
   } else if (flow) {
     s.difficulty.streakGood++;
     if (s.difficulty.streakGood >= 2 && s.difficulty.tier < MAX_TIER) { s.difficulty.tier++; s.difficulty.streakGood = 0; }
   } else {
-    s.difficulty.streakGood = 0; // ok / mid / no answer: hold the tier, break the flow streak
+    s.difficulty.streakGood = 0; // ok / mid / no answer: hold the vocabulary tier, break the streak
   }
   save(s);
   const nominations = sess.targets.filter((t) => s.words[t].exposures >= GRADUATE_AT);
@@ -241,6 +327,24 @@ else if (cmd === 'graduate') {
   appendFileSync(knownFile, w + '\n');
   save(s);
   out({ graduated: w, exposures: e.exposures, bridge: `optional: create a permanent flashcard via the anki-flashcard skill (dry-run → approve → confirmed)` });
+}
+
+else if (cmd === 'axes') {
+  // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。任何后续 confirm 仍可继续微调，
+  // 且不动 predicted（那是 agent 的独立判断）。
+  const s = load();
+  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND], quiz: [0, MAX_QUIZ] };
+  const changed = {};
+  for (const [k, [lo, hi]] of Object.entries(AXES)) {
+    const v = arg(k, null);
+    if (v === null) continue;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < lo || n > hi) { console.error(`${k} must be an integer ${lo}-${hi}, got ${v}`); process.exit(2); }
+    s.difficulty[k] = n; changed[k] = n;
+  }
+  if (!Object.keys(changed).length) { console.error('nothing to set — pass any of --tier/--syntax/--cohesion/--background/--quiz'); process.exit(2); }
+  save(s);
+  out({ changed, ...difficultyOut(s) });
 }
 
 else if (cmd === 'interest') {
@@ -349,7 +453,7 @@ else if (cmd === 'archive') {
     `targets: [${sess.targets.join(', ')}]`,
     `reunion: [${(sess.reunion || []).join(', ')}]`,
     `metrics: { words: ${report.words}, aboveLevelRate: ${report.aboveLevelRate}, maxSentence: ${report.maxSentence}, avgSentence: ${report.avgSentence} }`,
-    `difficulty: { tier: ${s.difficulty.tier}, tierLabel: ${TIERS[s.difficulty.tier].label}, syntaxCalm: ${s.difficulty.syntaxCalm || 0} }`,
+    `difficulty: { tier: ${s.difficulty.tier}, syntax: ${s.difficulty.syntax ?? SANE_SYNTAX}, cohesion: ${s.difficulty.cohesion ?? SANE_COHESION}, background: ${s.difficulty.background ?? 1}, quiz: ${s.difficulty.quiz ?? 1} }`,
     ...(sess.predicted ? [`predicted: { vocab: ${sess.predicted.vocab}, syntax: ${sess.predicted.syntax}, discourse: ${sess.predicted.discourse}, background: ${sess.predicted.background} }`] : []),
     ...(sess.requested ? [`requested: { vocab: ${sess.requested.vocab}, syntax: ${sess.requested.syntax}, discourse: ${sess.requested.discourse}, background: ${sess.requested.background} }`] : []),
     ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
@@ -366,6 +470,6 @@ else if (cmd === 'archive') {
 }
 
 else {
-  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel ok] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
+  console.log('commands: init | status | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n --quiz n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
   process.exit(cmd ? 2 : 0);
 }
