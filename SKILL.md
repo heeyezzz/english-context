@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.21.0
+version: 1.22.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -70,9 +70,10 @@ alive in fresh contexts.
      **与 `menu` 的 current 不同就说明被体感反馈降过档** —— 照实告诉他，别让他以为自己选的值还在。
    冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧）；
    若学习者要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于常规），**以那个更紧的档为准**——愿望不覆盖受挫证据。
-   **难度上移只由学习者决定（v1.19.0 起）：** agent **不主动顶档、不做探针、不替他加码**。
-   报 `ok` 就是「到了目标」——按 skill 自己的理论（v1.3.0），甜区就是终点，不是该继续加码的信号。
-   只有 `flow`（太简单）才上调，而且仍按 flow×2 的既有规则。想上难度时，**提示菜单还在**，让他自己挑。
+   **难度变动 100% 由学习者决定（v1.19.0；v1.22.0 删净余下的自动路由）：** agent **不顶档、不调档、不猜**。
+   报 `ok` 就是「到了目标」——按 skill 自己的理论（v1.3.0），甜区就是终点。体感与成绩只记录，不改任何参数。
+   想升想降时，**把菜单再念一遍**，让他自己挑轴挑档（`axes` 是唯一的入口）。
+   起草前另外把 `pool` 的 `history` 念给他看：这是「他上次设的档位 → 实际体感」的账，供**他**判断下一步。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
@@ -95,7 +96,9 @@ alive in fresh contexts.
 8. **Confirm → count:** when the learner finishes (answers quiz / says 读完了), collect the score plus
    a 体感 in one prompt — always present the six-level load scale so it is one tap to answer:
    「① 太简单(flow) ② 刚好(ok) ③ 生词太多(wordy) ④ 句子太难(dense) ⑤ 背景/话题陌生(context) ⑥ 接不上/读着跳(choppy)」(→ `flow` / `ok` /
-   `wordy` / `dense` / `context` / `choppy`). Their own phrasing always wins over the scale. Then `ledger.mjs confirm --session <id>
+   `wordy` / `dense` / `context` / `choppy`). Their own phrasing always wins over the scale.
+   **v1.22.0：成绩与体感都只是记录**——没有任何一条 feel 会改动档位，所以问的时候别暗示「选了就会自动调」。
+   Then `ledger.mjs confirm --session <id>
    --score a/b --feel ...` (feel absent and unanswered once → ask once more; still absent → omit the
    flag, never guess). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
    --session <id>`; zero accounting, and void also deletes the archived `$STATE/passages/<id>.md`
@@ -183,40 +186,37 @@ the learner explicitly asks for.
   whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and irregular forms
   are handled; anything else fails.
 
-## Dynamic difficulty（v1.16.0 起五轴；v1.20.0 删题型档 → 四轴）
+## Difficulty（v1.22.0：四轴，**无自动路由**）
 
-体感 is a **load-type diagnosis**, and each answer pulls only its own lever:
+**这个 skill 不判断难度。** 它的职责是「按你设定的档位，生成符合 i+1 契约的材料，并如实记录发生了什么」；
+档位往上还是往下，**全部由学习者通过 `axes` 明确指定**——这是唯一会改动难度轴的入口。
 
-| 体感 / 成绩 | 词汇 tier(1–8) | 句法 syntax(0–4) | 语篇 cohesion(0–3) | 背景 background(0–2) |
-|---|---|---|---|---|
-| flow ① + 正确率 ≥80% | `streakGood++`，**连续 2 次**才 +1 | 不变 | 不变 | 不变 |
-| ok ②（甜区，i+1） | 保持；连击清零 | −1（**止于常规 1**） | 不变 | 不变 |
-| wordy ③（生词太多） | 立即 −1（下限 1） | −1（止于常规 1） | 不变 | 不变 |
-| dense ④（句子太难） | 不变 | **至少跳到 3**（16/10），已在 3 以上再紧一档，封顶 4 | 不变 | 不变 |
-| context ⑤（背景陌生） | 保持 | −1 | 不变 | **−1**（v1.16.0 起它终于是可调档） |
-| choppy ⑥（接不上/读着跳） | 保持 | −1 | **−1** | 不变 |
-| 正确率 <60% | −1 | **至少跳到 3**（同上） | 不变 | 不变 |
+体感与成绩是**纯记录**，不是控制信号：没有任何一条 feel 会动参数。
 
-> **台账记的是「档位 → 体感」（v1.17.0）**：每篇 `pend` 时把当时的四轴档位快照进 session，
-> `pool` 的 `history` 字段输出最近 8 条的 `{axes, feel, score}` 对账，archive 时同一份档位写进 frontmatter。
-> 这就是校准的全部依据：**某个轴向调紧之后体感变了没有**。
-> 四维 `predicted`/`requested` 画像已在 v1.17.0 **退役**——它记的是 AI 对自己的猜测，下游没人消费，
-> 且四格里三格与脚本直接测到的值重复（tier 决定用词、句法有硬指标、衔接有重叠/连接词）。
-> 旧台账里遗留的 predicted/requested 行是惰性历史，不影响任何逻辑。
+> 为什么把整个体感路由（安全阀）删掉（v1.22.0）：
+> - 每一条都与学习者自己锁定的规则冲突或静默覆盖它。最清楚的是 `ok`（甜区 = 保持不变）却去松句法档：
+>   实测手动设 `--syntax 4`，四篇 ok 就把它一路松回常规 1，再一次 dense 又推回 3——一个走不出的循环。
+> - 它在全部 20 篇里**一次都没触发过**：体感 16 次全是 `ok`，没有一篇 counted 低于 60%。
+> - 它和 `axes` 功能重复——四根轴本来就能直接点。
+> `streakGood` 随它一起删除（它只为「连续两次 flow 升档」而存在）。
 
-只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
-**语篇档没有自动漂移**——只由体感与点菜驱动。不发明没校准过的动力学。
+> **台账记的是「档位 → 体感」**：每篇 `pend` 时把当时的四轴档位快照进 session，
+> `pool` 的 `history` 输出最近 8 条的 `{axes, feel, score}`，archive 时同一份档位写进 frontmatter。
+> 这是**给学习者自己看的账**：某轴调紧后仍报 ok 说明还有余量，一调紧就抱怨说明边界在上一档。
+> agent 的职责是把这个读给他听，让他决定下一步——不是替他决定。
+> （四维 `predicted`/`requested` 画像在 v1.17.0 退役，探针在 v1.19.0 删除，原因同类：记的是 AI 的判断或猜测，下游没人消费。）
 
 ### 四轴各是什么
 
-| 轴 | 档位 | 谁在动它 | 依据 |
+| 轴 | 档位 | 怎么改 | 依据 |
 |---|---|---|---|
-| **词汇** tier | 1–8 | wordy / flow×2 | 复合稀有度 = 词频 + AoA + 具体性（见 `assets/word-bands.tsv` 头部）。档越高允许出现的难词越多 |
-| **句法** syntax | 0–4 | dense / 低分 / ok 松档 / 点菜 | 一个「句法包」：句长 + **每句小句数** + 全篇被动数。0 放宽（24/14）· 1 常规（20/12，默认）· 2 偏静（18/11）· 3 冷静（16/10）· 4 最静（13/8） |
-| **语篇** cohesion | 0–3 | choppy / 点菜 | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
-| **背景** background | 0–2 | context / 点菜 | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现；但有反馈回路（context → −1） |
+| **词汇** tier | 1–8 | 只能 `--tier` | 复合稀有度 = 词频 + AoA + 具体性（见 `assets/word-bands.tsv` 头部）。档越高允许出现的难词越多 |
+| **句法** syntax | 0–4 | 只能 `--syntax` | 一个「句法包」：句长 + **每句小句数** + 全篇被动数。0 放宽（24/14）· 1 常规（20/12，默认）· 2 偏静（18/11）· 3 冷静（16/10）· 4 最静（13/8） |
+| **语篇** cohesion | 0–3 | 只能 `--cohesion` | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
+| **背景** background | 0–2 | 只能 `--background` | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现 |
 
 **改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3`（任一轴，可只给一部分）。
+起草前把 `pool` 的 `menu` 念给学习者——那是完整的多维多档选择面，`current` 就是默认（= 他上次的选择）。
 **为什么句长不再是唯一**：实测 13 篇存量档平均句长 8.8 词而上限 12，句长轴几乎是饱和的；
 真正的难度差藏在**小句密度**（实测最多 2–3 小句/句）和**衔接**（重叠 0.006–0.133，差 20 倍）里。
 目标词数八档统一固定 **4–5**（v1.8.0 起，难度靠词池与词级，不靠加数量）。

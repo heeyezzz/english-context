@@ -109,7 +109,7 @@ grepj '"tier": 4' "$T/cf.json" && ok "single good session does not promote (tier
 L pend --meta "$T/meta.json" > "$T/p_ok.json" 2>/dev/null
 SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'])")
 L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
-grepj '"tier": 4' "$T/cf_ok2.json" && grepj '"streakGood": 0' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
+grepj '"tier": 4' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
 grepj 'already counted today' "$T/cf_ok2.json" && ok "confirm reports same-day locks instead of silently skipping" || bad "lock not reported"
 # same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
@@ -134,12 +134,12 @@ node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f))
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")
 L confirm --session "$SID2" --score 3/3 --feel dense > "$T/cf2.json" 2>/dev/null
-grepj '"tier": 4' "$T/cf2.json" && grepj '"句法": "syntax 3/4' "$T/cf2.json" && ok "dense keeps the vocabulary tier, first dense lands on rung 3 (16/10, old parity)" || bad "dense routing"
+grepj '"tier": 4' "$T/cf2.json" && grepj '"句法": "syntax 1/4' "$T/cf2.json" && ok "dense changes NOTHING (v1.22.0: no auto-routing; feel is pure record)" || bad "dense routing"
 # wordy: vocabulary overload never RE-ARMS the calmer; it only consumes the calm budget (dense's 2 -> 1)
 L pend --meta "$T/meta.json" > /dev/null 2>&1
 SID3=$(python3 -c "import json;s=json.load(open('$STATE/state.json'));print([x['id'] for x in s['sessions'] if x['status']=='pending'][-1])")
 L confirm --session "$SID3" --score 3/3 --feel wordy > "$T/cf3.json" 2>/dev/null
-grepj '"句法": "syntax 2/4' "$T/cf3.json" && ok "wordy consumes one syntax rung but does not re-tighten (3->2)" || bad "wordy routing"
+grepj '"tier": 4' "$T/cf3.json" && grepj '"句法": "syntax 1/4' "$T/cf3.json" && ok "wordy changes NOTHING either — no axis is demoted automatically" || bad "wordy routing"
 L confirm --session "$SID2" --state-dir "$STATE" >/dev/null 2>&1 && bad "double confirm accepted" || ok "double confirm refused"
 # void also removes the archived passage file (pend 写、void 删)
 L pend --meta "$T/meta.json" > "$T/p_v.json" 2>/dev/null
@@ -171,8 +171,8 @@ for i in 2 3; do
 done
 # v1.15.0: assert the DELTA, not a literal — the absolute rung now depends on where the flow
 # was sitting (wordy just demoted it), which is the ladder working as designed
-node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(s.difficulty.tier===+process.argv[2]+1?0:1)' "$STATE/state.json" "$TIER_PRE" \
-  && ok "two more good (flow) sessions promote exactly one rung ($TIER_PRE -> $((TIER_PRE+1)))" || bad "promotion rule"
+node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(s.difficulty.tier===+process.argv[2]?0:1)' "$STATE/state.json" "$TIER_PRE" \
+  && ok "flow no longer promotes: even two consecutive flow keep the tier ($TIER_PRE)" || bad "promotion rule"
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.exposures=6;require('fs').writeFileSync(f,JSON.stringify(s))"
 L graduate --word service > "$T/gr.json" 2>/dev/null
 grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" || bad "bridge missing"
@@ -288,14 +288,14 @@ TIER_BEFORE=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process
 L pend --meta "$T/meta.json" > "$T/pp2.json" 2>/dev/null
 PPSID2=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/pp2.json")
 L confirm --session "$PPSID2" --score 3/3 --feel context > "$T/ctx.json" 2>/dev/null
-grepj "\"tier\": $TIER_BEFORE" "$T/ctx.json" && grepj '"background 1/2' "$T/ctx.json" && grepj '"streakGood": 0' "$T/ctx.json" \
-  && ok "context feel holds tier and drops the background axis one rung (2 -> 1)" || bad "context routing"
+grepj "\"tier\": $TIER_BEFORE" "$T/ctx.json" && grepj '"background 2/2' "$T/ctx.json" \
+  && ok "context feel holds tier and leaves the background axis untouched" || bad "context routing"
 # choppy feel (v1.16.0, the 6th tap): pulls the discourse axis down one rung, nothing else
 L pend --meta "$T/meta.json" > "$T/pp3.json" 2>/dev/null
 PPSID3=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).session)' "$T/pp3.json")
 L confirm --session "$PPSID3" --score 3/3 --feel choppy > "$T/chp.json" 2>/dev/null
-grepj "\"tier\": $TIER_BEFORE" "$T/chp.json" && grepj '"cohesion 0/3' "$T/chp.json" \
-  && ok "choppy feel holds tier and drops the cohesion axis one rung (1 -> 0)" || bad "choppy routing"
+grepj "\"tier\": $TIER_BEFORE" "$T/chp.json" && grepj '"cohesion 1/3' "$T/chp.json" \
+  && ok "choppy feel holds tier and leaves the cohesion axis untouched" || bad "choppy routing"
 # pool history: every counted session must surface its axes next to how it actually landed
 L pool --limit 4 > "$T/pool_hist.json" 2>/dev/null
 node -e '
@@ -376,28 +376,52 @@ if(o.tier!==4) throw new Error("v1.15.0 tier 3 -> "+o.tier+", want 4");
 if(!/syntax 3\/4/.test(o.axes.句法)) throw new Error("syntaxCalm 2 did not become rung 3: "+o.axes.句法);
 ' "$SKILL_DIR" "$T2" && ok "pre-v1.16.0 state migrates (old 1->4, 2/3->8; syntaxCalm 2 -> rung 3)" || bad "tier migration"
 
-# sentence rungs: first dense lands on 2 (= old 16/10 exactly), a second climbs to 3, ok relaxes one rung at a time
+# v1.22.0 invariant: NO feel value and NO score moves an axis. This is the whole contract —
+# difficulty changes only through `axes`. Loop every tap plus a failing and a perfect score.
 T3="$T/rungs"; mkdir -p "$T3"
 node "$S/ledger.mjs" init --state-dir "$T3" --no-sync > /dev/null 2>&1
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:4,syntax:1,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
-const run=(feel)=>{
-  fs.writeFileSync(dir+"/m.json",JSON.stringify({topic:"t",targets:["concept"],predicted:{vocab:2,syntax:2,discourse:2,background:1}}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:3,difficulty:{tier:5,syntax:3,cohesion:1,background:2},words:{},sessions:[],interests:[]}));
+const snap=()=>JSON.stringify(JSON.parse(fs.readFileSync(dir+"/state.json","utf8")).difficulty);
+const want=snap();
+for(const [feel,score] of [["flow","3/3"],["ok","3/3"],["wordy","3/3"],["dense","3/3"],["context","3/3"],["choppy","3/3"],["ok","1/3"],["flow","1/3"],["dense","1/3"]]){
+  fs.writeFileSync(dir+"/m.json",JSON.stringify({topic:"t",targets:["concept"],reunion:[],names:[]}));
   const id="s"+Math.random().toString(36).slice(2,8);
   cp.execFileSync("node",[S+"/scripts/ledger.mjs","pend","--meta",dir+"/m.json","--id",id,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
-  return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","confirm","--session",id,"--score","3/3","--feel",feel,"--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
-};
-const rung=(o)=>+(o.axes.句法.match(/syntax (\d)\/4/)[1]);
-// first dense must land on rung 3 (= 16/10, v1.15.0 parity), a second climbs to the cap of 4,
-// then flat ok passages relax one rung at a time but STOP at 常规 (1) — automatic dynamics may
-// never go looser than the calibrated default; rung 0 (放宽) is reachable only by asking for it
-const want=[[3,"dense #1"],[4,"dense #2"],[4,"dense #3 capped"],[3,"ok 1"],[2,"ok 2"],[1,"ok 3"],[1,"ok 4 stops at 常规"]];
-["dense","dense","dense","ok","ok","ok","ok"].forEach((feel,i)=>{
-  const r=run(feel);
-  if(rung(r)!==want[i][0]) throw new Error(want[i][1]+" -> rung "+rung(r)+", want "+want[i][0]);
+  cp.execFileSync("node",[S+"/scripts/ledger.mjs","confirm","--session",id,"--score",score,"--feel",feel,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
+  if(snap()!==want) throw new Error(feel+"/"+score+" moved the axes -> "+snap());
+}
+' "$SKILL_DIR" "$T3" && ok "no feel and no score ever moves an axis (axes is the only mutator)" || bad "auto-routing leaked back"
+
+# the rung tables are now the ONLY path to difficulty, so lock every rung to the gate flags it emits
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const L=(...a)=>JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+const syn=[
+ ["--max-sentence 24 --avg-sentence 14 --max-clauses 5 --max-passives 4","syntax 0/4"],
+ ["--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2","syntax 1/4"],
+ ["--max-sentence 18 --avg-sentence 11 --max-clauses 3 --max-passives 1","syntax 2/4"],
+ ["--max-sentence 16 --avg-sentence 10 --max-clauses 2 --max-passives 1","syntax 3/4"],
+ ["--max-sentence 13 --avg-sentence 8 --max-clauses 2 --max-passives 0","syntax 4/4"],
+];
+syn.forEach(([flags,label],i)=>{
+  const o=L("axes","--syntax",String(i));
+  if(!o.gateFlags.startsWith(flags)) throw new Error("syntax "+i+" gateFlags: "+o.gateFlags);
+  if(!o.axes.句法.startsWith(label)) throw new Error("syntax "+i+" label: "+o.axes.句法);
 });
-' "$SKILL_DIR" "$T3" && ok "5-rung sentence ladder: dense 3→4 (capped), ok relaxes 4→3→2→1→0, first dense keeps 16/10" || bad "sentence ladder"
+const coh=[
+ ["--min-overlap 0.07 --min-connectives 0.48 --max-overlap 1 --max-connectives 99","cohesion 0/3"],
+ ["--min-overlap 0.05 --min-connectives 0.4 --max-overlap 1 --max-connectives 99","cohesion 1/3"],
+ ["--min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99","cohesion 2/3"],
+ ["--min-overlap 0 --min-connectives 0 --max-overlap 0.03 --max-connectives 0.3","cohesion 3/3"],
+];
+coh.forEach(([flags,label],i)=>{
+  const o=L("axes","--cohesion",String(i));
+  if(!o.gateFlags.endsWith(flags)) throw new Error("cohesion "+i+" gateFlags: "+o.gateFlags);
+  if(!o.axes.语篇.startsWith(label)) throw new Error("cohesion "+i+" label: "+o.axes.语篇);
+});
+' "$SKILL_DIR" "$T3" && ok "every syntax/cohesion rung emits its documented gate flags (manual ladder is the only path)" || bad "rung table"
 
 # a fresh init must carry all four axes, and the emitted gate flag string must match the rung tables
 node -e '

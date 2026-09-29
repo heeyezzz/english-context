@@ -49,7 +49,7 @@ const SYNTAX_LADDER = [
   { max: 13, avg: 8, clauses: 2, passives: 0, label: '最静' },
 ];
 const MAX_SYNTAX = SYNTAX_LADDER.length - 1;
-const SANE_SYNTAX = 1; // 常规：新台账的起点，也是旧 syntaxCalm=0 的映射目标
+const SANE_SYNTAX = 1; // 常规：新台账的起点、旧 syntaxCalm=0 的映射目标、以及台账缺字段时的读取兜底（v1.22.0 起不再有任何自动衰减）
 // v1.16.0 — 语篇档 4 档，**双向**：易端设衔接下限，难端设衔接上限。
 // 只设下限是不行的：实测邻句实词重叠率中位仅 0.035（区间 0.006–0.133），任何有意义的默认
 // 下限都会否掉一半存量档，等于偷偷改了校准过的默认行为。所以默认档（2）不设约束，
@@ -96,7 +96,7 @@ const difficultyOut = (s) => {
   const sx = syntaxLevel(s), co = cohesionLevel(s);
   const bg = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
   return {
-    tier: s.difficulty.tier, streakGood: s.difficulty.streakGood,
+    tier: s.difficulty.tier,
     axes: {
       词汇: `tier ${s.difficulty.tier}/8 · ${t.label}`,
       句法: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
@@ -148,7 +148,7 @@ const menuOut = (s) => {
     词汇: {
       flag: '--tier',
       current: cur.tier,
-      note: '通常由「连续两次 flow」自动上调，也可直接点菜；点菜不重置连击。词池的过滤规则本身仍在脚本闸门内',
+      note: '只能手动点菜（v1.22.0 起没有自动升档）。词池的过滤规则本身仍在脚本闸门内',
       rungs: Object.entries(TIERS).map(([n, t]) => ({ value: +n, label: t.label, detail: `${tierPool(t).size} 词`, current: cur.tier === +n })),
     },
     句法: ladder('syntax', SYNTAX_LADDER.map((r) => ({
@@ -180,7 +180,7 @@ const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1 
 function load() {
   if (!existsSync(stateFile)) {
     if (cmd !== 'init') { console.error('no state at ' + stateFile + ' — run `ledger.mjs init` first'); process.exit(2); }
-    return { version: 3, difficulty: { ...DEFAULT_AXES, streakGood: 0 }, words: {}, sessions: [], interests: [] };
+    return { version: 3, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
   }
   const s = JSON.parse(readFileSync(stateFile, 'utf8'));
   const v = s.version || 1;
@@ -221,7 +221,7 @@ if (cmd === 'init') {
   mkdirSync(join(stateDir, 'passages'), { recursive: true });
   if (!existsSync(knownFile)) writeFileSync(knownFile, '# graduated + explicitly known words, one per line\n');
   const s = load();
-  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 3, difficulty: { ...DEFAULT_AXES, streakGood: 0 }, words: {}, sessions: [], interests: [] }, null, 2));
+  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 3, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
   console.log('initialized ' + stateFile);
 }
 
@@ -278,7 +278,7 @@ else if (cmd === 'confirm') {
   if (sess.status === 'counted') { console.error('already counted'); process.exit(2); }
   sess.status = 'counted';
   const score = arg('score', null); // "3/3"
-  const feel = arg('feel', null);   // flow|ok|wordy|dense|context|choppy —— 6 类负荷诊断，各拉各的杆（见下方路由表）
+  const feel = arg('feel', null);   // flow|ok|wordy|dense|context|choppy —— 纯记录：v1.22.0 起没有任何一条会改动难度轴
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
   if (feel) sess.feel = feel;
   // One exposure per word per day: a second same-day appearance is still read, but not
@@ -290,56 +290,21 @@ else if (cmd === 'confirm') {
     e.exposures++; e.last = today; e.status = 'active';
     s.words[t] = e;
   }
-  // dynamic difficulty. 体感 is a load-type diagnosis, not a scalar:
-  //   flow  = i+0: material slid below the learner -> this band is exhausted -> promote (x2 streak)
-  //   ok    = i+1: the equilibrium we are trying to hold -> tier stays, streak resets
-  //   wordy = vocabulary overload -> tier down (syntax untouched)
-  //   dense = syntax overload   -> tier kept, sentence ladder tightens one rung (cumulative)
-  //   context = background overload -> diagnostic only, routes like ok (v1.13.0)
-  //   score < 60%               -> both levers ease at once
-  // sentence ladder: 0 常规 20/12 (default) · 1 偏静 18/11 · 2 冷静 16/10 · 3 最静 13/8
-  // dynamic difficulty（v1.16.0：5 轴，体感是负荷类型诊断，每一类只拉自己那根杆）
-  //   flow    = i+0 材料滑到 i 以下 → 词汇档 +1（连击 2 次）
-  //   ok      = i+1 甜区 → 词汇档保持；句法档松开一档
-  //   wordy   = 生词太多 → 词汇档 −1
-  //   dense   = 句子太难 → 句法档 +1（可累积）
-  //   context = 背景/话题陌生 → 背景档 −1（v1.16.0 起它终于有轴可调，旧版只能记录）
-  //   choppy  = 语篇接不上/读着跳 → 语篇档 −1（v1.16.0 新增的第 6 个体感）
-  //   score<60% → 词汇 −1 且 句法 +1（双手一起放开）
-  // 语篇档与题型档没有自动漂移，只由体感与点菜驱动 —— 不发明没校准过的动力学。
-  const failHard = sess.score != null && sess.score < 0.6;
-  s.difficulty.syntax = clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX); // 老台账可能没有
-  s.difficulty.background = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
-  s.difficulty.cohesion = clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION);
-  const failed = failHard || feel === 'wordy';
-  const flow = feel === 'flow' && (sess.score == null || sess.score >= 0.8);
-  const tightening = failHard || feel === 'dense';
-  // 平稳篇松开一档，但**止于常规**：自动动力学不该把句法放到比校准过的默认档更松的地方，
-  // 「放宽」只能由学习者点菜进入（否则第一篇 ok 就会静默变成最松档）。
-  if (!tightening && s.difficulty.syntax > SANE_SYNTAX) s.difficulty.syntax--;
-  // 单次 dense/低分：至少跳到 3 档（= 16/10，与旧版首篇效果一致），已在 3 以上再紧一档。
-  // 起点是 max(syntax,2) 而非 max(syntax,1)：新阶梯的 1 是"常规"，2 是"偏静"，
-  // 从常规一步应该到 16/10（3），不是到 18/11（2）。
-  const tighten = () => { s.difficulty.syntax = Math.min(MAX_SYNTAX, Math.max(s.difficulty.syntax, 2) + 1); };
-  if (failed) {
-    s.difficulty.streakGood = 0;
-    if (s.difficulty.tier > 1) s.difficulty.tier--;
-    if (failHard) tighten();
-  } else if (feel === 'dense') {
-    s.difficulty.streakGood = 0;
-    tighten();
-  } else if (feel === 'context') {
-    s.difficulty.streakGood = 0;
-    if (s.difficulty.background > 0) s.difficulty.background--;
-  } else if (feel === 'choppy') {
-    s.difficulty.streakGood = 0;
-    if (s.difficulty.cohesion > 0) s.difficulty.cohesion--;
-  } else if (flow) {
-    s.difficulty.streakGood++;
-    if (s.difficulty.streakGood >= 2 && s.difficulty.tier < MAX_TIER) { s.difficulty.tier++; s.difficulty.streakGood = 0; }
-  } else {
-    s.difficulty.streakGood = 0; // ok / mid / no answer: hold the vocabulary tier, break the streak
-  }
+  // v1.22.0 — NO automatic difficulty routing. The skill's only job is to generate material that
+  // meets the i+1 contract and to record what happened. Whether any axis goes up or down is the
+  // learner's call alone, made explicitly through `axes`; the skill does not judge.
+  // feel/score are therefore pure record — the outcome half of the A→feel ledger the learner
+  // reads before deciding their own next move.
+  //
+  // Why the whole valve went, not just the `ok` decay that prompted the review:
+  //   · every tap contradicted, or silently overrode, the learner's own locked rule that
+  //     `ok` = i+1 equilibrium = hold everything. `ok` relaxing the syntax rung was the clearest
+  //     case: a manual `--syntax 4` decayed back to 常规 across four ok passages, then one
+  //     `dense` pushed it back up — an inescapable limit cycle.
+  //   · it had never fired once: across all sessions the feel report was `ok` 16 times and never
+  //     anything else, and no counted passage scored below 60%.
+  //   · it was redundant with `axes`, which controls all four axes directly.
+  // `streakGood` went with it — it existed only to count two consecutive `flow`s for promotion.
   save(s);
   const nominations = sess.targets.filter((t) => s.words[t].exposures >= GRADUATE_AT);
   out({
@@ -469,7 +434,7 @@ else if (cmd === 'pool') {
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。没有探针（v1.19.0 已删）：难度上移**只由学习者决定**，agent 不主动顶档——报 ok 就是「到了目标」，不是「该加码」。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」；连续在某个轴向调紧却仍报 ok，说明那一档还有余量；某轴一调紧就报 wordy/dense/choppy/context，边界就在上一档。',
+    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。难度**只**由学习者点菜改变（v1.22.0 起连安全阀也删了）：agent 不主动顶档、不因体感调档——体感与成绩**纯记录**，没有任何一条会动参数。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」——这是**给学习者自己看**的账：某轴调紧后仍报 ok，说明还有余量；一调紧就抱怨，说明边界在上一档。把它念给他听，让他自己决定下一步。',
   }, null, 2));
 }
 
