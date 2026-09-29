@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.18.0
+version: 1.19.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -68,11 +68,11 @@ alive in fresh contexts.
    - 他说「就按默认」→ 什么都不用改
    - 想确认自动反馈有没有偷偷改过他的选择：`pool` 的 `lastUsed` 是上一篇实际用的档位快照，
      **与 `menu` 的 current 不同就说明被体感反馈降过档** —— 照实告诉他，别让他以为自己选的值还在。
-   **探针（同一处顺带判）：** 若 `history` 里**最近连续 3 篇** feel 全为 `ok`，说明一直待在无聊区、
-   传感器没有信号 —— 本篇按轮转把一个轴顶到**最紧/最难档**（顺序：语篇 → 背景 → 句法 → 词汇 → 题型），
-   同样先告诉学习者再动手，他不想就跳过。
    冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧）；
    若学习者要加负荷而句法档已被实际受挫推紧（`axes.句法` 高于常规），**以那个更紧的档为准**——愿望不覆盖受挫证据。
+   **难度上移只由学习者决定（v1.19.0 起）：** agent **不主动顶档、不做探针、不替他加码**。
+   报 `ok` 就是「到了目标」——按 skill 自己的理论（v1.3.0），甜区就是终点，不是该继续加码的信号。
+   只有 `flow`（太简单）才上调，而且仍按 flow×2 的既有规则。想上难度时，**提示菜单还在**，让他自己挑。
 5. **Draft** the passage per [the format guide](references/passage-format.md), then validate silently:
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
@@ -205,7 +205,7 @@ the learner explicitly asks for.
 > 旧台账里遗留的 predicted/requested 行是惰性历史，不影响任何逻辑。
 
 只有「① 太简单」说明这一档的词袋已被吃透（i+0），才允许上调；「② 刚好」是我们追求的平衡点，停在原地。
-**语篇档与题型档没有自动漂移**——只由体感、点菜、探针驱动。不发明没校准过的动力学。
+**语篇档与题型档没有自动漂移**——只由体感与点菜驱动。不发明没校准过的动力学。
 
 ### 五轴各是什么
 
@@ -213,9 +213,9 @@ the learner explicitly asks for.
 |---|---|---|---|
 | **词汇** tier | 1–8 | wordy / flow×2 | 复合稀有度 = 词频 + AoA + 具体性（见 `assets/word-bands.tsv` 头部）。档越高允许出现的难词越多 |
 | **句法** syntax | 0–4 | dense / 低分 / ok 松档 / 点菜 | 一个「句法包」：句长 + **每句小句数** + 全篇被动数。0 放宽（24/14）· 1 常规（20/12，默认）· 2 偏静（18/11）· 3 冷静（16/10）· 4 最静（13/8） |
-| **语篇** cohesion | 0–3 | choppy / 点菜 / 探针 | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
+| **语篇** cohesion | 0–3 | choppy / 点菜 | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
 | **背景** background | 0–2 | context / 点菜 | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现 |
-| **题型** quiz | 0–2 | 点菜 / 探针 | 以事实检索为主 · 各半 · 以推断为主。同样只申报不强检 |
+| **题型** quiz | 0–2 | 点菜 | 以事实检索为主 · 各半 · 以推断为主。同样只申报不强检 |
 
 **改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3`（任一轴，可只给一部分）。
 **为什么句长不再是唯一**：实测 13 篇存量档平均句长 8.8 词而上限 12，句长轴几乎是饱和的；
@@ -231,7 +231,6 @@ the learner explicitly asks for.
 ```text
 SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
-BOOTSTRAP.md                      新机器/新 agent 的一句话记忆：发布只走 ship.mjs
 references/passage-format.md      输出模板 + 格式级规则（注释/题目/重逢词写法）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|status|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest

@@ -26,16 +26,19 @@ const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD, not U
 // 三项等权百分位合成（理由见该文件头部）。B1 / B2 各切四段，逐档并入 —— 档越高，
 // 允许出现的难词越多。旧 6 档的池子大小仍被保留为迁移锚点：旧 3（B1 全量）= 新 4。
 const TIERS = {
-  1: { b1: [1], b2: [], targets: [4, 5], label: 'B1 易段' },
-  2: { b1: [1, 2], b2: [], targets: [4, 5], label: 'B1 易+中易' },
-  3: { b1: [1, 2, 3], b2: [], targets: [4, 5], label: 'B1 易+中易+中难' },
-  4: { b1: [1, 2, 3, 4], b2: [], targets: [4, 5], label: 'B1 全量' },
-  5: { b1: [1, 2, 3, 4], b2: [1], targets: [4, 5], label: 'B1 全量 + B2 易段' },
-  6: { b1: [1, 2, 3, 4], b2: [1, 2], targets: [4, 5], label: 'B1 全量 + B2 易+中易' },
-  7: { b1: [1, 2, 3, 4], b2: [1, 2, 3], targets: [4, 5], label: 'B1 全量 + B2 易+中易+中难' },
-  8: { b1: [1, 2, 3, 4], b2: [1, 2, 3, 4], targets: [4, 5], label: 'B1+B2 全量' },
+  1: { b1: [1], b2: [], label: 'B1 易段' },
+  2: { b1: [1, 2], b2: [], label: 'B1 易+中易' },
+  3: { b1: [1, 2, 3], b2: [], label: 'B1 易+中易+中难' },
+  4: { b1: [1, 2, 3, 4], b2: [], label: 'B1 全量' },
+  5: { b1: [1, 2, 3, 4], b2: [1], label: 'B1 全量 + B2 易段' },
+  6: { b1: [1, 2, 3, 4], b2: [1, 2], label: 'B1 全量 + B2 易+中易' },
+  7: { b1: [1, 2, 3, 4], b2: [1, 2, 3], label: 'B1 全量 + B2 易+中易+中难' },
+  8: { b1: [1, 2, 3, 4], b2: [1, 2, 3, 4], label: 'B1+B2 全量' },
 };
 const MAX_TIER = 8;
+// v1.8.0 unified the target quota at 4–5 for every tier, which left the old per-tier `targets`
+// field as eight byte-identical copies. Collapsed to one constant in v1.19.0.
+const TARGETS_RANGE = [4, 5];
 // v1.16.0 — 句式档 5 档（v1.15.0 是 4 档，且只卡句长）。句长轴过去是饱和的：实测 13 篇
 // 存量档平均句长 8.8 词而上限是 12，几乎没有咬合；真正的难度藏在「小句密度」里
 // （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句法包」：
@@ -96,7 +99,7 @@ const difficultyOut = (s) => {
   const bg = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
   const qz = clamp(s.difficulty.quiz ?? 1, MAX_QUIZ);
   return {
-    tier: s.difficulty.tier, tierLabel: t.label, targetsRange: t.targets, streakGood: s.difficulty.streakGood,
+    tier: s.difficulty.tier, tierLabel: t.label, targetsRange: TARGETS_RANGE, streakGood: s.difficulty.streakGood,
     axes: {
       词汇: `tier ${s.difficulty.tier}/8 · ${t.label}`,
       句法: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
@@ -107,7 +110,7 @@ const difficultyOut = (s) => {
     gateFlags: gateFlags(s),
   };
 };
-const GRADUATE_AT = +arg('graduate-at', 6);
+const GRADUATE_AT = 6; // graduation threshold; was a --graduate-at flag nothing ever passed (v1.19.0)
 // Reading is recognition, not SRS retrieval: a short ladder beats Anki-style curves
 // (a 14-day top rung would strand words in the queue forever — see backlog math).
 const COOLDOWN_DAYS = { 1: 1, 2: 1, 3: 2, 4: 3, 5: 4 };
@@ -268,7 +271,7 @@ else if (cmd === 'pend') {
     background: s.difficulty.background ?? 1,
     quiz: s.difficulty.quiz ?? 1,
   };
-  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', words: meta.words || null, axes });
+  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
     s.words[t] = s.words[t] || { exposures: 0, first: null, last: null, status: 'active', source: 'pool' };
   }
@@ -282,7 +285,7 @@ else if (cmd === 'confirm') {
   const sess = s.sessions.find((x) => x.id === id);
   if (!sess) { console.error(`no such session: ${id} — pending: ${s.sessions.filter((x) => x.status === 'pending').map((x) => x.id).join(', ') || '(none)'}`); process.exit(2); }
   if (sess.status === 'counted') { console.error('already counted'); process.exit(2); }
-  sess.status = 'counted'; sess.date_confirmed = today;
+  sess.status = 'counted';
   const score = arg('score', null); // "3/3"
   const feel = arg('feel', null);   // flow|ok|wordy|dense|context|choppy —— 6 类负荷诊断，各拉各的杆（见下方路由表）
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
@@ -313,7 +316,7 @@ else if (cmd === 'confirm') {
   //   context = 背景/话题陌生 → 背景档 −1（v1.16.0 起它终于有轴可调，旧版只能记录）
   //   choppy  = 语篇接不上/读着跳 → 语篇档 −1（v1.16.0 新增的第 6 个体感）
   //   score<60% → 词汇 −1 且 句法 +1（双手一起放开）
-  // 语篇档与题型档没有自动漂移，只由体感/点菜/探针驱动 —— 不发明没校准过的动力学。
+  // 语篇档与题型档没有自动漂移，只由体感与点菜驱动 —— 不发明没校准过的动力学。
   const failHard = sess.score != null && sess.score < 0.6;
   s.difficulty.syntax = clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX); // 老台账可能没有
   s.difficulty.background = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
@@ -476,7 +479,7 @@ else if (cmd === 'pool') {
     // pool = last checkpoint before drafting: force one fetch so a mid-session push from the
     // other machine is visible for at most one passage (status stays throttled).
     skillUpdate: skillUpdate(SKILL_DIR, stateDir, { force: true }),
-    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。探针（同一处顺带判）：若最近连续 3 篇 feel 全为 ok，说明一直待在无聊区、传感器没信号——本篇按轮转把一个轴顶到最紧/最难档（顺序 语篇→背景→句法→词汇→题型），先告诉学习者再动手。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」；连续在某个轴向调紧却仍报 ok，说明那一档还没到边界，继续走；某轴一调紧就报 wordy/dense/choppy/context，边界就在上一档。',
+    note: '每篇目标词配额：3–4 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）+ 1–2 个 fresh；八档统一总数 4–5，照旧过硬闸——v1.14.0 起收紧 fresh，先收割存量词。防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。没有探针（v1.19.0 已删）：难度上移**只由学习者决定**，agent 不主动顶档——报 ok 就是「到了目标」，不是「该加码」。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」；连续在某个轴向调紧却仍报 ok，说明那一档还有余量；某轴一调紧就报 wordy/dense/choppy/context，边界就在上一档。',
   }, null, 2));
 }
 
