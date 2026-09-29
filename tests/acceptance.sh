@@ -111,6 +111,22 @@ SID_OK=$(python3 -c "import json;print(json.load(open('$T/p_ok.json'))['session'
 L confirm --session "$SID_OK" --score 3/3 --feel ok > "$T/cf_ok2.json" 2>/dev/null
 grepj '"tier": 4' "$T/cf_ok2.json" && ok "two consecutive ok sessions hold the tier (ok is not a promotion signal)" || bad "ok wrongly accumulates toward promotion"
 grepj 'tooSoon' "$T/cf_ok2.json" && ok "confirm reports too-soon words instead of silently skipping (v1.31.0 hour gap)" || bad "tooSoon not reported"
+
+# v1.32.0: the reading log is hour-granular too, not just the per-word clock
+TM="$T/stamps"; mkdir -p "$TM"
+node "$S/ledger.mjs" init --state-dir "$TM" --no-sync > /dev/null 2>&1
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2], T=process.argv[3];
+const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
+const p=JSON.parse(L("pend","--meta",T+"/meta.json","--id","stamped"));
+const mk=(v,label,what)=>{ if(typeof v!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)) throw new Error(label+" is not an hour-granular timestamp: "+JSON.stringify(v)+" ("+what+")"); };
+mk(p.session ? JSON.parse(fs.readFileSync(dir+"/state.json","utf8")).sessions.slice(-1)[0].at : null, "session.at", "pend");
+L("confirm","--session",p.session,"--score","3/3","--feel","ok");
+const sess=JSON.parse(fs.readFileSync(dir+"/state.json","utf8")).sessions.find(x=>x.id===p.session);
+mk(sess.at,"session.at","after confirm");
+mk(sess.readAt,"session.readAt","written by confirm");
+' "$SKILL_DIR" "$TM" "$T" && ok "pend stamps session.at and confirm stamps session.readAt (hour-granular)" || bad "session timestamps"
+
 # same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
 grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.json" && ok "hour gap: words counted minutes ago sleep, no returnee offered" || bad "hour gap"
@@ -568,7 +584,7 @@ L pend --meta "$T/meta.json" > "$T/a_p1.json" 2>/dev/null
 SID_A=$(python3 -c "import json;print(json.load(open('$T/a_p1.json'))['session'])")
 L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" --quiz "B,A,C" > "$T/a_ok.json" 2> "$T/a_ok.err"
 { [ $? = 0 ] && grepj "\"archived\": \"$SID_A\"" "$T/a_ok.json" && [ -f "$STATE/passages/$SID_A.md" ]; } && ok "archive happy path: file written, id reported" || bad "archive happy path: $(cat "$T/a_ok.err")"
-grepj "^session: $SID_A$" "$STATE/passages/$SID_A.md" && grepj 'quizAnswers: \[B, A, C\]' "$STATE/passages/$SID_A.md" && grepj '^validatedBy: .*sha256:' "$STATE/passages/$SID_A.md" && ok "frontmatter: session/quizAnswers/validatedBy generated mechanically" || bad "archive frontmatter content"
+grepj "^session: $SID_A$" "$STATE/passages/$SID_A.md" && grepj 'quizAnswers: \[B, A, C\]' "$STATE/passages/$SID_A.md" && grepj '^validatedBy: .*sha256:' "$STATE/passages/$SID_A.md" && grepj '^at: [0-9-]*T[0-9][0-9]:[0-9][0-9]$' "$STATE/passages/$SID_A.md" && ok "frontmatter: session/at/quizAnswers/validatedBy generated mechanically" || bad "archive frontmatter content"
 grepj '"validatedBy":' "$T/a_ok.json" && grep -q 'Trains That Tell You the Truth' "$STATE/passages/$SID_A.md" && ok "report echoes signature; body is the validated file verbatim" || bad "archive body/signature"
 # tamper: different bytes under the same report must be refused, no file left behind
 L pend --meta "$T/meta.json" > "$T/a_p2.json" 2>/dev/null

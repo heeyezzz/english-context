@@ -297,7 +297,7 @@ else if (cmd === 'pend') {
     cohesion: s.difficulty.cohesion ?? SANE_COHESION,
     background: s.difficulty.background ?? 1,
   };
-  s.sessions.push({ id, date: today, topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
+  s.sessions.push({ id, date: today, at: nowStamp(), topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
     s.words[t] = s.words[t] || { exposures: 0, last: null, status: 'active' };
   }
@@ -311,7 +311,7 @@ else if (cmd === 'confirm') {
   const sess = s.sessions.find((x) => x.id === id);
   if (!sess) { console.error(`no such session: ${id} — pending: ${s.sessions.filter((x) => x.status === 'pending').map((x) => x.id).join(', ') || '(none)'}`); process.exit(2); }
   if (sess.status === 'counted') { console.error('already counted'); process.exit(2); }
-  sess.status = 'counted';
+  sess.status = 'counted'; sess.readAt = nowStamp(); // v1.32.0: the reading log is hour-granular too
   const score = arg('score', null); // "3/3"
   const feel = arg('feel', null);   // flow|ok|wordy|dense|context|choppy —— 纯记录：v1.22.0 起没有任何一条会改动难度轴
   if (score) { const [a, b] = score.split('/').map(Number); sess.score = a / b; }
@@ -454,7 +454,7 @@ else if (cmd === 'pool') {
   // Anti-repeat exposure: the last 5 non-void sessions are the memory the agent must not
   // rely on goodwill for — pool is the mandatory pre-draft call, so the history lands there.
   const recent = s.sessions.filter((x) => x.status !== 'void').slice(-5).reverse()
-    .map((x) => ({ session: x.id, date: x.date, topic: x.topic, targets: x.targets }));
+    .map((x) => ({ session: x.id, date: x.date, at: x.at ?? null, readAt: x.readAt ?? null, topic: x.topic, targets: x.targets }));
   // A→feel history (v1.17.0, replaces the retired predicted/requested calibration feed): the
   // axis settings each recent passage was drafted at, next to how it actually landed. This is
   // the pairing that calibrates the scales. Legacy counted rows have axes:null — they predate the
@@ -467,7 +467,7 @@ else if (cmd === 'pool') {
     ...difficultyOut(s),
     // v1.23.0: `status` was folded in here — its 8 fields overlapped this command's on 6 of them
     // (tier/axes/gateFlags/menu/inFlight/skillUpdate) and it added only pending + interests.
-    pending: s.sessions.filter((x) => x.status === 'pending').map((p) => ({ id: p.id, topic: p.topic, date: p.date })),
+    pending: s.sessions.filter((x) => x.status === 'pending').map((p) => ({ id: p.id, topic: p.topic, date: p.date, at: p.at ?? null })),
     interests: s.interests,
     inFlight: inFlight.length,
     sleeping: inFlight.length - eligible.length,
@@ -522,6 +522,7 @@ else if (cmd === 'archive') {
     '---',
     `session: ${sess.id}`,
     `date: ${sess.date}`,
+    ...(sess.at ? [`at: ${sess.at}`] : []),
     `topic: ${sess.topic}`,
     `targets: [${sess.targets.join(', ')}]`,
     `reunion: [${(sess.reunion || []).join(', ')}]`,
