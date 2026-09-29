@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.34.0
+version: 1.35.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -62,7 +62,7 @@ alive in fresh contexts.
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做）：** 读 `pool` 的 `menu`（四轴全部档位 + `direction` + `set`
    + 逐轴 `lastUsed` / `driftedSinceLastDraft`）与 `fixedLimits`（不可调的固定红线），
-   然后**照 [面板模板](references/panel-templates.md) 念** —— 默认用表格版（四轴现状表 +「每档是什么」条，他直接报「项目+数字」就能挑档）；他问某档具体含义时换详细版。
+   然后**照 [面板模板](references/panel-templates.md) 念** —— 默认用表格版（四轴现状表 +「每档是什么」表，他直接报「项目+数字」就能挑档）；他问某档具体含义时换详细版。
    **别临时组织格式**：每个 agent 念得不一样，学习者就无法形成稳定预期。**面板直接输出 markdown，别套代码块**（套了就退化成一排裸管道符）。
    填槽值一律从 `pool` 取，一个都不许自己编；`gateFlags` 只给 passage-check，不念给他听。然后：
    - 他回「句子 3」「衔接松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地，**只回一句「好，句子调到 3（冷静）」——命令不出现、也不念出来**
