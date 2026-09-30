@@ -9,7 +9,7 @@ The learner sees ONE markdown block in chat. There is no output file. Structure:
 Every target word appears ≥2 times; first appearance inside **bold**.
 Reunion words appear plain (no bold, no annotation) at least once each.>
 
-### 生词 · 只给语境义
+### 目标词 · 只给语境义
 | 词 | 在这篇里 |
 |---|---|
 | **service** | n. 公共交通系统（不是泛指的「服务」）|
