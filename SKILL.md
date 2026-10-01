@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.37.0
+version: 1.38.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -62,14 +62,13 @@ alive in fresh contexts.
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做）：** 读 `pool` 的 `menu`（四轴全部档位 + `direction` + `set`
    + 逐轴 `lastUsed` / `driftedSinceLastDraft`）与 `fixedLimits`（不可调的固定红线），
-   然后**照 [面板模板](references/panel-templates.md) 念** —— 默认用表格版（四轴现状表 +「每档是什么」表，他直接报「项目+数字」就能挑档）；他问某档具体含义时换详细版。
+   然后**照 [面板模板](references/panel-templates.md) 念** —— 单版模板：开场两行提示 + 四张完整档位表（名称 + 数值 + 难度说明）+ 五项固定要求，他直接报「项目+数字」就能挑档。
    **别临时组织格式**：每个 agent 念得不一样，学习者就无法形成稳定预期。**面板直接输出 markdown，别套代码块**（套了就退化成一排裸管道符）。
    填槽值一律从 `pool` 取，一个都不许自己编；`gateFlags` 只给 passage-check，不念给他听。然后：
-   - 他回「句子 3」「衔接松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地，**只回一句「好，句子调到 3（冷静）」——命令不出现、也不念出来**
+   - 他回「句子 3」「衔接松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地，**只回一句「好，句子调到 3（常规）」——命令不出现、也不念出来**（档名一律从 `pool` 取，此处仅示例）
    - 他说「就按默认」→ 什么都不用改
    - 漂移（`driftedSinceLastDraft`）只说明**他改过档、但还没在任何成篇里用过**
      （v1.22.0 起体感不再调档，所以漂移**不可能**是自动发生的）—— 照实说，别让他以为已经生效过。
-   - 他问某档到底什么意思 → 换详细版（每档补上数值含义：句长/小句/被动、重叠/连接词、词数）
    冲突规则：点菜不能突破硬闸（生词率 / 句长 / 小句 / 衔接上下限照旧）。
    **难度变动 100% 由学习者决定（v1.19.0；v1.22.0 删净余下的自动路由）：** agent **不顶档、不调档、不猜**。
    报 `ok` 就是「到了目标」——按 skill 自己的理论（v1.3.0），甜区就是终点。体感与成绩只记录，不改任何参数。
@@ -243,7 +242,7 @@ the learner explicitly asks for.
 SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
 references/passage-format.md      短文输出模板 + 格式级规则（注释/题目/重逢词写法）
-references/panel-templates.md     生成前难度面板的固定模板（默认表格版 = 现状表 + 每档条 + 五项固定要求；详细版补逐档数值）
+references/panel-templates.md     生成前难度面板的固定模板（单版：四张档位表〔名称+数值+难度说明〕+ 五项固定要求；（现在）与漂移行按 pool 动态处理）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
