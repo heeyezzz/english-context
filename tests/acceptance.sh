@@ -102,7 +102,7 @@ L pool --limit 1 > "$T/st.json" 2>/dev/null
 grepj '"pending"' "$T/st.json" && ok "pool lists pending sessions (status was folded in, v1.23.0)" || bad "pending listing"
 check "confirm unknown id refused" 1 L confirm --session definitely-not-here
 L confirm --session "$SID" --score 3/3 --feel ok > "$T/cf.json" 2>/dev/null
-grepj '1/6' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
+grepj '1/5' "$T/cf.json" && ok "confirm counts exposures" || bad "confirm exposures"
 grepj '"句子": "syntax 3/4' "$T/cf.json" && ok "ok feedback leaves the syntax rung at 常规 (3/4 after the v1.36.0 flip)" || bad "syntax rung on ok"
 grepj '"tier": 4' "$T/cf.json" && ok "single good session does not promote (tier stays at the v1.16.0 start of 4)" || bad "premature promotion"
 # ok = i+1 equilibrium: it holds the tier and never accumulates a promotion streak
@@ -130,7 +130,7 @@ mk(sess.readAt,"session.readAt","written by confirm");
 # same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
 grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.json" && ok "hour gap: words counted minutes ago sleep, no returnee offered" || bad "hour gap"
-# v1.31.0: eligibility is measured in HOURS, not calendar days — 6h at 1/6, 36h at 5/6
+# v1.40.0: eligibility is measured in HOURS on the learner-shrunk ladder — 1h at 1/5, 12h at 4/5
 TS="$T/spacing"; mkdir -p "$TS"
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
@@ -142,13 +142,14 @@ const mk=(entries)=>{
   fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words,sessions:[],interests:[]}));
   return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 };
-let o=mk([["alpha",2,1],["beta",8,1]]);
-if(!o.mustReuse.some(x=>x.startsWith("beta "))) throw new Error("8h-old 1/6 word not offered: "+JSON.stringify(o.mustReuse));
-if(o.mustReuse.some(x=>x.startsWith("alpha "))) throw new Error("2h-old word offered despite the 6h gap");
-o=mk([["gamma",30,5],["delta",40,5]]);
-if(!o.mustReuse.some(x=>x.startsWith("delta "))) throw new Error("40h-old 5/6 word not offered");
-if(o.mustReuse.some(x=>x.startsWith("gamma "))) throw new Error("30h-old 5/6 word offered despite the 36h gap");
-' "$SKILL_DIR" "$TS" && ok "hour-gap ladder enforced in hours (6h at 1/6, 36h at 5/6)" || bad "hour gap"
+let o=mk([["alpha",0,1],["beta",2,1]]);
+if(!o.mustReuse.some(x=>x.startsWith("beta "))) throw new Error("2h-old 1/5 word not offered: "+JSON.stringify(o.mustReuse));
+if(o.mustReuse.some(x=>x.startsWith("alpha "))) throw new Error("just-counted word offered despite the 1h gap");
+o=mk([["gamma",10,4],["delta",20,4],["sigma",50,5]]);
+if(!o.mustReuse.some(x=>x.startsWith("delta "))) throw new Error("20h-old 4/5 word not offered");
+if(o.mustReuse.some(x=>x.startsWith("gamma "))) throw new Error("10h-old 4/5 word offered despite the 12h gap");
+if(o.mustReuse.some(x=>x.startsWith("sigma "))) throw new Error("5/5 word re-offered; it awaits graduation instead");
+' "$SKILL_DIR" "$TS" && ok "hour-gap ladder enforced in hours (1h at 1/5, 12h at 4/5; 5/5 awaits graduation)" || bad "hour gap"
 
 # v1.31.0 saturation valve: above 25 in flight, fresh intake stops and the quota is machine-readable
 node -e '
@@ -172,18 +173,18 @@ if(!/不收新词|不收 fresh/.test(over.note)) throw new Error("saturated note
 # once the cooldown has passed they re-enter the returnee pool
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const d=new Date(Date.now()-3*86400000).toLocaleDateString('en-CA');for(const w of Object.keys(s.words))if(s.words[w].status==='active'&&s.words[w].exposures>=1)s.words[w].last=d;require('fs').writeFileSync(f,JSON.stringify(s))"
 L pool --limit 4 > "$T/pool2.json" 2>/dev/null
-grepj 'service (1/6,' "$T/pool2.json" && ok "past-cooldown word re-enters mustReuse" || bad "cooldown gate blocks a due word"
+grepj 'service (1/5,' "$T/pool2.json" && ok "past-cooldown word re-enters mustReuse" || bad "cooldown gate blocks a due word"
 # sort direction regression (v1.7.0): mustReuse is longest-unseen-first, per SKILL.md step 4
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.last=new Date(Date.now()-6*86400000).toLocaleDateString('en-CA');require('fs').writeFileSync(f,JSON.stringify(s))"
 L pool --limit 4 > "$T/pool_sort.json" 2>/dev/null
 node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_sort.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('service ') ? 0 : 1)" \
   && ok "mustReuse sorts longest-unseen first (6d beats 3d)" || bad "mustReuse sort direction"
-# v1.14.0 graduation-priority: 2/6 seen 3d ago must outrank 1/6 seen 6d ago (exposure beats recency;
+# v1.14.0 graduation-priority: 2/5 seen 3d ago must outrank 1/5 seen 6d ago (exposure beats recency;
 # the line above stays green because there all depths tie and longest-unseen is the tiebreaker)
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=2;require('fs').writeFileSync(f,JSON.stringify(s))"
 L pool --limit 4 > "$T/pool_grad.json" 2>/dev/null
 node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_grad.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('measure ') ? 0 : 1)" \
-  && ok "mustReuse puts closest-to-graduation first (2/6@3d beats 1/6@6d)" || bad "graduation-priority sort"
+  && ok "mustReuse puts closest-to-graduation first (2/5@3d beats 1/5@6d)" || bad "graduation-priority sort"
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=1;require('fs').writeFileSync(f,JSON.stringify(s))"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
@@ -228,7 +229,7 @@ done
 # was sitting (wordy just demoted it), which is the ladder working as designed
 node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(s.difficulty.tier===+process.argv[2]?0:1)' "$STATE/state.json" "$TIER_PRE" \
   && ok "flow no longer promotes: even two consecutive flow keep the tier ($TIER_PRE)" || bad "promotion rule"
-node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.exposures=6;require('fs').writeFileSync(f,JSON.stringify(s))"
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.exposures=5;require('fs').writeFileSync(f,JSON.stringify(s))"
 L graduate --word service > "$T/gr.json" 2>/dev/null
 grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" || bad "bridge missing"
 grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-words.txt" || bad "known-words write"

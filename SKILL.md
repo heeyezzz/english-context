@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.39.2
+version: 1.40.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -49,7 +49,7 @@ alive in fresh contexts.
    quota — **read `quota` from pool, don't hardcode it**: normally `{mustReuse:[3,4], fresh:[1,2]}`
    (total **4–5 at every tier**); once the queue saturates, pool returns
    `{mustReuse:[4,5], fresh:[0,0]}` and you take **no new words at all**.
-   `mustReuse` words are **graduation-priority: closest to 6/6 first, longest-unseen breaks ties**
+   `mustReuse` words are **graduation-priority: closest to graduation (5/5) first, longest-unseen breaks ties**
    (v1.14.0, learner-approved: the queue must drain); skip one only if the topic truly cannot host it,
    but keep at least 1 in the passage. `fresh` words are never-used tier-level candidates.
    **Binge reading no longer empties `mustReuse`** — since v1.31.0 the gap is in hours, so a word can
@@ -103,8 +103,8 @@ alive in fresh contexts.
    flag, never guess). This is the ONLY moment exposure counts. "重写/换主题" → `ledger.mjs void
    --session <id>`; zero accounting, and void also deletes the archived `$STATE/passages/<id>.md`
    (reports `passageRemoved`; the deletion rides the auto-push) — a voided passage leaves no corpse.
-9. **Graduation:** `confirm` nominates any target at ≥6 exposures. Present nominations as
-   「候选毕业：word (6/6) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
+9. **Graduation:** `confirm` nominates any target at ≥5 exposures (v1.40.0: the 5th exposure graduates — no sixth). Present nominations as
+   「候选毕业：word (5/5) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
    Anki bridge once per graduated word: it is a fully-contextualized candidate for a permanent
    微语境闪卡 via the `anki-flashcard` skill (propose; that skill's own gate sequence then applies).
 10. **Push ledger:** automatic. Every state write (pend/confirm/void/graduate/interest/import-anki)
@@ -174,9 +174,9 @@ the learner explicitly asks for.
 
 | Rule | Value |
 |---|---|
-| Cooldown ladder | a word may return only after `1/6→6h, 2/6→6h, 3/6→12h, 4/6→24h, 5/6→36h` since its last exposure |
+| Cooldown ladder | a word may return only after `1/5→1h, 2/5→3h, 3/5→6h, 4/5→12h, 5/5→24h` since its last exposure (v1.40.0 learner-shrunk; the 5/5 rung only applies to a learner-specified word that runs past graduation) |
 | Same-day lock | **retired in v1.31.0** — any sub-24h gap is inert while "one exposure per calendar day" stands, so the two rules were merged into the hour ladder above. A word may now count twice in one day once its gap has elapsed |
-| Consequence | shortest first-to-sixth span is **3.5 days** (was 11 calendar days, which is why nothing graduated in the ledger's first week) |
+| Consequence | shortest first-to-fifth span is **22h** (1+3+6+12h) — graduation is 5 exposures, no sixth (v1.40.0; was 6 exposures / 3.5 days) |
 | Reporting | `confirm` returns `tooSoon` (with hours remaining) for words that did not count; `pool` returns `inFlight`, `sleeping`, and `saturated` |
 | Clock granularity | **every clock is hour-granular, not date-granular**: per-word exposures (`words[].last`) *and* the reading log (`session.at` = generated, `session.readAt` = finished reading). A date-only log could not explain an hour-based gap. The archive is written at `pend`, so its frontmatter carries `at` only — the read time stays in the ledger, keyed by session id |
 | Saturation valve | when `inFlight > 25`, `pool` emits `saturated: true` and `quota: {mustReuse:[4,5], fresh:[0,0]}` — **stop taking new words so the queue can drain**. Deferred by the learner in v1.13.0, switched on in v1.31.0 when the backlog data arrived (35 in flight, 0 exits) |

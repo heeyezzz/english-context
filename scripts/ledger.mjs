@@ -123,15 +123,12 @@ const difficultyOut = (s) => {
     gateFlags: gateFlags(s),
   };
 };
-const GRADUATE_AT = 6; // graduation threshold; was a --graduate-at flag nothing ever passed (v1.19.0)
-// v1.31.0 — SPACING IS NOW HOUR-GRANULAR (was whole days: 1/1/2/3/4).
-// Why: the day-based ladder made the shortest first-to-sixth-exposure span 11 calendar days, so
-// nothing could graduate in the 7 days the ledger had actually run. The learner chose the
-// aggressive rung: 6/6/12/24/36h → shortest span 3.5 days, and the same-day lock had to go with
-// it (any gap shorter than 24h is inert while "one exposure per calendar day" still stands).
-// Reading is recognition, not SRS retrieval (v1.4.0) — frequent short returns fit that better
-// than long day-rungs anyway. The shape stays increasing: later rungs are still far apart.
-const COOLDOWN_HOURS = { 1: 6, 2: 6, 3: 12, 4: 24, 5: 36 };
+const GRADUATE_AT = 5; // graduation threshold; was a --graduate-at flag nothing ever passed (v1.19.0)
+// v1.40.0 — ladder shrunk again at the learner's request, and graduation moved 6 → 5:
+// 1/3/6/12/24h (was 6/6/12/24/36h at v1.31.0), no sixth encounter — the 5th exposure graduates.
+// Shortest first-to-fifth span = 22h. The 5th rung (24h) still applies to a learner-specified
+// word that goes past the threshold without being graduated yet.
+const COOLDOWN_HOURS = { 1: 1, 2: 3, 3: 6, 4: 12, 5: 24 };
 // Saturation valve — the learner's own deferred design (v1.13.0: "④ free-reading mode when
 // inFlight > ~25"), finally switched on when real backlog data arrived: 35 in flight, 0 exits.
 // Above this, pool stops offering fresh words so the queue can drain (inflow 1.5/passage was
@@ -457,7 +454,7 @@ else if (cmd === 'pool') {
   const eligible = inFlight.filter(([, e]) => hoursSince(e.last) >= (COOLDOWN_HOURS[e.exposures] || COOLDOWN_HOURS[1]));
   const mustReuse = eligible
     // v1.14.0 graduation-priority (learner-approved after the backlog math showed
-    // 12 passages -> 0 graduations under fair rotation): closest-to-6 first,
+    // 12 passages -> 0 graduations under fair rotation): closest-to-graduation first,
     // longest-unseen only breaks ties (so same-depth words still starve-proof).
     .sort((a, b) => (b[1].exposures - a[1].exposures) || (hoursSince(b[1].last) - hoursSince(a[1].last)))
     .slice(0, 8)
