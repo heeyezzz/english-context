@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.37.0 — 2026-10-01
+
+面板详细版四张档位表加「难度说明」固定文案列（学习者提供文案）；档位名照 pool label，（现在）仍动态标注
+
 ## 1.36.1 — 2026-09-30
 
 passage-format 模板标题改为「目标词 · 只给语境义」：与 targets 术语对齐，生词率口径不变
