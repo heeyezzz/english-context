@@ -611,6 +611,8 @@ done
 echo "== archive (scripted step-6) =="
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --report "$T/rep_ok.json" > /dev/null 2>&1
 grepj '"passageSha256"' "$T/rep_ok.json" && ok "--report writes report file containing passageSha256" || bad "--report/passageSha256"
+node -e 'const j=require(process.argv[1]);const t=j.longestSentences||[];if(!t.length||t.length>3)throw new Error("count");if(t[0].words!==j.maxSentence)throw new Error("top != maxSentence");if(!t[0].text)throw new Error("no text");' "$T/rep_ok.json" \
+  && ok "report names its longest runs (longestSentences: 1–3 entries, top == maxSentence, text present)" || bad "longestSentences report field"
 L pend --meta "$T/meta.json" > "$T/a_p1.json" 2>/dev/null
 SID_A=$(python3 -c "import json;print(json.load(open('$T/a_p1.json'))['session'])")
 L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" --quiz "B,A,C" > "$T/a_ok.json" 2> "$T/a_ok.err"

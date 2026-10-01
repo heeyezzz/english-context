@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.39.2 — 2026-10-02
+
+提速两项（纯加法，闸门与 LIMITS 一字未动）：passage-check 报告新增 longestSentences，列出最长三句的词数与原文，句长 FAIL 后不再需要写反查脚本；passage-format 新增「起草时的判定细节」与词级预查配方（逗号与冒号不切句、引语与引导句合并、重逢词例句行和理解题行计入 250-350、两词重逢短语会被判未申报、be 后接 gone/often/open 触发假被动、比较级不做词形还原、用宽松闸门复用 classify 预查候选词）；acceptance 增加字段守卫断言。回归：20 篇归档在改动前后 pass 与全部指标、passageSha256 逐字段全等。
+
 ## 1.39.1 — 2026-10-01
 
 面板第五节标题按学习者指定措辞定为「固定配置参数」（替换我上轮擅自改的当前难度：固定要求）

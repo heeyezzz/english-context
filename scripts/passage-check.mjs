@@ -220,6 +220,12 @@ function isReunionWord(base, b) {
 
 const sentLens = sentences.map((s) => (s.match(WORD_RE) || []).length);
 const avg = sentLens.length ? sentLens.reduce((a, b) => a + b, 0) / sentLens.length : 0;
+// The gate used to report only the number ("longest sentence 22 > 13"), so fixing a FAIL meant
+// writing a throwaway script to find WHICH run was too long. Naming the runs makes rework one pass
+// instead of two. Additive: no check below reads this, so verdicts cannot shift.
+const longestSentences = sentences
+  .map((s, i) => ({ n: i, words: sentLens[i], text: s.length > 90 ? s.slice(0, 90) + '…' : s }))
+  .sort((a, b) => b.words - a.words).slice(0, 3);
 // above-level rate counts only true NEW words (targets); reunion words are known to the
 // reader (Anki/graduated), so they cost no coverage — same rule the 98%-research implies.
 const aboveTokens = [...aboveBuckets.entries()]
@@ -335,6 +341,7 @@ const report = {
   targets: Object.fromEntries(targetHits),
   reunionUsed,
   undeclared,
+  longestSentences,
   validatedBy: validatorSignature(),
   // archive-time anchor: ledger.mjs archive refuses to file a passage whose bytes changed
   // after validation (sha256 of the raw file as sent to this gate).
