@@ -52,12 +52,15 @@ Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长与小
 
 ### 词级预查（起草前挡掉纲外词；复用同一个 classify，不新增代码路径）
 
-把候选词一次性写进一个探针文件，用宽松闸门跑一遍，只读 `undeclared`：
+把候选词一次性写进一个探针文件，用宽松闸门跑一遍，只读 `undeclared`。
+临时文件**必须放进本次运行独有的目录**（`T=$(mktemp -d)`）——固定文件名是别的会话可能留下的旧文件，
+"未读过不能覆盖"会直接把写入挡掉，于是无人值守任务卡在第 0 步：
 
 ```bash
-printf 'One day main prize tools papers got met easier better.\n' > /tmp/probe.md
-printf '{"topic":"probe","targets":[],"reunion":[],"names":[]}\n' > /tmp/probe.json
-node "$SKILL_DIR/scripts/passage-check.mjs" --passage /tmp/probe.md --meta /tmp/probe.json \
+T=$(mktemp -d)
+printf 'One day main prize tools papers got met easier better.\n' > "$T/probe.md"
+printf '{"topic":"probe","targets":[],"reunion":[],"names":[]}\n' > "$T/probe.json"
+node "$SKILL_DIR/scripts/passage-check.mjs" --passage "$T/probe.md" --meta "$T/probe.json" \
   --state-dir $STATE --min-words 1 --max-words 9999 --max-rate 100 --max-sentence 99 \
   --avg-sentence 99 --max-clauses 99 --min-connectives 0 --min-targets 0
 # → undeclared: [ 'main (B1, x1)', 'prize (B1, x1)', 'easier (OFF, x1)' ]（其余放行）
@@ -65,6 +68,11 @@ node "$SKILL_DIR/scripts/passage-check.mjs" --passage /tmp/probe.md --meta /tmp/
 
 `OFF` = 连词表都查不到，`B1/B2` = 有级别但超过当前档位。这套宽松参数是验收套件自己在用的调用形态
 （tests/acceptance.sh 的 knownforms 用例），不是旁路工具。
+
+> **探针的 `pass:true` 不是发布依据，一个字段都不是。** 上面这串参数是把句长、篇长、生词率、
+> 小句、被动、衔接、目标词数**全部关到不限制**换来的——它唯一回答的问题是"这些词纲内还是纲外"。
+> 一篇通过预查的草稿离硬闸 FAIL 可以差得很远。成品校验只有一次机会：第 5 步用**完整成品文件**
+> + 逐字复制的 `gateFlags` 跑那一遍，那才是判定。看到探针 pass 就往下走 = 发布未校验品。
 
 ## 存档文件（$STATE/passages/<session-id>.md）
 

@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.40.0
+version: 1.41.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -27,6 +27,9 @@ alive in fresh contexts.
 `EC_STATE_DIR` or `--state-dir`).
 
 ## Session workflow
+
+> **请求由脚本/远端页面提交、学习者不在对话里，且档位数字随请求到达** → 先读
+> [无人值守点单](references/unattended-order.md)。它只覆盖"没人可问"时的差异，其余照下面的流程。
 
 1. **Init (first run only):** `node "$SKILL_DIR/scripts/ledger.mjs" init`.
 2. **Pull ledger + sync Anki (each session, both read-mostly):**
@@ -60,7 +63,7 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, and are subject to the hour gap.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定档位 + 协商（起草前必做）：** 读 `pool` 的 `menu`（四轴全部档位 + `direction` + `set`
+   **定档位 + 协商（起草前必做；无人值守时本节全部跳过，档位原样落地）：** 读 `pool` 的 `menu`（四轴全部档位 + `direction` + `set`
    + 逐轴 `lastUsed` / `driftedSinceLastDraft`）与 `fixedLimits`（不可调的固定红线），
    然后**照 [面板模板](references/panel-templates.md) 念** —— 单版模板：四张完整档位表（名称 + 数值 + 难度说明）+「固定配置参数」五项；挑档方式（报「项目+数字」）由 agent 口头带一句，不写进面板。
    **别临时组织格式**：每个 agent 念得不一样，学习者就无法形成稳定预期。**面板直接输出 markdown，别套代码块**（套了就退化成一排裸管道符）。
@@ -78,7 +81,8 @@ alive in fresh contexts.
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
    (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns；**没有画像字段要填**)
-   to temp files and run
+   to temp files（**一律 `T=$(mktemp -d)`，别用固定 `/tmp` 文件名**——那是别的会话可能留下的旧文件，
+   既会被"未读过不能覆盖"挡住，也可能让你检上一轮的草稿）and run
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> <gateFlags>`，
    其中 `<gateFlags>` **逐字复制** `pool` 输出的 `gateFlags` 字段（句长/小句/被动/衔接上下限全套），
    别自己拼、也别只在自己记得的时候传。
@@ -241,8 +245,9 @@ the learner explicitly asks for.
 ```text
 SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
-references/passage-format.md      短文输出模板 + 格式级规则（注释/题目/重逢词写法）
+references/passage-format.md      短文输出模板 + 格式级规则（注释/题目/重逢词写法）+ 词级预查（其 pass 不是发布依据）
 references/panel-templates.md     生成前难度面板的固定模板（单版：四张档位表〔名称+数值+难度说明〕+「固定配置参数」五项；（现在）与漂移行按 pool 动态处理）
+references/unattended-order.md    无人值守点单：无人在对话里时与正常流程的差异（档位原样落地、中止条件、回执、边界）
 scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
 scripts/ledger.mjs                init|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
