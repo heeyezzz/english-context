@@ -2,6 +2,28 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.43.0 — 2026-10-04
+
+台账时间戳到秒：nowStamp 由分钟改到秒，供阅读站卡片显示到秒
+
+动因：阅读站目录页每篇只显示到日期，同一天两篇分不开；卡片上那个时间取自页面元数据
+ec-meta.at，而它是照抄台账 session.at 的，源头这一处写死分钟。
+
+只改 nowStamp()，三个消费者一起受益：session.at（下单即生成时刻）、session.readAt
+（读完时刻）、词 words[].last（每次曝光）。解析侧已核实：hoursSince() 用 new Date(iso)，
+带秒的 ISO 串照常解析；humanGap() 与冷却阶梯（1/3/6/12/24h）一字未动，所以没有词会因这次
+改动提前或推迟毕业——套件里 sleeping 那条断言照旧绿。
+
+SKILL.md 的 Clock granularity 一行同步改写：从 every clock is hour-granular 改为时间戳到秒、
+冷却仍按小时算，并写明 finer stamp moves no eligibility，否则实现与文档当场漂移。测试里两处
+把旧格式写死的断言（session.at/readAt 的形状校验、归档 frontmatter 的 at 正则）一并更新到秒。
+
+存量数据是混合粒度（旧值到分钟、新值到秒），hoursSince 对两种都能读，故不做迁移；旧篇的页面
+元数据仍只有分钟，阅读站对旧篇回落显示到分。
+
+验收：tests/acceptance.sh pass=79 fail=0；实测 pend 产出 2026-10-04T07:27:45，
+pool 的 pending 里同样带秒。
+
 ## 1.42.0 — 2026-10-04
 
 修掉两处实测出来的无人值守自伤（v1.42.0，纯文档，闸门与 LIMITS 一字未动）：① 临时文件规则原本教的是「一律 mktemp -d」，但每次 Bash 都是全新 shell，上一条的变量不延续——实测有 agent 因此把 mktemp 的结果抄进一个固定文件再 cat 回来，等于再造一个写死的跨机路径。现改为固定工作目录 T=STATE/.local/runs/请求id 并每条命令重新写全路径（该目录本就 gitignore、三平台都存在、不进台账不推送），mktemp 只留给单次性用途；② 新增「读脚本输出只用 node -e，禁止 python3」一节并给出现成配方——实测 agent 为了解析 passage-check 的整坨 JSON 自己发明了 python3 -c，而 SKILL.md 跨机说明第 5 条早就写着 Windows 的 python3 可能是 WindowsApps 空壳，这条路径在另一台机器上会无声停在解析那一步。两处都由 2026-10-04 那次 11 分钟干净跑通的会话记录取证（session 103e3c11）。

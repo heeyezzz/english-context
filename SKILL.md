@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.42.0
+version: 1.43.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -183,7 +183,7 @@ the learner explicitly asks for.
 | Same-day lock | **retired in v1.31.0** — any sub-24h gap is inert while "one exposure per calendar day" stands, so the two rules were merged into the hour ladder above. A word may now count twice in one day once its gap has elapsed |
 | Consequence | shortest first-to-fifth span is **22h** (1+3+6+12h) — graduation is 5 exposures, no sixth (v1.40.0; was 6 exposures / 3.5 days) |
 | Reporting | `confirm` returns `tooSoon` (with hours remaining) for words that did not count; `pool` returns `inFlight`, `sleeping`, and `saturated` |
-| Clock granularity | **every clock is hour-granular, not date-granular**: per-word exposures (`words[].last`) *and* the reading log (`session.at` = generated, `session.readAt` = finished reading). A date-only log could not explain an hour-based gap. The archive is written at `pend`, so its frontmatter carries `at` only — the read time stays in the ledger, keyed by session id |
+| Clock granularity | **every clock is a timestamp, not a date — second-precision since v1.43.0** (was minute): per-word exposures (`words[].last`) *and* the reading log (`session.at` = generated, `session.readAt` = finished reading). The cooldown ladder (1/3/6/12/24h) is unchanged and reads either granularity, so a finer stamp moves no eligibility. The archive is written at `pend`, so its frontmatter carries `at` only — the read time stays in the ledger, keyed by session id |
 | Saturation valve | when `inFlight > 25`, `pool` emits `saturated: true` and `quota: {mustReuse:[4,5], fresh:[0,0]}` — **stop taking new words so the queue can drain**. Deferred by the learner in v1.13.0, switched on in v1.31.0 when the backlog data arrived (35 in flight, 0 exits) |
 | Legacy values | old `last` values are bare dates; they are read as that day 00:00 local, so the first run after upgrading cools every word slightly earlier than the day-based rule did |
 

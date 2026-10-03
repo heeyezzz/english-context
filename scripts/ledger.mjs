@@ -20,9 +20,11 @@ const stateFile = join(stateDir, 'state.json');
 const knownFile = join(stateDir, 'known-words.txt');
 const ankiFile = join(stateDir, 'anki-words.json');
 const today = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD, not UTC
-const nowStamp = () => { // local YYYY-MM-DDTHH:MM — the exposure clock is hour-granular (v1.31.0)
+// Local YYYY-MM-DDTHH:MM:SS. Second-precision since v1.43.0 so the reading site can show when a
+// passage was ordered; the cooldown math below is still hour-based and reads either granularity.
+const nowStamp = () => {
   const d = new Date(), p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 };
 // A legacy `last` is a bare YYYY-MM-DD: read it as that day at 00:00 local. (Consequence stated in
 // the changelog: the first run after upgrading cools every old word from midnight, i.e. slightly
