@@ -38,17 +38,39 @@
 | `pool` 报 `saturated: true` | 不收新词，`mustReuse` 满配额即起草 | 为了"内容更丰富"仍掺入新词 |
 | 请求缺任一档位数字 | 中止 + 回执"档位不全" | 用 `current` 补齐后当作学习者本人选定的 |
 
-## 五、临时文件
+## 五、临时文件与跨命令状态
 
-一律 `T=$(mktemp -d)`，草稿、`meta.json`、`--report`、词级预查探针都写进 `$T/`。
-固定路径（`/tmp/probe.md` 之类）在无人值守下会被旧文件覆盖检查挡住，或读到上一轮留下的旧草稿。
+**每一次 Bash 调用都是全新的 shell**：上一条里 `export` 的变量、`cd` 进的目录，下一条一概不认。
+实测有 agent 因此把 `mktemp -d` 的结果抄进一个固定文件（`cat /tmp/ec-t-<id>.txt`）再读回来——
+那等于又造了一个写死的跨机路径，正是本节要防的东西。正规做法：
 
-## 六、毕业与卡片
+- 工作目录固定为 `T="$STATE/.local/runs/<请求 id>"`，第一步 `mkdir -p "$T"`，
+  之后**每条命令都把这个路径重新写出来**，不要指望上一条的 `$T` 还在。
+- 草稿、`meta.json`、`--report`、词级预查探针一律放 `$T/`。
+- 选 `$STATE/.local/` 而不是 `/tmp` 的三个理由：它本来就是 gitignore 的运行缓存（三个平台都有，
+  Windows 上 `/tmp` 未必存在），不进台账、不被推送，且请求 id 天然隔离并发。
+- **不要用 `mktemp -d` 承担跨命令状态**——它每次调用都给你一个新目录。
+  单次性的东西（例如只是想避免撞别人的旧文件）才可以用它。
+
+## 六、读脚本输出只用 node，不要引入 python
+
+脚本的输出是一整坨 JSON，取单个字段自己接一条 `node -e`：
+
+```bash
+node "$SKILL_DIR/scripts/passage-check.mjs" ... 2>&1 | node -e \
+  'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);console.log(j.pass,j.undeclared)})'
+```
+
+**别用 `python3 -c "import json..."` 来解析。** 所有脚本是纯 Node，跨机说明里已点过
+Windows 的 `python3` 可能是 WindowsApps 的空壳——为它省下的两行输出，换来的是一台机器上整条链路
+停在解析结果那一步，而且停得没有道理可循。
+
+## 七、毕业与卡片
 
 出现毕业候选时**不自动 `graduate`**，只把候选词写进回执。毕业会永久改动词的生命周期，
 且下游的 Anki 桥接有自己的确认门（`SKILL.md` 第 9 步：只提出，永不自动导入）。
 
-## 七、边界（无人值守专用）
+## 八、边界（无人值守专用）
 
 agent 只做两件事：**按本篇与 `SKILL.md` 生成内容**，以及**调用宿主项目提供的固定交付命令**。
 

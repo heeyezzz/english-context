@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.42.0 — 2026-10-04
+
+修掉两处实测出来的无人值守自伤（v1.42.0，纯文档，闸门与 LIMITS 一字未动）：① 临时文件规则原本教的是「一律 mktemp -d」，但每次 Bash 都是全新 shell，上一条的变量不延续——实测有 agent 因此把 mktemp 的结果抄进一个固定文件再 cat 回来，等于再造一个写死的跨机路径。现改为固定工作目录 T=STATE/.local/runs/请求id 并每条命令重新写全路径（该目录本就 gitignore、三平台都存在、不进台账不推送），mktemp 只留给单次性用途；② 新增「读脚本输出只用 node -e，禁止 python3」一节并给出现成配方——实测 agent 为了解析 passage-check 的整坨 JSON 自己发明了 python3 -c，而 SKILL.md 跨机说明第 5 条早就写着 Windows 的 python3 可能是 WindowsApps 空壳，这条路径在另一台机器上会无声停在解析那一步。两处都由 2026-10-04 那次 11 分钟干净跑通的会话记录取证（session 103e3c11）。
+
 ## 1.41.0 — 2026-10-04
 
 补上无人值守这一层（v1.41.0）：新增 references/unattended-order.md，只写与正常会话的差异——档位视为已完成协商原样落地不念面板、四类硬性中止条件（台账冲突即停、第4次FAIL走void零记账、Anki缺端点沿用上词表继续、saturated不收新词）、毕业只报候选不自动graduate、交付只调宿主项目的固定命令不得自拼部署参数；SKILL.md 在工作流入口挂上该文档，并在第4、5步标注无人值守差异、临时文件一律 mktemp -d；passage-format 的词级预查示例改用 mktemp -d（固定 /tmp 文件名会被旧文件的未读过不能覆盖挡住），并新增警告：探针 pass 只回答词纲内纲外，那串宽松参数关掉了句长篇长生词率小句被动衔接目标词数的全部硬闸，不得作为发布依据。动因：阅读站无人值守跑通后，这套规矩原先抄在宿主项目的 prompt 脚本里，skill 一升版两份说法就漂移。

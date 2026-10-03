@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.41.0
+version: 1.42.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -81,8 +81,9 @@ alive in fresh contexts.
    write the **complete finished material** — 正文 + 生词表 + 重逢词 + 理解题，与第 7 步展示的
    1:1（题目行以 `1. ` 编号；只存正文 = 归档残缺）— plus `meta.json`
    (`{"topic","targets":[],"reunion":[],"names":[]}` — names = proper nouns；**没有画像字段要填**)
-   to temp files（**一律 `T=$(mktemp -d)`，别用固定 `/tmp` 文件名**——那是别的会话可能留下的旧文件，
-   既会被"未读过不能覆盖"挡住，也可能让你检上一轮的草稿）and run
+   to temp files（**一个目录、每条命令重新写全路径**：`T="$STATE/.local/runs/<id>"` + `mkdir -p "$T"`。
+   每次 Bash 都是新 shell，上一条的 `$T` 不延续，`mktemp -d` 更承担不了跨命令状态；
+   固定文件名还可能被别的会话的旧文件挡住。详见 unattended-order 第五节）and run
    `node "$SKILL_DIR/scripts/passage-check.mjs" --passage <md> --meta <json> --state-dir $STATE --report <report.json> <gateFlags>`，
    其中 `<gateFlags>` **逐字复制** `pool` 输出的 `gateFlags` 字段（句长/小句/被动/衔接上下限全套），
    别自己拼、也别只在自己记得的时候传。
