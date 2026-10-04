@@ -70,7 +70,28 @@ Windows 的 `python3` 可能是 WindowsApps 的空壳——为它省下的两行
 出现毕业候选时**不自动 `graduate`**，只把候选词写进回执。毕业会永久改动词的生命周期，
 且下游的 Anki 桥接有自己的确认门（`SKILL.md` 第 9 步：只提出，永不自动导入）。
 
-## 八、边界（无人值守专用）
+## 八、取值只用 pool 的现成字段，不要自己翻 state.json
+
+`pool` 的输出就是给你用的取值口子，需要的东西几乎都在里面。实测（2026-10-04 一次跑）有 agent
+为了搞清"到底有哪些字段"，连开三条 `node -e` 直接 dump `state.json`：`sessions` 全表、
+`Object.keys(s)`、甚至 grep 原文找 `syntax` —— 白花四次往返，还把自己读进与脚本口径不一致的风险里。
+
+| 你要的 | 取哪儿 |
+|---|---|
+| 四轴档位 | `axes`（`menu` 给全档位说明） |
+| 安全阀与配额 | `saturated` / `quota` / `inFlight` / `sleeping` |
+| 可回收 / 可新收的词 | `mustReuse` / `fresh` |
+| 兴趣话题 | `interests` |
+| 最近已确认的篇目（含 `at` / `readAt` / `feel` / `score`） | `history`（最近 8 篇） |
+| 待办篇目 | `pending` —— **成品页元数据要的 `date` / `at` 就从这里那条取** |
+| 校验红线 | `fixedLimits` |
+| 版本与是否要更新 | `skillUpdate` |
+
+`state.json` 是脚本的私有存储，字段名与语义随版本变，逐字解析它等于把口径复制一份到自己脑子里。
+真遇到 `pool` 没有的东西（例如 void 过的篇目清单、known 词计数），**当作"本篇用不上"处理**，
+照现有字段把活干完——不要靠挖文件补。
+
+## 九、边界（无人值守专用）
 
 agent 只做两件事：**按本篇与 `SKILL.md` 生成内容**，以及**调用宿主项目提供的固定交付命令**。
 

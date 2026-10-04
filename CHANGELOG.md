@@ -2,6 +2,22 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.44.0 — 2026-10-04
+
+取值只用 pool 的现成字段：新增 unattended-order 第八节，堵掉自己翻 state.json 的路
+
+动因是实测数字：2026-10-04 那次无人值守跑（DS4.1，合计 6m55s）里，有 4 次 Bash 是 agent 为了
+"看清有哪些字段"直接 dump state.json —— sessions 全表、Object.keys(s)、甚至 grep 原文找 syntax。
+模型侧为这 4 次往返花掉约 57 秒，而且它读的是脚本私有存储，字段名与语义随版本漂，等于把口径
+复制了一份到自己脑子里（正是 SKILL.md 一直防的那件事）。
+
+新增一节给出映射表：档位/安全阀/配额/可回收词/兴趣/最近已确认篇目/待办/校验红线/版本，逐项指向
+pool 的现成字段；并点明成品页元数据要的 date 与 at 直接取 pending 那条。末尾写明：
+pool 没有的东西（void 过的篇目清单、known 词计数之类）当作"本篇用不上"，照现有字段把活干完，
+不要靠挖文件补。
+
+纯文档加法，闸门与 LIMITS 一字未动。验收：tests/acceptance.sh 由 ship 跑。
+
 ## 1.43.0 — 2026-10-04
 
 台账时间戳到秒：nowStamp 由分钟改到秒，供阅读站卡片显示到秒
