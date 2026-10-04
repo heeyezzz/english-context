@@ -232,10 +232,13 @@ node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.service.exposures=5;require('fs').writeFileSync(f,JSON.stringify(s))"
 L graduate --word service > "$T/gr.json" 2>/dev/null
 grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" || bad "bridge missing"
+grepj '"graduatedAt"' "$T/gr.json" && ok "graduate stamps graduatedAt (v1.45.0)" || bad "graduate timestamp"
 grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-words.txt" || bad "known-words write"
 L interest --add "urban trains" > /dev/null 2>&1 && grepj "urban trains" "$STATE/state.json" && ok "interest add" || bad "interest add"
 L pool --limit 6 > "$T/pool.json" 2>/dev/null
 grepj 'mustReuse' "$T/pool.json" && grepj 'fresh' "$T/pool.json" && ok "pool returns mustReuse + fresh" || bad "pool"
+node -e "const g=(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).graduated)||[];const s=g.find(x=>x.word==='service');if(!s)throw new Error('graduated word missing from pool.graduated');if(!s.graduatedAt)throw new Error('no graduatedAt');if(s.exposures!==5)throw new Error('exposures: '+s.exposures);if(s.approx!==false)throw new Error('fresh graduate must not be approx')" \
+  "$T/pool.json" && ok "pool.graduated roster carries dates" || bad "pool.graduated shape"
 # anti-repeat exposure (v1.9.0): pool must carry the last <=5 non-void sessions, topic+targets included
 node -e "const r=JSON.parse(require('fs').readFileSync('$T/pool.json','utf8')).recent||[];process.exit(r.length>0&&r.length<=5&&r.every((x)=>Array.isArray(x.targets)&&typeof x.topic==='string')?0:1)" \
   && ok "pool exposes recent history (<=5 non-void sessions with topic+targets)" || bad "recent exposure shape"
@@ -455,7 +458,7 @@ for(let old=0;old<=4;old++){
   // pool is read-mostly and never saves, so force a save to check the snapshot actually flipped on disk
   L("interest","--add","flip-check");
   const st=JSON.parse(fs.readFileSync(dir+"/state.json","utf8"));
-  if(st.version!==4) throw new Error("state not stamped v4: "+st.version);
+  if(st.version!==5) throw new Error("state not stamped v5: "+st.version);
   if(st.difficulty.syntax!==4-old) throw new Error("saved axis not flipped: "+JSON.stringify(st.difficulty));
   if(st.sessions[0].axes.syntax!==4-old) throw new Error("session snapshot not flipped: "+JSON.stringify(st.sessions[0].axes));
 }
@@ -463,6 +466,23 @@ for(let old=0;old<=4;old++){
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words:{},sessions:[],interests:[]}));
 if(L("pool","--limit","1").menu.句子.current!==3) throw new Error("v4 state re-flipped");
 ' "$SKILL_DIR" "$T2" && ok "v1.36.0 syntax flip migrates rung state + session snapshots, same gates, never twice" || bad "syntax flip migration"
+
+# v1.45.0 graduatedAt migration (v4 -> v5): pre-v5 known words get `last` backfilled with an
+# approx mark; an existing graduatedAt is never touched; active words gain nothing.
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:1,cohesion:2,background:1},
+  words:{alpha:{exposures:5,first:"2026-09-22",last:"2026-10-01T08:00:00",status:"known",source:"pool"},
+         beta:{exposures:6,first:"2026-09-20",last:"2026-10-02T08:00:00",status:"known",source:"pool",graduatedAt:"2026-10-03T09:00:00"},
+         live:{exposures:2,first:"2026-10-01",last:"2026-10-04T10:00:00",status:"active",source:"pool"}},
+  sessions:[],interests:[]}));
+const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
+const g=Object.fromEntries(o.graduated.map(x=>[x.word,x]));
+if(Object.keys(g).length!==2) throw new Error("active word leaked into graduated: "+JSON.stringify(o.graduated));
+if(g.alpha.graduatedAt!=="2026-10-01T08:00:00"||g.alpha.approx!==true) throw new Error("backfill wrong: "+JSON.stringify(g.alpha));
+if(g.beta.graduatedAt!=="2026-10-03T09:00:00"||g.beta.approx!==false) throw new Error("existing graduatedAt clobbered: "+JSON.stringify(g.beta));
+if(o.graduated[0].word!=="beta") throw new Error("roster not sorted newest-first: "+JSON.stringify(o.graduated));
+' "$SKILL_DIR" "$T2" && ok "v1.45.0 backfills graduatedAt (approx) without clobbering, sorted newest-first" || bad "graduatedAt migration"
 
 # v1.22.0 invariant: NO feel value and NO score moves an axis. This is the whole contract —
 # difficulty changes only through `axes`. Loop every tap plus a failing and a perfect score.

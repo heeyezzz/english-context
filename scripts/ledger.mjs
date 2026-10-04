@@ -241,7 +241,7 @@ const flipSyntax = (v) => MAX_SYNTAX - v;
 function load() {
   if (!existsSync(stateFile)) {
     if (cmd !== 'init') { console.error('no state at ' + stateFile + ' — run `ledger.mjs init` first'); process.exit(2); }
-    return { version: 4, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
+    return { version: 5, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
   }
   const s = JSON.parse(readFileSync(stateFile, 'utf8'));
   const v = s.version || 1;
@@ -261,6 +261,15 @@ function load() {
     if (typeof s.difficulty.syntax === 'number') s.difficulty.syntax = flipSyntax(clamp(s.difficulty.syntax, MAX_SYNTAX));
     for (const sess of s.sessions || []) if (sess.axes && typeof sess.axes.syntax === 'number') sess.axes.syntax = flipSyntax(sess.axes.syntax);
     s.version = 4;
+  }
+  // v1.45.0 — graduatedAt 之前不存在：graduate 只翻 status，毕业日期全靠 `last` 猜。
+  // 存量 known 词用 last 回填并标 approx（第 5 次曝光≈毕业，但批量手工毕业能差几天——
+  // 页面口径必须说实话）；此后 graduate 记精确秒级时间戳，不打标。
+  if (v < 5) {
+    for (const e of Object.values(s.words || {})) {
+      if (e.status === 'known' && !e.graduatedAt) { e.graduatedAt = e.last || e.first || null; e.graduatedAtApprox = true; }
+    }
+    s.version = 5;
   }
   return s;
 }
@@ -288,7 +297,7 @@ if (cmd === 'init') {
   mkdirSync(join(stateDir, 'passages'), { recursive: true });
   if (!existsSync(knownFile)) writeFileSync(knownFile, '# graduated + explicitly known words, one per line\n');
   const s = load();
-  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 4, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
+  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 5, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
   console.log('initialized ' + stateFile);
 }
 
@@ -390,10 +399,10 @@ else if (cmd === 'graduate') {
   const w = arg('word', null)?.toLowerCase();
   if (!w) { console.error('--word required'); process.exit(2); }
   const e = s.words[w] || { exposures: 0, status: 'active' };
-  e.status = 'known'; s.words[w] = e;
+  e.status = 'known'; e.graduatedAt = nowStamp(); delete e.graduatedAtApprox; s.words[w] = e;
   appendFileSync(knownFile, w + '\n');
   save(s);
-  out({ graduated: w, exposures: e.exposures, bridge: `optional: create a permanent flashcard via the anki-flashcard skill (dry-run → approve → confirmed)` });
+  out({ graduated: w, exposures: e.exposures, graduatedAt: e.graduatedAt, bridge: `optional: create a permanent flashcard via the anki-flashcard skill (dry-run → approve → confirmed)` });
 }
 
 else if (cmd === 'axes') {
@@ -461,6 +470,13 @@ else if (cmd === 'pool') {
     .sort((a, b) => (b[1].exposures - a[1].exposures) || (hoursSince(b[1].last) - hoursSince(a[1].last)))
     .slice(0, 8)
     .map(([w, e]) => `${w} (${e.exposures}/${GRADUATE_AT}, ${humanGap(hoursSince(e.last))} unseen)`);
+  // v1.45.0: the graduation roster the reading site bakes. status==='known' is the ledger's own
+  // graduation record (anki-imported words stay status:active, so they never show up here);
+  // `approx` marks pre-v5 backfills where the date is the 5th exposure, not the graduate click.
+  const graduated = Object.entries(s.words)
+    .filter(([, e]) => e.status === 'known')
+    .sort((a, b) => String(b[1].graduatedAt || b[1].last || '').localeCompare(String(a[1].graduatedAt || a[1].last || '')))
+    .map(([w, e]) => ({ word: w, exposures: e.exposures, first: e.first ?? null, graduatedAt: e.graduatedAt ?? null, approx: e.graduatedAtApprox === true }));
   // deterministic rotation by date so the same day shows the same sample
   let seed = [...today].reduce((a, c) => a + c.charCodeAt(0), 0);
   const idx = [];
@@ -492,6 +508,7 @@ else if (cmd === 'pool') {
     saturated,
     quota: q,
     mustReuse,
+    graduated,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]}·b${pool[i][2]})`),
     recent,
     history,

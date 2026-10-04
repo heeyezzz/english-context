@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.44.0
+version: 1.45.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -109,7 +109,10 @@ alive in fresh contexts.
    --session <id>`; zero accounting, and void also deletes the archived `$STATE/passages/<id>.md`
    (reports `passageRemoved`; the deletion rides the auto-push) — a voided passage leaves no corpse.
 9. **Graduation:** `confirm` nominates any target at ≥5 exposures (v1.40.0: the 5th exposure graduates — no sixth). Present nominations as
-   「候选毕业：word (5/5) → 同意？」. On yes: `ledger.mjs graduate --word w`, then ALWAYS offer the
+   「候选毕业：word (5/5) → 同意？」. On yes: `ledger.mjs graduate --word w`, which stamps `graduatedAt`
+   (second-precision; pre-v5 graduates were backfilled from `last` and carry `approx:true` — that date is
+   the 5th exposure, not the click). `pool` emits the `graduated` roster — the reading site's 目标词页 data
+   source; never re-derive it from known-words.txt. Then ALWAYS offer the
    Anki bridge once per graduated word: it is a fully-contextualized candidate for a permanent
    微语境闪卡 via the `anki-flashcard` skill (propose; that skill's own gate sequence then applies).
 10. **Push ledger:** automatic. Every state write (pend/confirm/void/graduate/interest/import-anki)

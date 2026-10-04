@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.45.0 — 2026-10-05
+
+graduate 记录 graduatedAt（秒级）；pool 输出 graduated 名单；迁移 v5 用 last 回填存量并标 approx——阅读站目标词页的数据源
+
 ## 1.44.0 — 2026-10-04
 
 取值只用 pool 的现成字段：新增 unattended-order 第八节，堵掉自己翻 state.json 的路
