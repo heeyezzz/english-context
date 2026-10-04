@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Exposure ledger + dynamic difficulty for english-context.
 // State lives in ~/.english-context/ (override with --state-dir or EC_STATE_DIR).
-// Commands: init | status | pend | confirm | void | graduate | import-anki | pool | interest | archive
+// Commands: init | status | pend | confirm | void | graduate | mark-anki | import-anki | pool | interest | archive
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, appendFileSync, unlinkSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -405,6 +405,23 @@ else if (cmd === 'graduate') {
   out({ graduated: w, exposures: e.exposures, graduatedAt: e.graduatedAt, bridge: `optional: create a permanent flashcard via the anki-flashcard skill (dry-run → approve → confirmed)` });
 }
 
+else if (cmd === 'mark-anki') {
+  // v1.46.0: the Anki bridge outcome lands HERE, so the ledger is the single truth for the site's
+  // 已入卡 badge — no page-view Anki probe, no guessing when the desktop app is closed. Only a
+  // graduated word can be marked; noteId is the caller's evidence, not validated here.
+  const s = load();
+  const w = arg('word', null)?.toLowerCase();
+  if (!w) { console.error('--word required'); process.exit(2); }
+  const e = s.words[w];
+  if (!e) { console.error(`no such word: ${w} — only ledger words can be marked`); process.exit(2); }
+  if (e.status !== 'known') { console.error(`${w} is ${e.status}, not known — graduate it first`); process.exit(2); }
+  const prev = e.anki ?? null;
+  e.anki = { importedAt: nowStamp(), noteId: arg('note', null) };
+  s.words[w] = e;
+  save(s);
+  out({ word: w, anki: e.anki, replaced: prev });
+}
+
 else if (cmd === 'axes') {
   // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。这是协商的落点——
   // 点菜改的是真参数，不是某个记录用的数字。后续 confirm 仍会据此继续微调。
@@ -476,7 +493,9 @@ else if (cmd === 'pool') {
   const graduated = Object.entries(s.words)
     .filter(([, e]) => e.status === 'known')
     .sort((a, b) => String(b[1].graduatedAt || b[1].last || '').localeCompare(String(a[1].graduatedAt || a[1].last || '')))
-    .map(([w, e]) => ({ word: w, exposures: e.exposures, first: e.first ?? null, graduatedAt: e.graduatedAt ?? null, approx: e.graduatedAtApprox === true }));
+    // `anki` rides through verbatim (set by mark-anki): the site's badge reads it, and a missing
+    // field means "no card record" — never guess either way.
+    .map(([w, e]) => ({ word: w, exposures: e.exposures, first: e.first ?? null, graduatedAt: e.graduatedAt ?? null, approx: e.graduatedAtApprox === true, anki: e.anki ?? null }));
   // deterministic rotation by date so the same day shows the same sample
   let seed = [...today].reduce((a, c) => a + c.charCodeAt(0), 0);
   const idx = [];
@@ -578,6 +597,6 @@ else if (cmd === 'archive') {
 }
 
 else {
-  console.log('commands: init | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
+  console.log('commands: init | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | mark-anki --word w [--note id] | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
   process.exit(cmd ? 2 : 0);
 }

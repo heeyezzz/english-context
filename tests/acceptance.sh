@@ -234,11 +234,17 @@ L graduate --word service > "$T/gr.json" 2>/dev/null
 grepj 'anki-flashcard' "$T/gr.json" && ok "graduation prints Anki bridge offer" || bad "bridge missing"
 grepj '"graduatedAt"' "$T/gr.json" && ok "graduate stamps graduatedAt (v1.45.0)" || bad "graduate timestamp"
 grepj '^service$' "$STATE/known-words.txt" && ok "graduated word lands in known-words.txt" || bad "known-words write"
+L mark-anki --word service --note 777 > "$T/mark.json" 2>/dev/null
+node -e "const a=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).anki;if(!a||a.noteId!=='777'||!/^\d{4}-\d{2}-\d{2}T/.test(a.importedAt||''))throw new Error(JSON.stringify(a))" "$T/mark.json" \
+  && ok "mark-anki records the Anki bridge outcome with a stamp (v1.46.0)" || bad "mark-anki record"
+check "mark-anki refuses a word the ledger never heard of" 1 L mark-anki --word definitely-not-a-ledger-word
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));const now=new Date(),p=(n)=>String(n).padStart(2,'0');s.words.ungra0={exposures:1,last:now.getFullYear()+'-'+p(now.getMonth()+1)+'-'+p(now.getDate())+'T'+p(now.getHours())+':'+p(now.getMinutes())+':'+p(now.getSeconds()),status:'active',source:'pool'};require('fs').writeFileSync(f,JSON.stringify(s))"
+check "mark-anki refuses a word that has not graduated" 1 L mark-anki --word ungra0
 L interest --add "urban trains" > /dev/null 2>&1 && grepj "urban trains" "$STATE/state.json" && ok "interest add" || bad "interest add"
 L pool --limit 6 > "$T/pool.json" 2>/dev/null
 grepj 'mustReuse' "$T/pool.json" && grepj 'fresh' "$T/pool.json" && ok "pool returns mustReuse + fresh" || bad "pool"
-node -e "const g=(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).graduated)||[];const s=g.find(x=>x.word==='service');if(!s)throw new Error('graduated word missing from pool.graduated');if(!s.graduatedAt)throw new Error('no graduatedAt');if(s.exposures!==5)throw new Error('exposures: '+s.exposures);if(s.approx!==false)throw new Error('fresh graduate must not be approx')" \
-  "$T/pool.json" && ok "pool.graduated roster carries dates" || bad "pool.graduated shape"
+node -e "const g=(JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).graduated)||[];const s=g.find(x=>x.word==='service');if(!s)throw new Error('graduated word missing from pool.graduated');if(!s.graduatedAt)throw new Error('no graduatedAt');if(s.exposures!==5)throw new Error('exposures: '+s.exposures);if(s.approx!==false)throw new Error('fresh graduate must not be approx');if(s.anki?.noteId!=='777')throw new Error('anki badge not exposed: '+JSON.stringify(s.anki))" \
+  "$T/pool.json" && ok "pool.graduated roster carries dates + anki badge" || bad "pool.graduated shape"
 # anti-repeat exposure (v1.9.0): pool must carry the last <=5 non-void sessions, topic+targets included
 node -e "const r=JSON.parse(require('fs').readFileSync('$T/pool.json','utf8')).recent||[];process.exit(r.length>0&&r.length<=5&&r.every((x)=>Array.isArray(x.targets)&&typeof x.topic==='string')?0:1)" \
   && ok "pool exposes recent history (<=5 non-void sessions with topic+targets)" || bad "recent exposure shape"

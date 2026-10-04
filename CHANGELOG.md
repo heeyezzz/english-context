@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.46.0 — 2026-10-05
+
+新增 mark-anki：Anki 桥接结果落台账（仅毕业词可标，带秒级时间戳与可选 noteId）；pool.graduated 透出 anki 字段——阅读站已入卡徽章的唯一事实源
+
 ## 1.45.0 — 2026-10-05
 
 graduate 记录 graduatedAt（秒级）；pool 输出 graduated 名单；迁移 v5 用 last 回填存量并标 approx——阅读站目标词页的数据源

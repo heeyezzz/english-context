@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.45.0
+version: 1.46.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -115,6 +115,9 @@ alive in fresh contexts.
    source; never re-derive it from known-words.txt. Then ALWAYS offer the
    Anki bridge once per graduated word: it is a fully-contextualized candidate for a permanent
    微语境闪卡 via the `anki-flashcard` skill (propose; that skill's own gate sequence then applies).
+   After a card is actually written (or an existing one is reconciled), record it:
+   `ledger.mjs mark-anki --word w [--note <noteId>]` — the reading site's 已入卡 badge reads
+   `pool.graduated[].anki`; never probe Anki at page-render time, and never mark a word the bridge did not produce.
 10. **Push ledger:** automatic. Every state write (pend/confirm/void/graduate/interest/import-anki)
     commits and pushes itself — the command's JSON carries a `sync` field: `pushed:true` = done;
     `offline:true` = safely committed locally, retried next session; **`conflict:true` = stop and ask
