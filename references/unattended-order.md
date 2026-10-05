@@ -1,6 +1,6 @@
 # 无人值守点单（无人在对话里）
 
-适用条件：请求由脚本或远端页面提交，**没有学习者在场**，四轴档位随请求一起到达。
+适用条件：请求由脚本或远端页面提交，**没有学习者在场**，五轴档位随请求一起到达。
 本篇只描述与 `SKILL.md` 正常会话流程**不同的地方**；没提到的步骤（选词、配额、防重复、
 归档锚定、曝光只在 confirm 计数）与正常会话完全一致，不在此重述，以 `SKILL.md` 为准。
 
@@ -10,7 +10,7 @@
 
 面板不念、菜单不念、`history` 不念——那三步是给学习者做选择用的，此刻选择已经做完。
 
-- 请求带来的四个数字用 `ledger.mjs axes --tier N --syntax N --cohesion N --background N`
+- 请求带来的五个数字用 `ledger.mjs axes --tier N --syntax N --cohesion N --background N --baseword N`
   **原样落地，一个数字都不许改**。
 - 不得因为"这篇读起来似乎太易/太难"自行调档。难度变动 100% 由学习者决定（v1.19.0），
   无人值守不是例外，是更容易出错的那一半。
@@ -78,7 +78,7 @@ Windows 的 `python3` 可能是 WindowsApps 的空壳——为它省下的两行
 
 | 你要的 | 取哪儿 |
 |---|---|
-| 四轴档位 | `axes`（`menu` 给全档位说明） |
+| 五轴档位 | `axes`（`menu` 给全档位说明） |
 | 安全阀与配额 | `saturated` / `quota` / `inFlight` / `sleeping` |
 | 可回收 / 可新收的词 | `mustReuse` / `fresh` |
 | 兴趣话题 | `interests` |

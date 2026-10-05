@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
+import { TIERS, tierPool, baseLevel, MAX_BASEWORD } from './lib-wordbands.mjs';
 
 const SKILL_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const SELF_PATH = fileURLToPath(import.meta.url);
@@ -58,7 +59,16 @@ const LIMITS = {
   // build the relations. Defaults are non-binding ceilings (1 / 99) so an unflagged call is inert.
   maxOverlap: +arg('max-overlap', 1),
   maxConnectives: +arg('max-connectives', 99),
+  // v1.47.0 底词轴档位：1 = A2 底（未申报超纲 = 0，v1.46.0 及之前的唯一行为）。
+  baseword: +arg('baseword', 1),
 };
+if (!Number.isInteger(LIMITS.baseword) || LIMITS.baseword < 1 || LIMITS.baseword > MAX_BASEWORD) {
+  console.error(`--baseword 只能是 1–${MAX_BASEWORD} 的整数，got ${arg('baseword', '(unset)')}`);
+  process.exit(2);
+}
+const BASE = baseLevel(LIMITS.baseword);
+// 允许当背景用的词带（档 k≥2 = 词汇 tier k−1 的池子）；档 1 没有池子 = 零容忍照旧
+const basePool = BASE.band ? tierPool(TIERS[BASE.band]) : null;
 
 // ---------- vocabulary ----------
 function loadLines(file) {
@@ -228,8 +238,22 @@ const longestSentences = sentences
   .sort((a, b) => b.words - a.words).slice(0, 3);
 // above-level rate counts only true NEW words (targets); reunion words are known to the
 // reader (Anki/graduated), so they cost no coverage — same rule the 98%-research implies.
+// v1.47.0: 底词档放行后的带内背景词同样不占目标率——它们走自己的率闸（BASE.cap）。
+// 分类必须发生在目标率之前，否则背景词会白吃掉 4% 的目标额度（假失败）。
+const baseBucketKeys = new Set();
+if (basePool) {
+  for (const [base, b] of aboveBuckets) {
+    const isT = targets.includes(base) || [...targetHits.keys()].some((t) => targetHits.get(t) > 0 && (base === t || base.startsWith(t) || t.startsWith(base)));
+    const b0 = [...b.surfaces][0];
+    const hitByT = targets.some((t) => targetHits.get(t) > 0 && candidates0(b0) === candidates0(t));
+    if (isT || hitByT || isReunionWord(base, b)) continue;
+    if (basePool.has(base) || [...b.surfaces].some((s) => basePool.has(s))) baseBucketKeys.add(base);
+  }
+}
+const baseTokens = [...baseBucketKeys].reduce((a, k) => a + aboveBuckets.get(k).count, 0);
+const baseRate = totalWords ? (baseTokens / totalWords) * 100 : 0;
 const aboveTokens = [...aboveBuckets.entries()]
-  .filter(([base, b]) => !isReunionWord(base, b))
+  .filter(([base, b]) => !isReunionWord(base, b) && !baseBucketKeys.has(base))
   .reduce((a, [, b]) => a + b.count, 0);
 const rate = totalWords ? (aboveTokens / totalWords) * 100 : 0;
 
@@ -299,9 +323,10 @@ for (const [base, b] of aboveBuckets) {
   const isTarget = targets.includes(base) || [...targetHits.keys()].some((t) => targetHits.get(t) > 0 && (base === t || base.startsWith(t) || t.startsWith(base)));
   const b0 = [...b.surfaces][0];
   const hitByTarget = targets.some((t) => targetHits.get(t) > 0 && candidates0(b0) === candidates0(t));
-  if (!isTarget && !hitByTarget && !reunion.has(base)) undeclared.push(`${b0} (${b.level}, x${b.count})`);
+  if (!isTarget && !hitByTarget && !isReunionWord(base, b) && !baseBucketKeys.has(base)) undeclared.push(`${b0} (${b.level}, x${b.count})`);
 }
-if (undeclared.length) fail.push(`undeclared above-level words: ${undeclared.join(', ')}`);
+if (undeclared.length) fail.push(`undeclared above-level words: ${undeclared.join(', ')}${BASE.band ? `（底词 ${BASE.value} 档只放行「${BASE.label}」带内的词，表外或未收录的词照样必须申报）` : ''}`);
+if (baseRate > BASE.cap) fail.push(`background (baseword) token rate ${baseRate.toFixed(1)}% > ${BASE.cap}% (底词 ${BASE.value} 档上限)`);
 
 for (const t of targets) {
   const hits = targetHits.get(t) || 0;
@@ -338,6 +363,7 @@ const report = {
   connectivesPerSentence: +connectivesPerSentence.toFixed(2),
   aboveLevelTokens: aboveTokens,
   aboveLevelRate: +rate.toFixed(1) + '%',
+  baseword: { rung: BASE.value, label: BASE.label, cap: BASE.cap + '%', tokens: baseTokens, rate: +baseRate.toFixed(1) + '%' },
   targets: Object.fromEntries(targetHits),
   reunionUsed,
   undeclared,

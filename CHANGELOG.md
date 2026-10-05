@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.47.0 — 2026-10-05
+
+底词轴（第五轴，8 档）：1 档=A2 底（现状默认）；k≥2 允许未申报背景词进词汇 tier(k-1) 同带，背景超纲率逐档 1%→4% 线性封顶；词带与档位阶梯抽成 scripts/lib-wordbands.mjs（ledger 与 passage-check 唯一真源）；迁移 v6 补 baseword=1；面板/无人值守文档五轴化；背景词不注释、不记账
+
 ## 1.46.0 — 2026-10-05
 
 新增 mark-anki：Anki 桥接结果落台账（仅毕业词可标，带秒级时间戳与可选 noteId）；pool.graduated 透出 anki 字段——阅读站已入卡徽章的唯一事实源

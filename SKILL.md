@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.46.0
+version: 1.47.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -63,9 +63,9 @@ alive in fresh contexts.
    Learner-specified words always win and count toward the quota, and are subject to the hour gap.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
-   **定档位 + 协商（起草前必做；无人值守时本节全部跳过，档位原样落地）：** 读 `pool` 的 `menu`（四轴全部档位 + `direction` + `set`
+   **定档位 + 协商（起草前必做；无人值守时本节全部跳过，档位原样落地）：** 读 `pool` 的 `menu`（五轴全部档位 + `direction` + `set`
    + 逐轴 `lastUsed` / `driftedSinceLastDraft`）与 `fixedLimits`（不可调的固定红线），
-   然后**照 [面板模板](references/panel-templates.md) 念** —— 单版模板：四张完整档位表（名称 + 数值 + 难度说明）+「固定配置参数」五项；挑档方式（报「项目+数字」）由 agent 口头带一句，不写进面板。
+   然后**照 [面板模板](references/panel-templates.md) 念** —— 单版模板：五张完整档位表（名称 + 数值 + 难度说明）+「固定配置参数」五项；挑档方式（报「项目+数字」）由 agent 口头带一句，不写进面板。
    **别临时组织格式**：每个 agent 念得不一样，学习者就无法形成稳定预期。**面板直接输出 markdown，别套代码块**（套了就退化成一排裸管道符）。
    填槽值一律从 `pool` 取，一个都不许自己编；`gateFlags` 只给 passage-check，不念给他听。然后：
    - 他回「句子 3」「衔接松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地，**只回一句「好，句子调到 3（常规）」——命令不出现、也不念出来**（档名一律从 `pool` 取，此处仅示例）
@@ -195,15 +195,17 @@ the learner explicitly asks for.
 
 ## Hard rules (script-enforced; see passage-check.mjs)
 
-- 250–350 words。句长 / 小句 / 被动 / 衔接的上下限**全部由四轴档位推出**，`pool` 会输出一串
+- 250–350 words。句长 / 小句 / 被动 / 衔接 / 底词的上下限**全部由五轴档位推出**，`pool` 会输出一串
   现成的 `gateFlags` —— 起草后**逐字复制**它去跑 passage-check，别自己拼。
 - 4–5 targets, each appearing ≥2× in prose, each bolded at least once.
 - Above-level token rate ≤4% (targets only; reunion/whitelist/known words cost no coverage).
-- Zero undeclared above-level words: anything above CEFR A2 must be a declared target, reunion word,
-  whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and irregular forms
-  are handled; anything else fails.
+- Zero undeclared above-level words **at 底词档 1（默认）**: anything above CEFR A2 must be a declared
+  target, reunion word, whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and
+  irregular forms are handled; anything else fails. **底词档 k≥2（v1.47.0）** 起例外放宽：未申报的
+  **背景词**允许出现在词汇 tier(k−1) 的带内，且背景超纲率单独封顶（2→1% 线性到 8→4%）；
+  带外或词表未收录的词**照样必须申报**，不注释、不进曝光台账。
 
-## Difficulty（v1.22.0：四轴，**无自动路由**）
+## Difficulty（v1.22.0 起四轴、v1.47.0 起五轴，**无自动路由**）
 
 **这个 skill 不判断难度。** 它的职责是「按你设定的档位，生成符合 i+1 契约的材料，并如实记录发生了什么」；
 档位往上还是往下，**全部由学习者通过 `axes` 明确指定**——这是唯一会改动难度轴的入口。
@@ -218,13 +220,13 @@ the learner explicitly asks for.
 > - 它和 `axes` 功能重复——四根轴本来就能直接点。
 > `streakGood` 随它一起删除（它只为「连续两次 flow 升档」而存在）。
 
-> **台账记的是「档位 → 体感」**：每篇 `pend` 时把当时的四轴档位快照进 session，
+> **台账记的是「档位 → 体感」**：每篇 `pend` 时把当时的五轴档位快照进 session，
 > `pool` 的 `history` 输出最近 8 条的 `{axes, feel, score}`，archive 时同一份档位写进 frontmatter。
 > 这是**给学习者自己看的账**：某轴调紧后仍报 ok 说明还有余量，一调紧就抱怨说明边界在上一档。
 > agent 的职责是把这个读给他听，让他决定下一步——不是替他决定。
 > （四维 `predicted`/`requested` 画像在 v1.17.0 退役，探针在 v1.19.0 删除，原因同类：记的是 AI 的判断或猜测，下游没人消费。）
 
-### 四轴各是什么
+### 五轴各是什么
 
 | 轴 | 档位 | 怎么改 | 依据 |
 |---|---|---|---|
@@ -232,8 +234,9 @@ the learner explicitly asks for.
 | **句子** syntax | 0–4 | 只能 `--syntax` | 一个「句子包」：句长 + **每句小句数** + 全篇被动数。**v1.36.0 起索引翻转，四轴同向（越大越难）**：0 最静（13/8）· 1 冷静（16/10）· 2 偏静（18/11）· 3 常规（20/12，默认）· 4 放宽（24/14） |
 | **衔接** cohesion | 0–3 | 只能 `--cohesion` | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
 | **话题** background | 0–2 | 只能 `--background` | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现 |
+| **底词** baseword | 1–8 | 只能 `--baseword` | v1.47.0：目标词之外背景词的难度上限。1 = A2 底（现状默认）；k≥2 = 未申报背景词可进词汇 tier(k−1) 同带，率上限 1%→4% 线性。不注释、不记账；软提醒：一般 ≤ 词汇档−1 |
 
-**改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3`（任一轴，可只给一部分）。
+**改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3 --baseword 2`（任一轴，可只给一部分）。
 起草前把 `pool` 的 `menu` 念给学习者——那是完整的多维多档选择面，`current` 就是默认（= 他上次的选择）。
 **为什么句长不再是唯一**：实测 13 篇存量档平均句长 8.8 词而上限 12，句长轴几乎是饱和的；
 真正的难度差藏在**小句密度**（实测最多 2–3 小句/句）和**衔接**（重叠 0.006–0.133，差 20 倍）里。
@@ -241,7 +244,8 @@ the learner explicitly asks for.
 
 **迁移**：`state.version < 2` 走 v1.14.0 三档 → 六档；`< 3` 走六档 → 八档（旧 3 = B1 全量 2178 词 ≡ 新 4）
 并把手动计的 `syntaxCalm` 转成当时的档位索引（+1）；`< 4` 走 v1.36.0 的**句子档索引翻转**（新 = 4 − 旧，
-难度包一字未动，只反写编号），当前档位和每篇的档位快照一起翻——快照不翻的话 `history` 会把旧档读成反方向。
+难度包一字未动，只反写编号），当前档位和每篇的档位快照一起翻——快照不翻的话 `history` 会把旧档读成反方向；
+`< 6` 走 v1.47.0 底词轴诞生：`baseword` 补 1 档（A2 底 = 旧唯一行为，不改任何存量语义）。
 串联执行，见 `load()`。已归档的 `passages/*.md` frontmatter **不回改**（那是当时的成品记录，无脚本回读）。
 跨机注意：另一台机器若还装着 v1.35.0 及更早的 skill，会用旧编号解释迁移后的值（旧 3 = 冷静，新 3 = 常规），
 所以**先在那台更新 skill 再生成**（`pool` 的 `skillUpdate.ruleLayer` 会提示）。
@@ -253,9 +257,10 @@ the learner explicitly asks for.
 SKILL.md
 CHANGELOG.md                      更新日志：ship.mjs 每次成功发布自动追加，勿手改
 references/passage-format.md      短文输出模板 + 格式级规则（注释/题目/重逢词写法）+ 词级预查（其 pass 不是发布依据）
-references/panel-templates.md     生成前难度面板的固定模板（单版：四张档位表〔名称+数值+难度说明〕+「固定配置参数」五项；（现在）与漂移行按 pool 动态处理）
+references/panel-templates.md     生成前难度面板的固定模板（单版：五张档位表〔名称+数值+难度说明〕+「固定配置参数」五项；（现在）与漂移行按 pool 动态处理）
 references/unattended-order.md    无人值守点单：无人在对话里时与正常流程的差异（档位原样落地、中止条件、回执、边界）
-scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率），exit 0/1 + JSON 报告
+scripts/passage-check.mjs         硬校验（词表/句长/复现/生词率/底词率），exit 0/1 + JSON 报告
+scripts/lib-wordbands.mjs         词带数据 + 词汇/底词档位阶梯的唯一真源（ledger 与 passage-check 共用）
 scripts/ledger.mjs                init|pend|archive|confirm|void|graduate|import-anki|pool|axes|interest
 scripts/sync-anki-words.mjs       只读拉取 Anki 已学词（Agent Connect 8766）
 scripts/state-git.mjs             台账跨机同步：pull(会话开始)/push(会话结束)，分叉时停下问人

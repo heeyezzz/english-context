@@ -10,6 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { skillUpdate } from './skill-update.mjs';
+import { BANDS, TIERS, MAX_TIER, tierPool, BASE_LADDER, MAX_BASEWORD, baseLevel } from './lib-wordbands.mjs';
 
 const SKILL_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const argv = process.argv;
@@ -40,17 +41,7 @@ const humanGap = (h) => (!isFinite(h) ? '' : h < 48 ? `${Math.round(h)}h` : `${M
 // 词池改按「复合稀有度」分档：assets/word-bands.tsv 里的 band 由 词频 + AoA + 具体性
 // 三项等权百分位合成（理由见该文件头部）。B1 / B2 各切四段，逐档并入 —— 档越高，
 // 允许出现的难词越多。旧 6 档的池子大小仍被保留为迁移锚点：旧 3（B1 全量）= 新 4。
-const TIERS = {
-  1: { b1: [1], b2: [], label: 'B1 易段' },
-  2: { b1: [1, 2], b2: [], label: 'B1 易+中易' },
-  3: { b1: [1, 2, 3], b2: [], label: 'B1 易+中易+中难' },
-  4: { b1: [1, 2, 3, 4], b2: [], label: 'B1 全量' },
-  5: { b1: [1, 2, 3, 4], b2: [1], label: 'B1 全量 + B2 易段' },
-  6: { b1: [1, 2, 3, 4], b2: [1, 2], label: 'B1 全量 + B2 易+中易' },
-  7: { b1: [1, 2, 3, 4], b2: [1, 2, 3], label: 'B1 全量 + B2 易+中易+中难' },
-  8: { b1: [1, 2, 3, 4], b2: [1, 2, 3, 4], label: 'B1+B2 全量' },
-};
-const MAX_TIER = 8;
+// v1.47.0 起 TIERS/BANDS/tierPool 住进 scripts/lib-wordbands.mjs（与 passage-check 共享同一真源）。
 // v1.16.0 — 句式档 5 档（v1.15.0 是 4 档，且只卡句长）。句长轴过去是饱和的：实测 13 篇
 // 存量档平均句长 8.8 词而上限是 12，几乎没有咬合；真正的难度藏在「小句密度」里
 // （实测最多 2–3 小句/句，完全不受控）。所以每档现在是一个「句子包」：
@@ -102,7 +93,8 @@ const gateFlags = (s) => {
   const sx = syntaxLevel(s), co = cohesionLevel(s);
   return `--max-sentence ${sx.max} --avg-sentence ${sx.avg} --max-clauses ${sx.clauses} --max-passives ${sx.passives}`
     + ` --min-overlap ${co.minOverlap} --min-connectives ${co.minConnectives}`
-    + ` --max-overlap ${co.maxOverlap} --max-connectives ${co.maxConnectives}`;
+    + ` --max-overlap ${co.maxOverlap} --max-connectives ${co.maxConnectives}`
+    + ` --baseword ${baseLevel(s.difficulty.baseword).value}`;
 };
 const cohesionText = (co) => {
   const floor = co.minOverlap || co.minConnectives ? `重叠≥${co.minOverlap} 连接词≥${co.minConnectives}` : '';
@@ -121,6 +113,8 @@ const difficultyOut = (s) => {
       句子: `syntax ${s.difficulty.syntax ?? SANE_SYNTAX}/4 · ${sx.label} · 句长≤${sx.max}/${sx.avg} 小句≤${sx.clauses} 被动≤${sx.passives}`,
       衔接: `cohesion ${s.difficulty.cohesion ?? SANE_COHESION}/3 · ${co.label} · ${cohesionText(co)}`,
       话题: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
+      底词: `baseword ${baseLevel(s.difficulty.baseword).value}/8 · ${baseLevel(s.difficulty.baseword).label}`
+        + (baseLevel(s.difficulty.baseword).cap ? ` · 背景超纲≤${baseLevel(s.difficulty.baseword).cap}%` : ' · 无背景超纲'),
     },
     gateFlags: gateFlags(s),
   };
@@ -136,21 +130,7 @@ const COOLDOWN_HOURS = { 1: 1, 2: 3, 3: 6, 4: 12, 5: 24 };
 // Above this, pool stops offering fresh words so the queue can drain (inflow 1.5/passage was
 // structurally outrunning graduation capacity ~0.7/passage).
 const SATURATION_AT = 25;
-
-// word -> [level, band]; only B1/B2 appear (A1/A2 are always free words, never banded)
-const BANDS = new Map();
-for (const line of readFileSync(join(SKILL_DIR, 'assets', 'word-bands.tsv'), 'utf8').split('\n')) {
-  if (line.startsWith('#') || !line.trim()) continue;
-  const [w, lvl, band] = line.split('\t');
-  if (w && lvl && band) BANDS.set(w.trim().toLowerCase(), [lvl.trim(), +band]);
-}
-function tierPool(tier) {
-  const set = new Set();
-  for (const [w, [lvl, band]] of BANDS) {
-    if (lvl === 'B1' ? tier.b1.includes(band) : tier.b2.includes(band)) set.add(w);
-  }
-  return set;
-}
+// BANDS / TIERS / tierPool：见 scripts/lib-wordbands.mjs（v1.47.0 起与 passage-check 共享）
 
 // Pre-draft option menu (v1.18.0): the whole multi-axis / multi-rung choice surface, derived
 // from the rung tables — no new state. The rung flagged `current` IS the default, and because
@@ -176,6 +156,7 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
     syntax: clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX),
     cohesion: clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION),
     background: clamp(s.difficulty.background ?? 1, MAX_BACKGROUND),
+    baseword: baseLevel(s.difficulty.baseword).value,
   };
   const entry = (key, rungs, direction, extra = {}) => ({
     flag: `--${key}`,
@@ -195,6 +176,11 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
     句子: entry('syntax',
       SYNTAX_LADDER.map((r, i) => ({ value: i, label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}` })),
       '数字越大越难（句子越长、小句越多、被动句越多）'),
+    // v1.47.0 底词轴：目标词之外那些不申报、不注释、不记账的背景词能有多难
+    底词: entry('baseword',
+      BASE_LADDER.map((r) => ({ value: r.value, label: r.label, detail: r.cap ? `背景超纲≤${r.cap}%` : '背景零超纲' })),
+      '数字越大越难（背景词可以超出 A2，且各档自带率上限）',
+      { note: '软提醒：底词档一般 ≤ 词汇档 −1，越界等于背景比目标词还难，设计上就是反的' }),
     衔接: entry('cohesion',
       COHESION_LADDER.map((r, i) => ({
         value: i, label: r.label,
@@ -217,7 +203,7 @@ const FIXED_LIMITS = {
   篇长: '250–350 词',
   目标词: '4–5 个，每个复现 ≥2 次，且每个至少加粗一次',
   超纲率: '≤4%（targets 才算；重逢词/白名单/已学词不占额度）',
-  未申报超纲词: '0（任何超 A2 的词都必须是 target / 重逢词 / 白名单 / 已知词）',
+  未申报超纲词: '底词 1 档为 0（任何超 A2 的词都必须是 target / 重逢词 / 白名单 / 已知词）；底词 ≥2 档按底词轴放行（带内 + 逐档率上限）',
   声明的重逢词: '必须至少出现一次',
 };
 
@@ -231,7 +217,7 @@ const FIXED_LIMITS = {
 const TIER_V1 = { 1: 3, 2: 6, 3: 6 };
 // v1.15.0 六档 → v1.16.0 八档：按池子大小就近映射。锚点：旧 3（B1 全量 2178 词）≡ 新 4（2178 词）。
 const TIER_V2 = { 1: 1, 2: 3, 3: 4, 4: 5, 5: 7, 6: 8 };
-const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1 };
+const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1, baseword: 1 };
 // v1.36.0 — 句子档索引翻转（新 = 4 − 旧）。难度包不变，只有编号反写，所以迁移必须同时改
 // 当前档位和每篇的档位快照：快照不翻的话，`history` 会把旧档读成反方向的难度
 // （旧 syntax 1 = 常规会被读成新的 1 = 冷静），台账就变成假账。
@@ -241,7 +227,7 @@ const flipSyntax = (v) => MAX_SYNTAX - v;
 function load() {
   if (!existsSync(stateFile)) {
     if (cmd !== 'init') { console.error('no state at ' + stateFile + ' — run `ledger.mjs init` first'); process.exit(2); }
-    return { version: 5, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
+    return { version: 6, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] };
   }
   const s = JSON.parse(readFileSync(stateFile, 'utf8'));
   const v = s.version || 1;
@@ -271,6 +257,12 @@ function load() {
     }
     s.version = 5;
   }
+  // v1.47.0 — 底词轴诞生：老台账没有这一项，全部落在 1 档（A2 底）= v1.46.0 及之前的唯一行为，
+  // 迁移本身不改变任何一篇的难度语义。
+  if (v < 6) {
+    if (!s.difficulty.baseword) s.difficulty.baseword = 1;
+    s.version = 6;
+  }
   return s;
 }
 let lastSync = null;
@@ -297,7 +289,7 @@ if (cmd === 'init') {
   mkdirSync(join(stateDir, 'passages'), { recursive: true });
   if (!existsSync(knownFile)) writeFileSync(knownFile, '# graduated + explicitly known words, one per line\n');
   const s = load();
-  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 5, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
+  if (!argv.includes('--force')) save(s); else writeFileSync(stateFile, JSON.stringify({ version: 6, difficulty: { ...DEFAULT_AXES }, words: {}, sessions: [], interests: [] }, null, 2));
   console.log('initialized ' + stateFile);
 }
 
@@ -321,6 +313,7 @@ else if (cmd === 'pend') {
     syntax: s.difficulty.syntax ?? SANE_SYNTAX,
     cohesion: s.difficulty.cohesion ?? SANE_COHESION,
     background: s.difficulty.background ?? 1,
+    baseword: baseLevel(s.difficulty.baseword).value,
   };
   s.sessions.push({ id, date: today, at: nowStamp(), topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
@@ -426,7 +419,7 @@ else if (cmd === 'axes') {
   // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。这是协商的落点——
   // 点菜改的是真参数，不是某个记录用的数字。后续 confirm 仍会据此继续微调。
   const s = load();
-  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND] };
+  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND], baseword: [1, MAX_BASEWORD] };
   const changed = {};
   for (const [k, [lo, hi]] of Object.entries(AXES)) {
     const v = arg(k, null);
@@ -582,7 +575,7 @@ else if (cmd === 'archive') {
     // The five axis settings this passage was drafted at — read from the pend-time snapshot, so
     // the frontmatter provably matches the axes `pool` handed the draft, not whatever the live
     // state happens to be at archive time.
-    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1} }`,
+    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1}, baseword: ${(sess.axes || s.difficulty).baseword ?? 1} }`,
     ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
     `validatedBy: ${report.validatedBy}`,
     '---',
@@ -597,6 +590,6 @@ else if (cmd === 'archive') {
 }
 
 else {
-  console.log('commands: init | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | mark-anki --word w [--note id] | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
+  console.log('commands: init | pend --meta f.json | confirm --session id [--score 3/3 --feel flow|ok|wordy|dense|context|choppy] | void --session id | graduate --word w | mark-anki --word w [--note id] | import-anki [--file j] | pool [--limit n] | axes [--tier n --syntax n --cohesion n --background n --baseword n] | interest [--add x|--remove x] | archive --session id --passage f.md --report r.json [--quiz "B,A,C"]');
   process.exit(cmd ? 2 : 0);
 }

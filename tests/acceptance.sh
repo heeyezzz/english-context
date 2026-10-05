@@ -338,13 +338,13 @@ node -e '
 const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
 const x=s.sessions.find(y=>y.id===process.argv[2]);
 if(!x.axes) throw new Error("no axes snapshot on the session");
-if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
+if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2,baseword:1})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
 if("predicted" in x || "requested" in x) throw new Error("retired profile fields are still being written");
-' "$STATE/state.json" "$PPSID" && ok "pend snapshots all four axes and writes no profile fields" || bad "axis snapshot"
+' "$STATE/state.json" "$PPSID" && ok "pend snapshots all five axes and writes no profile fields" || bad "axis snapshot"
 # archive frontmatter carries the pend-time axis snapshot (not whatever the live state became)
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta-nopredict.json" --state-dir "$STATE" --report "$T/pp_rep.json" > /dev/null 2>&1
 L archive --session "$PPSID" --passage "$T/passage.md" --report "$T/pp_rep.json" > /dev/null 2>&1
-grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2 }$' "$STATE/passages/$PPSID.md" \
+grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2, baseword: 1 }$' "$STATE/passages/$PPSID.md" \
   && ! grepj '^predicted:' "$STATE/passages/$PPSID.md" \
   && ok "archive frontmatter carries the axis snapshot and no predicted line" || bad "archive axis snapshot"
 # context feel (v1.16.0): no longer record-only — it now pulls the background axis down one rung.
@@ -464,7 +464,7 @@ for(let old=0;old<=4;old++){
   // pool is read-mostly and never saves, so force a save to check the snapshot actually flipped on disk
   L("interest","--add","flip-check");
   const st=JSON.parse(fs.readFileSync(dir+"/state.json","utf8"));
-  if(st.version!==5) throw new Error("state not stamped v5: "+st.version);
+  if(st.version!==6) throw new Error("state not stamped v6: "+st.version);
   if(st.difficulty.syntax!==4-old) throw new Error("saved axis not flipped: "+JSON.stringify(st.difficulty));
   if(st.sessions[0].axes.syntax!==4-old) throw new Error("session snapshot not flipped: "+JSON.stringify(st.sessions[0].axes));
 }
@@ -496,7 +496,7 @@ T3="$T/rungs"; mkdir -p "$T3"
 node "$S/ledger.mjs" init --state-dir "$T3" --no-sync > /dev/null 2>&1
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
-fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:5,syntax:1,cohesion:1,background:2},words:{},sessions:[],interests:[]}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:6,difficulty:{tier:5,syntax:1,cohesion:1,background:2,baseword:1},words:{},sessions:[],interests:[]}));
 const snap=()=>JSON.stringify(JSON.parse(fs.readFileSync(dir+"/state.json","utf8")).difficulty);
 const want=snap();
 for(const [feel,score] of [["flow","3/3"],["ok","3/3"],["wordy","3/3"],["dense","3/3"],["context","3/3"],["choppy","3/3"],["ok","1/3"],["flow","1/3"],["dense","1/3"]]){
@@ -533,7 +533,7 @@ const coh=[
 ];
 coh.forEach(([flags,label],i)=>{
   const o=L("axes","--cohesion",String(i));
-  if(!o.gateFlags.endsWith(flags)) throw new Error("cohesion "+i+" gateFlags: "+o.gateFlags);
+  if(!o.gateFlags.includes(flags)) throw new Error("cohesion "+i+" gateFlags: "+o.gateFlags);
   if(!o.axes.衔接.startsWith(label)) throw new Error("cohesion "+i+" label: "+o.axes.衔接);
 });
 ' "$SKILL_DIR" "$T3" && ok "every syntax/cohesion rung emits its documented gate flags (manual ladder is the only path)" || bad "rung table"
@@ -543,10 +543,10 @@ node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
-for(const k of ["词汇","句子","衔接","话题"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
-if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99")
+for(const k of ["词汇","句子","衔接","话题","底词"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
+if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99 --baseword 1")
   throw new Error("gateFlags mismatch at the default rung: "+o.gateFlags);
-' "$SKILL_DIR" "$T3" && ok "four axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
+' "$SKILL_DIR" "$T3" && ok "five axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
 
 # 点菜入口：axes must set any subset, clamp-check every value, and refuse an empty call
 node -e '
@@ -564,6 +564,56 @@ const empty=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--state-dir",di
 if(empty.status===0) throw new Error("empty axes call accepted");
 ' "$SKILL_DIR" "$T3" && ok "axes command sets a subset, rejects out-of-range and empty calls" || bad "axes command"
 
+# v1.47.0 底词轴：迁移 v5->v6 默认 1 档、gateFlags 尾巴带 --baseword、axes 只收 1–8
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const L=(...a)=>JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"}));
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:5,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words:{},sessions:[],interests:[]}));
+const o=L("pool","--limit","1");
+if(o.menu.底词.current!==1) throw new Error("baseword not defaulted to 1: "+o.menu.底词.current);
+if(!/--baseword 1$/.test(o.gateFlags)) throw new Error("gateFlags: "+o.gateFlags);
+if(o.menu.底词.rungs.length!==8) throw new Error("底词 rungs: "+o.menu.底词.rungs.length);
+L("interest","--add","bw");
+const st=JSON.parse(fs.readFileSync(dir+"/state.json","utf8"));
+if(st.version!==6||st.difficulty.baseword!==1) throw new Error("v6 stamp missing: "+JSON.stringify(st.difficulty));
+L("axes","--baseword","5");
+if(!/--baseword 5$/.test(L("pool","--limit","1").gateFlags)) throw new Error("baseword 5 not in gateFlags");
+for(const bad of ["0","9","x"]){
+  const r=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--baseword",bad,"--state-dir",dir,"--no-sync"]);
+  if(r.status===0) throw new Error("baseword "+bad+" accepted");
+}
+' "$SKILL_DIR" "$T3" && ok "baseword axis: v6 migration defaults to 1, gateFlags carries it, axes accepts 1-8 only" || bad "baseword axis"
+
+# v1.47.0 底词硬闸：带内背景词 1 档仍拒、2 档放行、量超 1% 上限拒；带外词 8 档也拒
+BW=$(node --input-type=module -e '
+import fs from "node:fs";
+const { tierPool, TIERS } = await import("'"$SKILL_DIR"'/scripts/lib-wordbands.mjs");
+const free = (f) => (fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "").toLowerCase();
+const banned = free("'"$T"'/passage.md") + free("'"$STATE"'/known-words.txt") + free("'"$SKILL_DIR"'/assets/allow-extra.txt");
+console.log([...tierPool(TIERS[1])].find((x) => /^[a-z]{4,9}$/.test(x) && !banned.includes(x)));
+')
+HBW=$(node --input-type=module -e '
+import fs from "node:fs";
+const { BANDS, TIERS, tierPool } = await import("'"$SKILL_DIR"'/scripts/lib-wordbands.mjs");
+const in1 = tierPool(TIERS[1]);
+const free = (f) => (fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "").toLowerCase();
+const banned = free("'"$T"'/passage.md") + free("'"$STATE"'/known-words.txt") + free("'"$SKILL_DIR"'/assets/allow-extra.txt");
+// 确定性取 B2 中难段的词：它超出 2 档（B1 易段）的放行带，但落在 8 档带内
+console.log([...BANDS.entries()].filter(([w, [l, b]]) => l === "B2" && b === 3 && !in1.has(w) && /^[a-z]{4,9}$/.test(w) && !banned.includes(w))[0][0]);
+')
+{ cat "$T/passage.md"; printf '\n\nThe %s sat there, and the %s stayed all day.\n' "$BW" "$BW"; } > "$T/bw2.md"
+{ cat "$T/bw2.md"; for i in 1 2 3 4 5; do printf 'The %s waited quietly outside.\n' "$BW"; done; } > "$T/bw12.md"
+{ cat "$T/passage.md"; printf '\n\nThe %s sat there, and the %s stayed all day.\n' "$HBW" "$HBW"; } > "$T/bwhard.md"
+BFLAGS="--min-words 1 --max-words 9999 --max-rate 100 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99"
+check "底词 1 档（默认）：带内背景词仍是未申报超纲，零容忍不变" 1 node "$S/passage-check.mjs" --passage "$T/bw2.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS
+node "$S/passage-check.mjs" --passage "$T/bw2.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2 > "$T/bwpass.json" 2>/dev/null \
+  && grepj '"pass": true' "$T/bwpass.json" && grepj '"rung": 2' "$T/bwpass.json" \
+  && ok "底词 2 档：带内背景词放行且报告带 rung/率" || bad "baseword 2 pass"
+check "底词 2 档率闸：背景超纲 12 词 > 1% 上限被拒" 1 node "$S/passage-check.mjs" --passage "$T/bw12.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2
+check "带外词（B2 中难段）在底词 2 档仍被拒" 1 node "$S/passage-check.mjs" --passage "$T/bwhard.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2
+node "$S/passage-check.mjs" --passage "$T/bwhard.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 8 > "$T/bw8.json" 2>/dev/null \
+  && grepj '"pass": true' "$T/bw8.json" && ok "带外词升到 8 档（B2 中难带）即放行" || bad "baseword 8 pass"
+
 # the pre-draft menu: every axis must offer ALL its rungs, mark exactly one as current, and the
 # marked default must equal the live state (i.e. the learner's last choice) — v1.18.0
 node -e '
@@ -573,8 +623,8 @@ fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:5,
 const o=JSON.parse(L("pool","--limit","1"));
 const m=o.menu;
 if(!m) throw new Error("menu missing from pool");
-const want={词汇:8,句子:5,衔接:4,话题:3};
-const live={词汇:5,句子:1,衔接:1,话题:0};
+const want={词汇:8,句子:5,衔接:4,话题:3,底词:8};
+const live={词汇:5,句子:1,衔接:1,话题:0,底词:1};
 for(const [axis,n] of Object.entries(want)){
   const a=m[axis];
   if(!a) throw new Error("axis missing from menu: "+axis);
@@ -597,7 +647,7 @@ for(const [axis,a] of Object.entries(m)){
   const vals=a.rungs.map(r=>r.value);
   if(String(vals[0])!==a.set.match(/<(\d+)/)[1]) throw new Error(axis+" set range disagrees with rungs: "+a.set);
 }
-for(const axis of ["词汇","句子","衔接","话题"]){
+for(const axis of ["词汇","句子","衔接","话题","底词"]){
   if(!/越难/.test(m[axis].direction)) throw new Error(axis+" must read 数字越大越难 (v1.36.0 unified the index direction)");
   if(/相反|越易|越容易/.test(m[axis].direction)) throw new Error(axis+" is still flagged inverted after the v1.36.0 flip");
 }
@@ -616,7 +666,7 @@ for(const k of ["min-words","max-words","max-rate","min-targets","max-targets","
 // a fresh state must pre-select the defaults, not a stale value
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const d=JSON.parse(L("pool","--limit","1")).menu;
-for(const [axis,v] of Object.entries({词汇:4,句子:3,衔接:2,话题:1})){
+for(const [axis,v] of Object.entries({词汇:4,句子:3,衔接:2,话题:1,底词:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
 ' "$SKILL_DIR" "$T3" && ok "menu: all rungs + one current + direction + set + drift per axis, and fixedLimits matches passage-check LIMITS" || bad "diet menu"
@@ -629,10 +679,10 @@ TPL="$SKILL_DIR/references/panel-templates.md"
 [ -f "$TPL" ] && ok "panel template file exists" || bad "panel-templates.md missing"
 grepj 'references/panel-templates.md' "$SKILL_DIR/SKILL.md" && ok "SKILL.md links the panel template" || bad "template not linked"
 miss=""
-for k in 词汇 句子 衔接 话题 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 越难 不念 代码块; do
+for k in 词汇 句子 衔接 话题 底词 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 越难 不念 代码块; do
   grepj "$k" "$TPL" || miss="$miss $k"
 done
-[ -z "$miss" ] && ok "template covers all four axes, every fill source, and its hard rules" || bad "template missing:$miss"
+[ -z "$miss" ] && ok "template covers all five axes, every fill source, and its hard rules" || bad "template missing:$miss"
 
 
 echo "== archive (scripted step-6) =="
