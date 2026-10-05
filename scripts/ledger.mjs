@@ -114,7 +114,7 @@ const difficultyOut = (s) => {
       衔接: `cohesion ${s.difficulty.cohesion ?? SANE_COHESION}/3 · ${co.label} · ${cohesionText(co)}`,
       话题: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
       底词: `baseword ${baseLevel(s.difficulty.baseword).value}/8 · ${baseLevel(s.difficulty.baseword).label}`
-        + (baseLevel(s.difficulty.baseword).cap ? ` · 背景超纲≤${baseLevel(s.difficulty.baseword).cap}%` : ' · 无背景超纲'),
+        + (baseLevel(s.difficulty.baseword).band ? ' · 背景词从该带里挑（不限数量）' : ' · 无背景超纲'),
     },
     gateFlags: gateFlags(s),
   };
@@ -177,9 +177,10 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
       SYNTAX_LADDER.map((r, i) => ({ value: i, label: r.label, detail: `句长≤${r.max}/${r.avg} 小句≤${r.clauses} 被动≤${r.passives}` })),
       '数字越大越难（句子越长、小句越多、被动句越多）'),
     // v1.47.0 底词轴：目标词之外那些不申报、不注释、不记账的背景词能有多难
+    // v1.48.0：档位只回答「从哪个带里挑」，不限数量（学习者拍板：撤掉拍出来的率闸）
     底词: entry('baseword',
-      BASE_LADDER.map((r) => ({ value: r.value, label: r.label, detail: r.cap ? `背景超纲≤${r.cap}%` : '背景零超纲' })),
-      '数字越大越难（背景词可以超出 A2，且各档自带率上限）',
+      BASE_LADDER.map((r) => ({ value: r.value, label: r.label, detail: r.band ? `背景可选 ${tierPool(TIERS[r.band]).size} 词` : '背景零超纲' })),
+      '数字越大越难（背景词可用的词带越难；选档=选带，挑多少不限）',
       { note: '软提醒：底词档一般 ≤ 词汇档 −1，越界等于背景比目标词还难，设计上就是反的' }),
     衔接: entry('cohesion',
       COHESION_LADDER.map((r, i) => ({
@@ -203,7 +204,7 @@ const FIXED_LIMITS = {
   篇长: '250–350 词',
   目标词: '4–5 个，每个复现 ≥2 次，且每个至少加粗一次',
   超纲率: '≤4%（targets 才算；重逢词/白名单/已学词不占额度）',
-  未申报超纲词: '底词 1 档为 0（任何超 A2 的词都必须是 target / 重逢词 / 白名单 / 已知词）；底词 ≥2 档按底词轴放行（带内 + 逐档率上限）',
+  未申报超纲词: '底词 1 档为 0（任何超 A2 的词都必须是 target / 重逢词 / 白名单 / 已知词）；底词 ≥2 档时背景词只能从所选带里挑，不限数量',
   声明的重逢词: '必须至少出现一次',
 };
 

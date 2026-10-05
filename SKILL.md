@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.47.0
+version: 1.48.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -202,8 +202,8 @@ the learner explicitly asks for.
 - Zero undeclared above-level words **at 底词档 1（默认）**: anything above CEFR A2 must be a declared
   target, reunion word, whitelist entry (`assets/allow-extra.txt`), or known word. Numbers/numerals and
   irregular forms are handled; anything else fails. **底词档 k≥2（v1.47.0）** 起例外放宽：未申报的
-  **背景词**允许出现在词汇 tier(k−1) 的带内，且背景超纲率单独封顶（2→1% 线性到 8→4%）；
-  带外或词表未收录的词**照样必须申报**，不注释、不进曝光台账。
+  **背景词**允许出现在词汇 tier(k−1) 的带内——**档位只选带，不限数量（v1.48.0 撤率闸，学习者拍板）**；
+  带外或词表未收录的词**照样必须申报**，不注释、不进曝光台账。背景超纲率仍写进报告（只读统计，不判定）。
 
 ## Difficulty（v1.22.0 起四轴、v1.47.0 起五轴，**无自动路由**）
 
@@ -234,7 +234,7 @@ the learner explicitly asks for.
 | **句子** syntax | 0–4 | 只能 `--syntax` | 一个「句子包」：句长 + **每句小句数** + 全篇被动数。**v1.36.0 起索引翻转，四轴同向（越大越难）**：0 最静（13/8）· 1 冷静（16/10）· 2 偏静（18/11）· 3 常规（20/12，默认）· 4 放宽（24/14） |
 | **衔接** cohesion | 0–3 | 只能 `--cohesion` | **双向**：易端强制显性衔接（0 紧扣 ≥0.07 重叠 / ≥0.48 连接词），难端主动少用衔接（3 松 ≤0.03 / ≤0.30）让读者自己补关系 |
 | **话题** background | 0–2 | 只能 `--background` | 兴趣内话题 · 通识话题 · 新领域话题。**不由脚本测量**（需要读者模型），靠选题兑现 |
-| **底词** baseword | 1–8 | 只能 `--baseword` | v1.47.0：目标词之外背景词的难度上限。1 = A2 底（现状默认）；k≥2 = 未申报背景词可进词汇 tier(k−1) 同带，率上限 1%→4% 线性。不注释、不记账；软提醒：一般 ≤ 词汇档−1 |
+| **底词** baseword | 1–8 | 只能 `--baseword` | v1.47.0：目标词之外背景词的难度来源。1 = A2 底（现状默认）；k≥2 = 未申报背景词只从词汇 tier(k−1) 同带里挑，**不限数量**（v1.48.0 撤率闸）。不注释、不记账；软提醒：一般 ≤ 词汇档−1 |
 
 **改档位**：`ledger.mjs axes --tier 5 --syntax 2 --cohesion 3 --baseword 2`（任一轴，可只给一部分）。
 起草前把 `pool` 的 `menu` 念给学习者——那是完整的多维多档选择面，`current` 就是默认（= 他上次的选择）。

@@ -609,7 +609,9 @@ check "底词 1 档（默认）：带内背景词仍是未申报超纲，零容�
 node "$S/passage-check.mjs" --passage "$T/bw2.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2 > "$T/bwpass.json" 2>/dev/null \
   && grepj '"pass": true' "$T/bwpass.json" && grepj '"rung": 2' "$T/bwpass.json" \
   && ok "底词 2 档：带内背景词放行且报告带 rung/率" || bad "baseword 2 pass"
-check "底词 2 档率闸：背景超纲 12 词 > 1% 上限被拒" 1 node "$S/passage-check.mjs" --passage "$T/bw12.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2
+node "$S/passage-check.mjs" --passage "$T/bw12.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2 > "$T/bw12.json" 2>/dev/null \
+  && grepj '"pass": true' "$T/bw12.json" && grepj '"tokens": 7' "$T/bw12.json" \
+  && ok "v1.48.0 率闸已撤：带内背景词再多也放行，报告只读统计 tokens/rate" || bad "baseword no-cap pass"
 check "带外词（B2 中难段）在底词 2 档仍被拒" 1 node "$S/passage-check.mjs" --passage "$T/bwhard.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 2
 node "$S/passage-check.mjs" --passage "$T/bwhard.md" --meta "$T/meta.json" --state-dir "$STATE" $BFLAGS --baseword 8 > "$T/bw8.json" 2>/dev/null \
   && grepj '"pass": true' "$T/bw8.json" && ok "带外词升到 8 档（B2 中难带）即放行" || bad "baseword 8 pass"

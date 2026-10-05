@@ -326,7 +326,7 @@ for (const [base, b] of aboveBuckets) {
   if (!isTarget && !hitByTarget && !isReunionWord(base, b) && !baseBucketKeys.has(base)) undeclared.push(`${b0} (${b.level}, x${b.count})`);
 }
 if (undeclared.length) fail.push(`undeclared above-level words: ${undeclared.join(', ')}${BASE.band ? `（底词 ${BASE.value} 档只放行「${BASE.label}」带内的词，表外或未收录的词照样必须申报）` : ''}`);
-if (baseRate > BASE.cap) fail.push(`background (baseword) token rate ${baseRate.toFixed(1)}% > ${BASE.cap}% (底词 ${BASE.value} 档上限)`);
+// v1.48.0：背景超纲率只统计、不判定——档位只限定「从哪个带里挑」，数量不设上限（学习者拍板）。
 
 for (const t of targets) {
   const hits = targetHits.get(t) || 0;
@@ -363,7 +363,7 @@ const report = {
   connectivesPerSentence: +connectivesPerSentence.toFixed(2),
   aboveLevelTokens: aboveTokens,
   aboveLevelRate: +rate.toFixed(1) + '%',
-  baseword: { rung: BASE.value, label: BASE.label, cap: BASE.cap + '%', tokens: baseTokens, rate: +baseRate.toFixed(1) + '%' },
+  baseword: { rung: BASE.value, label: BASE.label, tokens: baseTokens, rate: +baseRate.toFixed(1) + '%' },
   targets: Object.fromEntries(targetHits),
   reunionUsed,
   undeclared,

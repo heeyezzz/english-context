@@ -37,17 +37,20 @@ export function tierPool(tier) {
 
 // 底词轴（v1.47.0，学习者 2026-10-05 拍板）：目标词之外那些「不申报、不注释、不记账」的
 // 背景词的难度上限。档 1 = A2 底（v1.46.0 及之前的唯一行为）；档 k≥2 = 允许未申报背景词
-// 出现在词汇 tier(k−1) 的同一个带里，且背景超纲率单独封顶（线性到 4%，最难的 8 档全篇
-// 未知词 ≈ 目标 4% + 底词 4%，覆盖率 98%→92%）。B2 全量带刻意不做背景——那是目标词的领地。
+// 出现在词汇 tier(k−1) 的同一个带里。**v1.48.0：不设数量上限** —— 档位只回答「从哪个带里挑」，
+// 挑多少由写稿方自己决定，背景超纲率仍算出来写进报告，但**不再当判定条件**。
+// 理由：率闸是拍出来的数（线性到 4% 没有任何实测依据），而「这篇到底混了多少难词」是
+// 学习者读完报体感、由他自己调档的信号 —— 让机器替他封顶，等于把难度控制权重又拿回去一半。
+// B2 全量带刻意不做背景——那是目标词的领地。
 export const BASE_LADDER = [
-  { value: 1, label: 'A2 底', band: null, cap: 0 },
-  { value: 2, label: TIERS[1].label, band: 1, cap: 1 },
-  { value: 3, label: TIERS[2].label, band: 2, cap: 1.5 },
-  { value: 4, label: TIERS[3].label, band: 3, cap: 2 },
-  { value: 5, label: TIERS[4].label, band: 4, cap: 2.5 },
-  { value: 6, label: TIERS[5].label, band: 5, cap: 3 },
-  { value: 7, label: TIERS[6].label, band: 6, cap: 3.5 },
-  { value: 8, label: TIERS[7].label, band: 7, cap: 4 },
+  { value: 1, label: 'A2 底', band: null },
+  { value: 2, label: TIERS[1].label, band: 1 },
+  { value: 3, label: TIERS[2].label, band: 2 },
+  { value: 4, label: TIERS[3].label, band: 3 },
+  { value: 5, label: TIERS[4].label, band: 4 },
+  { value: 6, label: TIERS[5].label, band: 5 },
+  { value: 7, label: TIERS[6].label, band: 6 },
+  { value: 8, label: TIERS[7].label, band: 7 },
 ];
 export const MAX_BASEWORD = BASE_LADDER.length;
 export const baseLevel = (v) => BASE_LADDER[Math.min(Math.max(v ?? 1, 1), MAX_BASEWORD) - 1];
