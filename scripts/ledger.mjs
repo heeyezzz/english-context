@@ -490,6 +490,13 @@ else if (cmd === 'pool') {
     // `anki` rides through verbatim (set by mark-anki): the site's badge reads it, and a missing
     // field means "no card record" — never guess either way.
     .map(([w, e]) => ({ word: w, exposures: e.exposures, first: e.first ?? null, graduatedAt: e.graduatedAt ?? null, approx: e.graduatedAtApprox === true, anki: e.anki ?? null }));
+  // v1.50.0: 到线待毕业 —— active 且曝光≥5、但还没人点「毕业」的词。inFlight 按定义不含它们
+  // （exposures < 5），graduated 名单只含已确认的——没有这个字段，这批词在阅读站上两头隐身
+  // （无人值守链路里毕业提名只躺在 confirm 返回里，没人点就一直悬空）。
+  const nominations = Object.entries(s.words)
+    .filter(([, e]) => e.status === 'active' && e.exposures >= GRADUATE_AT)
+    .sort((a, b) => (b[1].exposures - a[1].exposures) || (hoursSince(a[1].last) - hoursSince(b[1].last)))
+    .map(([w, e]) => ({ word: w, exposures: e.exposures, last: e.last ?? null, gap: humanGap(hoursSince(e.last)) }));
   // deterministic rotation by date so the same day shows the same sample
   let seed = [...today].reduce((a, c) => a + c.charCodeAt(0), 0);
   const idx = [];
@@ -522,6 +529,7 @@ else if (cmd === 'pool') {
     quota: q,
     mustReuse,
     graduated,
+    nominations,
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]}·b${pool[i][2]})`),
     recent,
     history,

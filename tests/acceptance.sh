@@ -186,6 +186,12 @@ L pool --limit 4 > "$T/pool_grad.json" 2>/dev/null
 node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_grad.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('measure ') ? 0 : 1)" \
   && ok "mustReuse puts closest-to-graduation first (2/5@3d beats 1/5@6d)" || bad "graduation-priority sort"
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=1;require('fs').writeFileSync(f,JSON.stringify(s))"
+# v1.50.0: 到线未毕业的 active 词必须出现在 pool.nominations —— mustReuse(<5) 与 graduated(已确认) 两头都不含它
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=5;require('fs').writeFileSync(f,JSON.stringify(s))"
+L pool --limit 4 > "$T/pool_nom.json" 2>/dev/null
+node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_nom.json','utf8'));process.exit((p.nominations||[]).some(x=>x.word==='measure'&&x.exposures===5) && !p.mustReuse.some(x=>x.startsWith('measure ')) ? 0 : 1)" \
+  && ok "5/5 active word surfaces in nominations, never in mustReuse" || bad "nominations field"
+node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=1;require('fs').writeFileSync(f,JSON.stringify(s))"
 # dense: syntax overload must NOT demote tier but must arm the sentence-calmer
 L pend --meta "$T/meta.json" > "$T/p2.json" 2>/dev/null
 SID2=$(python3 -c "import json;print(json.load(open('$T/p2.json'))['session'])")

@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.50.0 — 2026-10-07
+
+v1.50.0 pool 加 nominations 字段（到线待毕业）：active 且曝光≥5 但未 graduate 的词，此前在 mustReuse（按定义只含 <5）与毕业名单（只含已确认）两头隐身，无人值守攒下的毕业提名在站点无处显形；验收新增用例锁「5/5 词进 nominations、绝不进 mustReuse」
+
 ## 1.49.0 — 2026-10-07
 
 v1.49.0 成品加「中文参考翻译」栏目：正文每段一行、markdown 表格（| 行被校验器剔除，不进篇长/句长/衔接任何指标，验收套件新增用例锁死这条不变量）；贴段直译、只作读后核对；SKILL.md 第5步成品构成与归档 1:1 口径同步
