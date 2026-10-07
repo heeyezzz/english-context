@@ -35,7 +35,7 @@ const hoursSince = (v) => {
   const iso = /^\d{4}-\d{2}-\d{2}$/.test(v) ? v + 'T00:00' : v;
   return (Date.now() - new Date(iso).getTime()) / 3600000;
 };
-const humanGap = (h) => (!isFinite(h) ? '' : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
+const humanGap = (h) => (!isFinite(h) ? '' : h < 1 ? `${Math.max(1, Math.round(h * 60))}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`);
 
 // v1.16.0 — 8 档单调阶梯（v1.15.0 是 6 档，按纯词频分带）。
 // 词池改按「复合稀有度」分档：assets/word-bands.tsv 里的 band 由 词频 + AoA + 具体性
@@ -120,11 +120,11 @@ const difficultyOut = (s) => {
   };
 };
 const GRADUATE_AT = 5; // graduation threshold; was a --graduate-at flag nothing ever passed (v1.19.0)
-// v1.40.0 — ladder shrunk again at the learner's request, and graduation moved 6 → 5:
-// 1/3/6/12/24h (was 6/6/12/24/36h at v1.31.0), no sixth encounter — the 5th exposure graduates.
-// Shortest first-to-fifth span = 22h. The 5th rung (24h) still applies to a learner-specified
+// v1.51.0 — ladder shrunk to 30m/1h/3h at the learner's request (was 1/3/6/12/24h at v1.40.0):
+// three rungs only — 1/5→30m, 2/5→1h, 3/5 and above→3h. No sixth encounter; the 5th exposure graduates.
+// Shortest first-to-fifth span = 7.5h. The 3h top rung also covers a learner-specified
 // word that goes past the threshold without being graduated yet.
-const COOLDOWN_HOURS = { 1: 1, 2: 3, 3: 6, 4: 12, 5: 24 };
+const COOLDOWN_HOURS = { 1: 0.5, 2: 1, 3: 3, 4: 3, 5: 3 };
 // Saturation valve — the learner's own deferred design (v1.13.0: "④ free-reading mode when
 // inFlight > ~25"), finally switched on when real backlog data arrived: 35 in flight, 0 exits.
 // Above this, pool stops offering fresh words so the queue can drain (inflow 1.5/passage was
@@ -345,7 +345,8 @@ else if (cmd === 'confirm') {
     const e = s.words[t] || { exposures: 0, last: null, status: 'active' };
     const need = COOLDOWN_HOURS[e.exposures] || COOLDOWN_HOURS[1];
     if (e.last && hoursSince(e.last) < need) {
-      tooSoon.push(`${t} (还需 ${Math.ceil(need - hoursSince(e.last))}h)`);
+      const rem = need - hoursSince(e.last);
+      tooSoon.push(`${t} (还需 ${rem < 1 ? Math.ceil(rem * 60) + 'm' : Math.ceil(rem) + 'h'})`);
       s.words[t] = e;
       continue;
     }

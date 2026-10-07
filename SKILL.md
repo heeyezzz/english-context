@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.50.0
+version: 1.51.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -55,12 +55,13 @@ alive in fresh contexts.
    `mustReuse` words are **graduation-priority: closest to graduation (5/5) first, longest-unseen breaks ties**
    (v1.14.0, learner-approved: the queue must drain); skip one only if the topic truly cannot host it,
    but keep at least 1 in the passage. `fresh` words are never-used tier-level candidates.
-   **Binge reading no longer empties `mustReuse`** — since v1.31.0 the gap is in hours, so a word can
+   **Binge reading no longer empties `mustReuse`** — since v1.51.0 the gap runs 30m–3h (v1.31.0 made it
+   hours instead of calendar days), so a word can
    come back the same day. If `mustReuse` genuinely runs short, fill from `fresh`; never refuse to
    generate, and mention `inFlight`/`sleeping`/`saturated` when several passages run in one day.
    **Anti-repeat:** the chosen target set must not exactly equal any `recent` entry's targets
    (partial overlap is fine) — on an exact hit, redraw from `fresh`.
-   Learner-specified words always win and count toward the quota, and are subject to the hour gap.
+   Learner-specified words always win and count toward the quota, and are subject to the cooldown gap.
    Reunion words: choose from Anki/graduated words that fit the topic naturally; skip the section
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做；无人值守时本节全部跳过，档位原样落地）：** 读 `pool` 的 `menu`（五轴全部档位 + `direction` + `set`
@@ -186,11 +187,11 @@ the learner explicitly asks for.
 
 | Rule | Value |
 |---|---|
-| Cooldown ladder | a word may return only after `1/5→1h, 2/5→3h, 3/5→6h, 4/5→12h, 5/5→24h` since its last exposure (v1.40.0 learner-shrunk; the 5/5 rung only applies to a learner-specified word that runs past graduation) |
+| Cooldown ladder | a word may return only after `1/5→30m, 2/5→1h, 3/5 and up→3h` since its last exposure (v1.51.0 learner-shrunk again, three rungs; the 3h top rung also covers a learner-specified word that runs past graduation) |
 | Same-day lock | **retired in v1.31.0** — any sub-24h gap is inert while "one exposure per calendar day" stands, so the two rules were merged into the hour ladder above. A word may now count twice in one day once its gap has elapsed |
-| Consequence | shortest first-to-fifth span is **22h** (1+3+6+12h) — graduation is 5 exposures, no sixth (v1.40.0; was 6 exposures / 3.5 days) |
+| Consequence | shortest first-to-fifth span is **7.5h** (0.5+1+3+3h) — graduation is 5 exposures, no sixth (v1.40.0; was 6 exposures / 3.5 days) |
 | Reporting | `confirm` returns `tooSoon` (with hours remaining) for words that did not count; `pool` returns `inFlight`, `sleeping`, and `saturated` |
-| Clock granularity | **every clock is a timestamp, not a date — second-precision since v1.43.0** (was minute): per-word exposures (`words[].last`) *and* the reading log (`session.at` = generated, `session.readAt` = finished reading). The cooldown ladder (1/3/6/12/24h) is unchanged and reads either granularity, so a finer stamp moves no eligibility. The archive is written at `pend`, so its frontmatter carries `at` only — the read time stays in the ledger, keyed by session id |
+| Clock granularity | **every clock is a timestamp, not a date — second-precision since v1.43.0** (was minute): per-word exposures (`words[].last`) *and* the reading log (`session.at` = generated, `session.readAt` = finished reading). The cooldown ladder (30m/1h/3h since v1.51.0) reads either granularity, so a finer stamp moves no eligibility — and with a 30m bottom rung, minute-level stamps are what make the ladder usable at all. The archive is written at `pend`, so its frontmatter carries `at` only — the read time stays in the ledger, keyed by session id |
 | Saturation valve | when `inFlight > 25`, `pool` emits `saturated: true` and `quota: {mustReuse:[4,5], fresh:[0,0]}` — **stop taking new words so the queue can drain**. Deferred by the learner in v1.13.0, switched on in v1.31.0 when the backlog data arrived (35 in flight, 0 exits) |
 | Legacy values | old `last` values are bare dates; they are read as that day 00:00 local, so the first run after upgrading cools every word slightly earlier than the day-based rule did |
 

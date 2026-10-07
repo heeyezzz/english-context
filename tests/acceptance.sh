@@ -130,7 +130,7 @@ mk(sess.readAt,"session.readAt","written by confirm");
 # same-day lock: words counted today are not offered again; they sleep until the cooldown passes
 L pool --limit 4 > "$T/pool1.json" 2>/dev/null
 grepj '"mustReuse": \[\]' "$T/pool1.json" && grepj '"sleeping": 5' "$T/pool1.json" && ok "hour gap: words counted minutes ago sleep, no returnee offered" || bad "hour gap"
-# v1.40.0: eligibility is measured in HOURS on the learner-shrunk ladder — 1h at 1/5, 12h at 4/5
+# v1.51.0: the ladder is 30m/1h/3h — the bottom rung is measured in MINUTES
 TS="$T/spacing"; mkdir -p "$TS"
 node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
@@ -142,14 +142,15 @@ const mk=(entries)=>{
   fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words,sessions:[],interests:[]}));
   return JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
 };
-let o=mk([["alpha",0,1],["beta",2,1]]);
-if(!o.mustReuse.some(x=>x.startsWith("beta "))) throw new Error("2h-old 1/5 word not offered: "+JSON.stringify(o.mustReuse));
-if(o.mustReuse.some(x=>x.startsWith("alpha "))) throw new Error("just-counted word offered despite the 1h gap");
-o=mk([["gamma",10,4],["delta",20,4],["sigma",50,5]]);
-if(!o.mustReuse.some(x=>x.startsWith("delta "))) throw new Error("20h-old 4/5 word not offered");
-if(o.mustReuse.some(x=>x.startsWith("gamma "))) throw new Error("10h-old 4/5 word offered despite the 12h gap");
+let o=mk([["alpha",20/60,1],["beta",40/60,1],["gamma",2,2]]);
+if(o.mustReuse.some(x=>x.startsWith("alpha "))) throw new Error("20m-old 1/5 word offered despite the 30m gap");
+if(!o.mustReuse.some(x=>x.startsWith("beta "))) throw new Error("40m-old 1/5 word not offered: "+JSON.stringify(o.mustReuse));
+if(!o.mustReuse.some(x=>x.startsWith("gamma "))) throw new Error("2h-old 2/5 word not offered despite the 1h gap");
+o=mk([["delta",2,3],["eps",10,4],["sigma",50,5]]);
+if(o.mustReuse.some(x=>x.startsWith("delta "))) throw new Error("2h-old 3/5 word offered despite the 3h gap");
+if(!o.mustReuse.some(x=>x.startsWith("eps "))) throw new Error("10h-old 4/5 word not offered");
 if(o.mustReuse.some(x=>x.startsWith("sigma "))) throw new Error("5/5 word re-offered; it awaits graduation instead");
-' "$SKILL_DIR" "$TS" && ok "hour-gap ladder enforced in hours (1h at 1/5, 12h at 4/5; 5/5 awaits graduation)" || bad "hour gap"
+' "$SKILL_DIR" "$TS" && ok "30m/1h/3h ladder enforced (5/5 awaits graduation)" || bad "ladder gap"
 
 # v1.31.0 saturation valve: above 25 in flight, fresh intake stops and the quota is machine-readable
 node -e '

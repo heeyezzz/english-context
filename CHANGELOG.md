@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.51.0 — 2026-10-08
+
+v1.51.0 冷却阶梯压到 30m/1h/3h（学习者拍板，原 1/3/6/12/24h；三段制，3/5 起统一 3h）：最短毕业跨度 22h→7.5h；humanGap 加分钟档（30m unseen）、tooSoon 回执不足 1 小时报分钟；SKILL.md 阶梯/钟粒度/连读三处口径同步；验收阶梯用例改为 20m 睡/40m 醒/2h-3/5 睡断言
+
 ## 1.50.0 — 2026-10-07
 
 v1.50.0 pool 加 nominations 字段（到线待毕业）：active 且曝光≥5 但未 graduate 的词，此前在 mustReuse（按定义只含 <5）与毕业名单（只含已确认）两头隐身，无人值守攒下的毕业提名在站点无处显形；验收新增用例锁「5/5 词进 nominations、绝不进 mustReuse」
