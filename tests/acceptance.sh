@@ -716,6 +716,17 @@ L confirm --session "$SID_A" --score 2/3 --feel ok > /dev/null 2>&1
 L archive --session "$SID_A" --passage "$T/passage.md" --report "$T/rep_ok.json" > /dev/null 2> "$T/a_cnt.err"
 grep -q 'only pending' "$T/a_cnt.err" && ok "archive refuses already-counted session" || bad "archive status gate"
 
+echo "== 参考翻译表对指标不可见 (v1.49.0) =="
+printf '# Test title\nOne two three. Four five six.\n' > "$T/trans-a.md"
+printf '# Test title\nOne two three. Four five six.\n\n### 中文参考翻译\n| 段 | 译文 |\n|---|---|\n| 1 | 一二三。四五六。 |\n' > "$T/trans-b.md"
+printf '{"topic":"t","targets":[],"reunion":[],"names":[]}\n' > "$T/trans.json"
+node "$S/passage-check.mjs" --passage "$T/trans-a.md" --meta "$T/trans.json" --state-dir "$STATE" \
+  --min-words 1 --max-words 9999 --max-rate 100 --max-sentence 99 --avg-sentence 99 --max-clauses 99 --min-connectives 0 --min-targets 0 > "$T/ta.json" 2>/dev/null
+node "$S/passage-check.mjs" --passage "$T/trans-b.md" --meta "$T/trans.json" --state-dir "$STATE" \
+  --min-words 1 --max-words 9999 --max-rate 100 --max-sentence 99 --avg-sentence 99 --max-clauses 99 --min-connectives 0 --min-targets 0 > "$T/tb.json" 2>/dev/null
+node -e 'const a=require(process.argv[1]),b=require(process.argv[2]);process.exit(a.words===b.words&&a.sentences===b.sentences?0:1)' "$T/ta.json" "$T/tb.json" \
+  && ok "translation table rows excluded from words/sentences" || bad "translation table leaks into metrics"
+
 echo "== sync-anki-words (read-only) =="
 node "$S/sync-anki-words.mjs" --out "$T/anki-live.json" > /dev/null 2>&1
 if [ -f "$T/anki-live.json" ]; then

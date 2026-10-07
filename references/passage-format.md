@@ -19,11 +19,19 @@ Reunion words appear plain (no bold, no annotation) at least once each.>
 
 ### 理解题（默认 3 道，选择题，可 --no-quiz 关闭）
 1. Why was the train late? — A. rain  B. a broken train  C. too many passengers
+
+### 中文参考翻译（逐段对照）
+| 段 | 译文 |
+|---|---|
+| 1 | 小镇市政厅下有一间旧屋子。多年来，那是一间储藏室…… |
 ```
 
 Rules that are format, not script-checked:
 
 - 生词注释只给「词性 + 本篇语境义」一行，不整句翻译，不给词典全义（注意假说：焦点是「这个词在这里是什么意思」）。
+- **中文参考翻译（v1.49.0）**：正文每段一行，`| 段 | 译文 |` 表格——`|` 开头行被校验器剔除，
+  **不进篇长/句长/衔接任何指标**，加它不会把 250–350 撑爆。贴段直译优先，不增译不缩译；
+  它是读后核对用的参考答案，阅读时默认收起（阅读站每段独立展开），正文仍是唯一输入。
 - 理解题考大意不考词义记忆，题目本身也必须是 A2 用词；正确答案位置随机。
 - 重逢词在正文里必须语法自然——一个都塞不进就少声明几个，禁止为复现造怪句。
 - 文末可加一行 metrics（词数/生词率/句长），来自 passage-check 输出。
@@ -92,7 +100,7 @@ quizAnswers: [B, A, C]
 validatedBy: 1.6.1 (sha256:ab12cd34)   # 由 archive 从 passage-check 报告程序化复制
 ---
 
-（正文、生词表、重逢词、题目——与展示内容 1:1，题目可含选项但答案只写在 frontmatter。
+（正文、生词表、重逢词、题目、参考翻译——与展示内容 1:1，题目可含选项但答案只写在 frontmatter。
 第 5 步送检与第 6 步 `archive --passage` 用的就是这个完整成品文件——只存正文 = 归档残缺）
 ```
 
