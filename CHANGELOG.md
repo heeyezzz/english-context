@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.52.1 — 2026-10-08
+
+v1.52.1 pool 新增 readIds（全部 counted 篇目 id）：站点「已阅读」种子此前借 history 当数据源，而 history 只给最近 8 篇——读过的老篇目一旦滑出 8 篇窗口，换设备或清缓存后就重新冒充「待读」（2026-10-08 实拍：session-4 明明 counted 却回到待读）。纯加法，老消费者不受影响；验收新增用例锁 readIds 覆盖全部 counted、且证明 history 仍被截到 8
+
 ## 1.52.0 — 2026-10-08
 
 v1.52.0 难度闸只读正文：句长/小句/被动/衔接的 sentences 截到第一个二级标题前，理解题题干与重逢词例句行不再参与难度体检（syntax-1 档曾把 Who…that… 题干数成 3 小句、连杀同一篇干净稿件 4 次）；篇长 250–350 口径不变、仍数整个成品文件；passage-format.md 改为两套口径写明；验收双向钉死：题干 3 小句必须放行、正文 3 小句必须照拒

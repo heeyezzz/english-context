@@ -534,6 +534,10 @@ else if (cmd === 'pool') {
     fresh: idx.map((i) => `${pool[i][0]} (${pool[i][1]}·b${pool[i][2]})`),
     recent,
     history,
+    // v1.52.1 完整已读名单：`history` 只给最近 8 篇（那是难度校准面板用的），但站点「已阅读」种子
+    // 要的是全量。借 history 当种子会让读过的老篇目一旦滑出 8 篇窗口，就在换设备/清缓存后重新冒充
+    // 「待读」（2026-10-08 实拍：session-4 明明 counted 却回到待读）。纯加法，老消费者不受影响。
+    readIds: s.sessions.filter((x) => x.status === 'counted').map((x) => x.id),
     // The default the menu pre-selects is the live state, i.e. the learner's last choice; when
     // feedback-driven drift has since moved an axis, lastUsed shows what the last DRAFT actually
     // ran with, so a silent softening is visible instead of surprising.

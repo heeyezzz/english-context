@@ -196,6 +196,20 @@ node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f))
 L pool --limit 4 > "$T/pool_grad.json" 2>/dev/null
 node -e "const p=JSON.parse(require('fs').readFileSync('$T/pool_grad.json','utf8'));process.exit(p.mustReuse.length && p.mustReuse[0].startsWith('measure ') ? 0 : 1)" \
   && ok "mustReuse puts closest-to-graduation first (2/5@3d beats 1/5@6d)" || bad "graduation-priority sort"
+# v1.52.1 readIds: the site's 已阅读 seed must be the FULL counted list, not the 8-capped history.
+# Regression for the 2026-10-08 bug where a counted article (session-4) slid out of the recent-8
+# window and reappeared as 待读 on a device that didn't independently remember it.
+RI="$T/readids"; mkdir -p "$RI"
+node -e '
+const fs=require("fs"),cp=require("child_process"),S=process.argv[1],dir=process.argv[2];
+const sessions=[]; for(let i=0;i<11;i++) sessions.push({id:"2026-01-0"+(i%9+1)+"-s"+i,date:"2026-01-0"+(i%9+1),status:"counted",targets:[],reunion:[]});
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,baseword:1},words:{},sessions,interests:[]}));
+const p=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
+const counted=sessions.length;
+if(!Array.isArray(p.readIds)) throw new Error("readIds missing");
+if(p.readIds.length!==counted) throw new Error("readIds truncated: "+p.readIds.length+" < "+counted+" counted");
+if(p.history.length>=counted) throw new Error("history not capped, test ineffective");
+' "$SKILL_DIR" "$RI" && ok "pool.readIds returns ALL counted sessions (seed not capped at history's 8)" || bad "readIds truncation"
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=1;require('fs').writeFileSync(f,JSON.stringify(s))"
 # v1.50.0: 到线未毕业的 active 词必须出现在 pool.nominations —— mustReuse(<5) 与 graduated(已确认) 两头都不含它
 node -e "const f='$STATE/state.json',s=JSON.parse(require('fs').readFileSync(f));s.words.measure.exposures=5;require('fs').writeFileSync(f,JSON.stringify(s))"
