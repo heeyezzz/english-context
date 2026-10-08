@@ -49,6 +49,16 @@ printf '\n### 理解题\n1. Why do people trust the screen? A) It is always righ
 PC "$T/goes.md" "$T/meta.json" > "$T/quiz.json" 2>/dev/null
 grepj '"pass": true' "$T/quiz.json" && ok "quiz A)/B)/C) letters do not count as undeclared words" || bad "quiz option letters flagged"
 
+# v1.52.0 two scopes: LENGTH (250–350) still counts the whole artifact (contract above), but the
+# DIFFICULTY gates read the body only. A "Who … that … when …" quiz stem is not comprehensible
+# input — counting it once mis-failed a clean syntax-1 passage four unattended runs in a row.
+printf '\n### 理解题\n1. Who says that the plan that you saw when you came here will help us now? — A) yes  B) no  C) water\n' >> "$T/passage.md"
+node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta.json" --state-dir "$STATE" --max-clauses 2 > "$T/clause_quiz.json" 2>/dev/null
+grepj '"pass": true' "$T/clause_quiz.json" && ok "3-clause quiz stem cannot trip the clause gate (difficulty scoped to body)" || bad "quiz stem leaked into the clause gate"
+sed 's/The idea is simple\./The man who came here said that the boy that you saw is the one who runs fast./' "$T/passage.md" > "$T/clause_body.md"
+node "$S/passage-check.mjs" --passage "$T/clause_body.md" --meta "$T/meta.json" --state-dir "$STATE" --max-clauses 2 > "$T/clause_body.json" 2>/dev/null
+grepj 'longest clause run' "$T/clause_body.json" && ok "3-clause BODY sentence still fails (scope fix, not a free pass)" || bad "body clause gate broken"
+
 sed 's/before the trains must stop/before the trains must depart permanently on the way/' "$T/passage.md" > "$T/undeclared.md"
 PC "$T/undeclared.md" "$T/meta.json" > "$T/r1.json" 2>/dev/null
 grepj 'undeclared above-level' "$T/r1.json" && ok "undeclared above-level word rejected" || bad "undeclared detection missing"

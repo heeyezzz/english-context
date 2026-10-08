@@ -99,21 +99,37 @@ const names = new Set((meta.names || []).map((w) => w.toLowerCase()));
 
 // strip markdown structure but keep bold spans for the highlight check
 const boldSpans = [...raw.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].toLowerCase());
-const prose = (raw
+
+const ABBR = /\b(Mr|Mrs|Ms|Dr|St|Prof|Jr|Sr|vs|etc|No|a\.m|p\.m)\b\./gi;
+// markdown → running prose: drop # headings, | tables, blank and dash-rule lines, unbold,
+// and move terminal punctuation outside a trailing quote ("said Lee." -> quote after the stop).
+const toProse = (text) => (text
   .split('\n')
   .filter((l) => !/^\s*#/.test(l) && !/^\s*\|/.test(l) && !/^\s*$/.test(l) && !/^\s*[-—=]+\s*$/.test(l))
   .join('\n')
   .replace(/\*\*/g, ''))
-  .replace(/([.?!])([”"'])+/g, '$2$1'); // "said Lee." -> quote comes after the full stop
-
-const ABBR = /\b(Mr|Mrs|Ms|Dr|St|Prof|Jr|Sr|vs|etc|No|a\.m|p\.m)\b\./gi;
-const protectedText = prose.replace(ABBR, '$1<DOT>');
-const sentences = protectedText
+  .replace(/([.?!])([”"'])+/g, '$2$1');
+const toSentences = (text) => toProse(text)
+  .replace(ABBR, '$1<DOT>')
   .replace(/[”"]+(?=[\s.?!])/g, '')
   .split(/[.?!]+(?=\s|$)/)
   .map((s) => s.replace(/<DOT>/g, '.'))
   .map((s) => s.trim())
   .filter(Boolean);
+
+// Two scopes, deliberately (v1.52.0):
+//  • LENGTH counts the WHOLE artifact — the documented contract (正文~220 词 + 附录 ≈ 320, gate 250–350).
+//  • DIFFICULTY (sentence length, clause run, passives, cohesion) reads the BODY ONLY. The 重逢词 lines
+//    restate body sentences and the 理解题 option stems ("…? — A. … B. … C. …") are not comprehensible
+//    input; grading them on T-unit density mis-fails clean passages (a "Who … that …" quiz stem counts
+//    as 3 clauses > the syntax-1 cap of 2). The body ends at the first appendix heading (level ≥2), since
+//    the title is a single level-1 line.
+const prose = toProse(raw);
+const rawLines = raw.split('\n');
+const appendixAt = rawLines.findIndex((l) => /^#{2,}\s/.test(l));
+const bodyRaw = appendixAt < 0 ? raw : rawLines.slice(0, appendixAt).join('\n');
+const bodyProse = toProse(bodyRaw);
+const sentences = toSentences(bodyRaw);
 
 const WORD_RE = /[A-Za-z][A-Za-z'’-]*|[0-9][0-9:.,]*/g;
 // single letters are quiz option markers (A) B) C)), not vocabulary — except a/i, which are words
@@ -293,7 +309,7 @@ for (let i = 1; i < contentSets.length; i++) {
   overlapSum += hit / cur.size; overlapN++;
 }
 const overlap = overlapN ? overlapSum / overlapN : 0;
-const connectivesPerSentence = sentences.length ? (prose.match(CONNECTIVES) || []).length / sentences.length : 0;
+const connectivesPerSentence = sentences.length ? (bodyProse.match(CONNECTIVES) || []).length / sentences.length : 0;
 
 if (targets.length < LIMITS.minTargets || targets.length > LIMITS.maxTargets)
   fail.push(`targets count ${targets.length} outside ${LIMITS.minTargets}–${LIMITS.maxTargets}`);
