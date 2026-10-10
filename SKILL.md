@@ -1,7 +1,7 @@
 ---
 name: english-context
 description: "Use when generating SLA-grounded English reading passages (A2→B1 news style) with an exposure ledger, CEFR hard validation, and Anki 重逢词 recycling. 生成英语阅读材料/来一篇/reading practice/target word recycling."
-version: 1.53.0
+version: 1.54.0
 platforms: [macos, linux, windows]
 metadata:
   hermes:
@@ -39,6 +39,14 @@ alive in fresh contexts.
    `node "$SKILL_DIR/scripts/sync-anki-words.mjs" --out "$STATE/anki-words.json"` then
    `node "$SKILL_DIR/scripts/ledger.mjs" import-anki --file "$STATE/anki-words.json"`. If Anki is closed, continue with the
    last-synced file and say so — never fail a reading session over a missing endpoint.
+   **拉个人词库（每次运行前必做，先于 pool）：**
+   `node /Users/shj/Documents/Project/查词插件/tools/pull-wordbook.mjs --out=/Users/shj/Documents/Project/查词插件/wordbook-latest.json`
+   从 gist 拉最新个人词库，读 `wordbook-latest.json`（格式 `{known:[{w,t,src}], unknown:[...]}`，词都是原形）。
+   拉成功后把 `known` 表里尚未收录的词并入 `$STATE/known-words.txt`（每行一词，只追加缺的、去重、不重写整文件）——
+   known 表的词从此按**已掌握**处理：不标注、不算生词曝光（闸门的免申报集与 pool 的 fresh 候选都吃这个文件，
+   这是这条规则唯一的机械落点，别只嘴上承认）。
+   拉取失败（gh 掉登录 / gist 没内容 / 断网）→ **用本地缓存那份**继续本次流程，并在回复开头提醒：
+   **「词库可能不是最新，手机上记得点推送到云」**；连缓存都不存在时照常走 pool，并说明本次没带词库。
    `pool` also prints `skillUpdate` (is the skill itself behind GitHub?) — see the
    self-update check section for what to do with each shape.
 3. **Topic:** use the user's stated topic; otherwise pick the least-recently-used entry from
@@ -56,6 +64,9 @@ alive in fresh contexts.
    `mustReuse` words are **graduation-priority: closest to graduation (5/5) first, longest-unseen breaks ties**
    (v1.14.0, learner-approved: the queue must drain); skip one only if the topic truly cannot host it,
    but keep at least 1 in the passage. `fresh` words are never-used tier-level candidates.
+   **词库优先（v1.54.0）：** `fresh` 名额优先吃词库 `unknown` 生词表（如果有的话）——跳过台账里已在跟踪
+   （active/known）或本次已选的词，**不要重复添加**；`unknown` 为空或用尽时回落到 pool 的 `fresh`。
+   从 unknown 取的词同样受配额数字与冷却间隔约束，闸门一字不饶（词形、加粗、复现 ≥2 次照旧）。
    **Binge reading no longer empties `mustReuse`** — since v1.51.0 the gap runs 30m–3h (v1.31.0 made it
    hours instead of calendar days), so a word can
    come back the same day. If `mustReuse` genuinely runs short, fill from `fresh`; never refuse to
@@ -67,7 +78,7 @@ alive in fresh contexts.
    honestly rather than force ungrammatical cameo sentences.
    **定档位 + 协商（起草前必做；无人值守时本节全部跳过，档位原样落地）：** 读 `pool` 的 `menu`（六轴全部档位 + `direction` + `set`
    + 逐轴 `lastUsed` / `driftedSinceLastDraft`）与 `fixedLimits`（不可调的固定红线），
-   然后**照 [面板模板](references/panel-templates.md) 念** —— 单版模板：五张完整档位表（名称 + 数值 + 难度说明）+「固定配置参数」五项；挑档方式（报「项目+数字」）由 agent 口头带一句，不写进面板。
+   然后**照 [面板模板](references/panel-templates.md) 念** —— 单版模板：六张完整档位表（名称 + 数值 + 难度说明）+「固定配置参数」四项；挑档方式（报「项目+数字」）由 agent 口头带一句，不写进面板。
    **别临时组织格式**：每个 agent 念得不一样，学习者就无法形成稳定预期。**面板直接输出 markdown，别套代码块**（套了就退化成一排裸管道符）。
    填槽值一律从 `pool` 取，一个都不许自己编；`gateFlags` 只给 passage-check，不念给他听。然后：
    - 他回「句子 3」「衔接松一点」「词池到 6」→ 你跑 `ledger.mjs axes --syntax 3 --cohesion 3 --tier 6` 落地，**只回一句「好，句子调到 3（常规）」——命令不出现、也不念出来**（档名一律从 `pool` 取，此处仅示例）

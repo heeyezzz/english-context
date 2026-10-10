@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.54.0 — 2026-10-10
+
+v1.54.0 接入手机 TapDict 个人词库（学习者口述规则逐字落地）：每次运行前先跑 查词插件/tools/pull-wordbook.mjs 从 gist 拉最新词库、读 wordbook-latest.json（{known:[{w,t,src}], unknown:[...]}，原形）；fresh 名额优先吃 unknown 生词表（有才吃、跳过台账在跟踪/本次已选的词不重复添加，空了回落 pool）；known 表按已掌握处理——机械落点是并入 known-words.txt（闸门免申报集与 pool 候选都吃这个文件），不标注、不算生词曝光；拉取失败用本地缓存继续+回复开头提醒「词库可能不是最新，手机上记得点推送到云」。顺手修 v1.53.0 遗留：SKILL.md 面板行五张/五项→六张/四项。实测：pull 命令拉回 认识3144/生词0，验收 97 项全绿
+
 ## 1.53.0 — 2026-10-10
 
 v1.53.0 篇长成为第六轴（学习者拍板：五档、上限 1200 词）：0 超短 180–250 / 1 标准 250–350（默认=旧行为，不点不变）/ 2 中等 350–550 / 3 长 550–850 / 4 超长 850–1200。目标词个数与 mustReuse/fresh 配额随档联动（超短 3–4、标准·中等 4–5、长 5–6、超长 6–8）——依据是超纲率 4% 按总词数计，短篇塞 5 词顶穿、长篇 5 词太稀。gateFlags 追加 --min-words/--max-words/--min-targets/--max-targets（passage-check 本就支持，零改动）；fixedLimits 撤掉篇长行；pend/archive 档位快照、menu、面板模板 F 表、SKILL.md 六轴口径同步；验收新增篇长轴端到端用例并更新全部轴形状断言（97 项全绿）
