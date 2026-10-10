@@ -84,17 +84,32 @@ const SANE_COHESION = 2;
 // （Spencer et al. 2018：题目处理需求对 item difficulty 预测力弱，genre 才是头号 passage 特征）。
 const BACKGROUND_LADDER = ['兴趣内话题', '通识话题', '新领域话题'];
 const MAX_BACKGROUND = BACKGROUND_LADDER.length - 1;
+// v1.53.0 篇长轴：整篇成品文件（正文 + 重逢词例句行 + 理解题行）的字数区间 + 随之联动的目标词个数。
+// 档 1 = 现状 250–350（v1.x 一路校准下来的区间）——默认落在这档，不点菜 = 行为一字不变。
+// 目标词个数与长度联动是有硬依据的：超纲率 ≤4% 按总词数计，短篇塞 5 个目标词×复现≥2 次就顶穿额度
+// （200 词 × 4% 只容 8 个纲外 token），长篇 5 个又稀得没有学习效果——个数随档走，率闸不动。
+const LENGTH_LADDER = [
+  { min: 180, max: 250, targets: [3, 4], reuse: [2, 3], fresh: [1, 1], label: '超短' },
+  { min: 250, max: 350, targets: [4, 5], reuse: [3, 4], fresh: [1, 2], label: '标准' },
+  { min: 350, max: 550, targets: [4, 5], reuse: [3, 4], fresh: [1, 2], label: '中等' },
+  { min: 550, max: 850, targets: [5, 6], reuse: [4, 5], fresh: [1, 2], label: '长' },
+  { min: 850, max: 1200, targets: [6, 8], reuse: [5, 6], fresh: [1, 2], label: '超长' },
+];
+const MAX_LENGTH = LENGTH_LADDER.length - 1;
+const SANE_LENGTH = 1;
 
 const clamp = (v, max) => Math.min(max, Math.max(0, v));
 const syntaxLevel = (s) => SYNTAX_LADDER[clamp(s.difficulty.syntax ?? SANE_SYNTAX, MAX_SYNTAX)];
 const cohesionLevel = (s) => COHESION_LADDER[clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION)];
+const lengthLevel = (s) => LENGTH_LADDER[clamp(s.difficulty.length ?? SANE_LENGTH, MAX_LENGTH)];
 // 硬闸命令行串：agent 必须逐字复制，不再靠"记得传"
 const gateFlags = (s) => {
-  const sx = syntaxLevel(s), co = cohesionLevel(s);
+  const sx = syntaxLevel(s), co = cohesionLevel(s), ln = lengthLevel(s);
   return `--max-sentence ${sx.max} --avg-sentence ${sx.avg} --max-clauses ${sx.clauses} --max-passives ${sx.passives}`
     + ` --min-overlap ${co.minOverlap} --min-connectives ${co.minConnectives}`
     + ` --max-overlap ${co.maxOverlap} --max-connectives ${co.maxConnectives}`
-    + ` --baseword ${baseLevel(s.difficulty.baseword).value}`;
+    + ` --baseword ${baseLevel(s.difficulty.baseword).value}`
+    + ` --min-words ${ln.min} --max-words ${ln.max} --min-targets ${ln.targets[0]} --max-targets ${ln.targets[1]}`;
 };
 const cohesionText = (co) => {
   const floor = co.minOverlap || co.minConnectives ? `重叠≥${co.minOverlap} 连接词≥${co.minConnectives}` : '';
@@ -104,7 +119,7 @@ const cohesionText = (co) => {
 // shared difficulty view so status / confirm / pool can never disagree on the numbers
 const difficultyOut = (s) => {
   const t = TIERS[s.difficulty.tier];
-  const sx = syntaxLevel(s), co = cohesionLevel(s);
+  const sx = syntaxLevel(s), co = cohesionLevel(s), ln = lengthLevel(s);
   const bg = clamp(s.difficulty.background ?? 1, MAX_BACKGROUND);
   return {
     tier: s.difficulty.tier,
@@ -115,6 +130,7 @@ const difficultyOut = (s) => {
       话题: `background ${bg}/2 · ${BACKGROUND_LADDER[bg]}`,
       底词: `baseword ${baseLevel(s.difficulty.baseword).value}/8 · ${baseLevel(s.difficulty.baseword).label}`
         + (baseLevel(s.difficulty.baseword).band ? ' · 背景词从该带里挑（不限数量）' : ' · 无背景超纲'),
+      篇长: `length ${clamp(s.difficulty.length ?? SANE_LENGTH, MAX_LENGTH)}/${MAX_LENGTH} · ${ln.label} · 整篇 ${ln.min}–${ln.max} 词 · 目标词 ${ln.targets[0]}–${ln.targets[1]} 个`,
     },
     gateFlags: gateFlags(s),
   };
@@ -157,6 +173,7 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
     cohesion: clamp(s.difficulty.cohesion ?? SANE_COHESION, MAX_COHESION),
     background: clamp(s.difficulty.background ?? 1, MAX_BACKGROUND),
     baseword: baseLevel(s.difficulty.baseword).value,
+    length: clamp(s.difficulty.length ?? SANE_LENGTH, MAX_LENGTH),
   };
   const entry = (key, rungs, direction, extra = {}) => ({
     flag: `--${key}`,
@@ -196,13 +213,16 @@ const menuOut = (s, lastUsed = lastUsedAxes(s)) => {
       BACKGROUND_LADDER.map((label, i) => ({ value: i, label })),
       '数字越大越难（话题越陌生）',
       { note: '无硬闸：靠选题兑现，脚本量不到。体感也只记录、不再调档（v1.22.0 删安全阀后此轴同样只由点菜改变）' }),
+    // v1.53.0 篇长轴：整篇成品字数 + 联动的目标词个数（超纲率按总词数计，短篇塞不下 5 个目标词）
+    篇长: entry('length',
+      LENGTH_LADDER.map((r, i) => ({ value: i, label: r.label, detail: `整篇 ${r.min}–${r.max} 词 · 目标词 ${r.targets[0]}–${r.targets[1]} 个` })),
+      '数字越大篇越长（字数与目标词个数同步上涨；默认档 1 = 现状 250–350）'),
   };
 };
 // 不可调的固定红线。数值的**真源是 passage-check.mjs 的 LIMITS 默认值**——这里只是把它念出来，
 // 好让 agent 不必去翻 SKILL.md。测试会断言两边的数字一致，防止面板又说谎（v1.24.0 的教训）。
 const FIXED_LIMITS = {
-  篇长: '250–350 词',
-  目标词: '4–5 个，每个复现 ≥2 次，且每个至少加粗一次',
+  目标词: '个数随篇长档联动（超短 3–4 / 标准·中等 4–5 / 长 5–6 / 超长 6–8），每个复现 ≥2 次，且每个至少加粗一次',
   超纲率: '≤4%（targets 才算；重逢词/白名单/已学词不占额度）',
   未申报超纲词: '底词 1 档为 0（任何超 A2 的词都必须是 target / 重逢词 / 白名单 / 已知词）；底词 ≥2 档时背景词只能从所选带里挑，不限数量',
   声明的重逢词: '必须至少出现一次',
@@ -218,7 +238,7 @@ const FIXED_LIMITS = {
 const TIER_V1 = { 1: 3, 2: 6, 3: 6 };
 // v1.15.0 六档 → v1.16.0 八档：按池子大小就近映射。锚点：旧 3（B1 全量 2178 词）≡ 新 4（2178 词）。
 const TIER_V2 = { 1: 1, 2: 3, 3: 4, 4: 5, 5: 7, 6: 8 };
-const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1, baseword: 1 };
+const DEFAULT_AXES = { tier: 4, syntax: SANE_SYNTAX, cohesion: 2, background: 1, baseword: 1, length: SANE_LENGTH };
 // v1.36.0 — 句子档索引翻转（新 = 4 − 旧）。难度包不变，只有编号反写，所以迁移必须同时改
 // 当前档位和每篇的档位快照：快照不翻的话，`history` 会把旧档读成反方向的难度
 // （旧 syntax 1 = 常规会被读成新的 1 = 冷静），台账就变成假账。
@@ -315,6 +335,7 @@ else if (cmd === 'pend') {
     cohesion: s.difficulty.cohesion ?? SANE_COHESION,
     background: s.difficulty.background ?? 1,
     baseword: baseLevel(s.difficulty.baseword).value,
+    length: clamp(s.difficulty.length ?? SANE_LENGTH, MAX_LENGTH),
   };
   s.sessions.push({ id, date: today, at: nowStamp(), topic: meta.topic || '', targets: meta.targets.map((w) => w.toLowerCase()), reunion: (meta.reunion || []).map((w) => w.toLowerCase()), status: 'pending', axes });
   for (const t of meta.targets.map((w) => w.toLowerCase())) {
@@ -421,7 +442,7 @@ else if (cmd === 'axes') {
   // 学习者直接点菜（v1.16.0）：手动设任一轴，不用等体感回路。这是协商的落点——
   // 点菜改的是真参数，不是某个记录用的数字。后续 confirm 仍会据此继续微调。
   const s = load();
-  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND], baseword: [1, MAX_BASEWORD] };
+  const AXES = { tier: [1, MAX_TIER], syntax: [0, MAX_SYNTAX], cohesion: [0, MAX_COHESION], background: [0, MAX_BACKGROUND], baseword: [1, MAX_BASEWORD], length: [0, MAX_LENGTH] };
   const changed = {};
   for (const [k, [lo, hi]] of Object.entries(AXES)) {
     const v = arg(k, null);
@@ -430,7 +451,7 @@ else if (cmd === 'axes') {
     if (!Number.isInteger(n) || n < lo || n > hi) { console.error(`${k} must be an integer ${lo}-${hi}, got ${v}`); process.exit(2); }
     s.difficulty[k] = n; changed[k] = n;
   }
-  if (!Object.keys(changed).length) { console.error('nothing to set — pass any of --tier/--syntax/--cohesion/--background'); process.exit(2); }
+  if (!Object.keys(changed).length) { console.error('nothing to set — pass any of --tier/--syntax/--cohesion/--background/--baseword/--length'); process.exit(2); }
   save(s);
   out({ changed, ...difficultyOut(s), menu: menuOut(s) });
 }
@@ -470,7 +491,7 @@ else if (cmd === 'pool') {
   // threshold, fresh intake stops so the returnee slots can actually drain it — inflow was
   // structurally outrunning graduation capacity.
   const saturated = Object.values(s.words).filter((e) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT).length > SATURATION_AT;
-  const q = saturated ? { mustReuse: [4, 5], fresh: [0, 0] } : { mustReuse: [3, 4], fresh: [1, 2] };
+  const q = saturated ? { mustReuse: [...lengthLevel(s).targets], fresh: [0, 0] } : { mustReuse: lengthLevel(s).reuse, fresh: lengthLevel(s).fresh };
   const inFlight = Object.entries(s.words)
     .filter(([, e]) => e.status === 'active' && e.exposures >= 1 && e.exposures < GRADUATE_AT);
   // v1.31.0: eligibility is a minimum GAP IN HOURS, not a calendar-day comparison
@@ -551,7 +572,7 @@ else if (cmd === 'pool') {
     // path for a benefit (seeing the other machine's push one passage sooner) that a daily reading
     // routine does not need. The safety net stays; the latency goes.
     skillUpdate: skillUpdate(SKILL_DIR, stateDir),
-    note: (saturated ? `⚠️ 队列 ${inFlight.length} > ${SATURATION_AT}：本篇**不收新词**，4–5 个名额全部给 mustReuse（饱和阀生效）。` : '')
+    note: (saturated ? `⚠️ 队列 ${inFlight.length} > ${SATURATION_AT}：本篇**不收新词**，${lengthLevel(s).targets[0]}–${lengthLevel(s).targets[1]} 个名额全部给 mustReuse（饱和阀生效）。` : '')
       + `每篇目标词配额：${q.mustReuse[0]}–${q.mustReuse[1]} 个 mustReuse（距毕业最近者优先，主题装不下的可跳过，但整篇至少带 1 个）${q.fresh[1] ? ` + ${q.fresh[0]}–${q.fresh[1]} 个 fresh` : '，不收 fresh'}；八档统一总数 4–5，照旧过硬闸。`
       + '防重复（起草前必读 recent）：① 主题/场景与近 5 篇雷同必须换角度或换主题；② 目标词组合作为集合与任一篇 recent 完全相同必须重抽 fresh（部分重叠正常）。协商（起草前必做，v1.17.0 改为对着档位谈）：把本轮的轴向安排用一句人话讲给学习者（例：「今天词池到 tier 6、衔接调松、话题换新的」），他想改就直接 `axes --xxx` 落地——协商的对象是**真参数**，没有别的数字。难度**只**由学习者点菜改变（v1.22.0 起连安全阀也删了）：agent 不主动顶档、不因体感调档——体感与成绩**纯记录**，没有任何一条会动参数。校准（起草前必读 history）：每行是「这篇用的档位 → 学习者实际体感」——这是**给学习者自己看**的账：某轴调紧后仍报 ok，说明还有余量；一调紧就抱怨，说明边界在上一档。把它念给他听，让他自己决定下一步。',
   }, null, 2));
@@ -589,7 +610,7 @@ else if (cmd === 'archive') {
     // The five axis settings this passage was drafted at — read from the pend-time snapshot, so
     // the frontmatter provably matches the axes `pool` handed the draft, not whatever the live
     // state happens to be at archive time.
-    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1}, baseword: ${(sess.axes || s.difficulty).baseword ?? 1} }`,
+    `difficulty: { tier: ${(sess.axes || s.difficulty).tier}, syntax: ${(sess.axes || s.difficulty).syntax ?? SANE_SYNTAX}, cohesion: ${(sess.axes || s.difficulty).cohesion ?? SANE_COHESION}, background: ${(sess.axes || s.difficulty).background ?? 1}, baseword: ${(sess.axes || s.difficulty).baseword ?? 1}, length: ${(sess.axes || s.difficulty).length ?? SANE_LENGTH} }`,
     ...(quiz ? [`quizAnswers: [${quiz.split(',').map((x) => x.trim()).join(', ')}]`] : []),
     `validatedBy: ${report.validatedBy}`,
     '---',

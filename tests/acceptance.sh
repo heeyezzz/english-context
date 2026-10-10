@@ -369,13 +369,13 @@ node -e '
 const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));
 const x=s.sessions.find(y=>y.id===process.argv[2]);
 if(!x.axes) throw new Error("no axes snapshot on the session");
-if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2,baseword:1})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
+if(JSON.stringify(x.axes)!==JSON.stringify({tier:6,syntax:2,cohesion:1,background:2,baseword:1,length:1})) throw new Error("axes snapshot wrong: "+JSON.stringify(x.axes));
 if("predicted" in x || "requested" in x) throw new Error("retired profile fields are still being written");
-' "$STATE/state.json" "$PPSID" && ok "pend snapshots all five axes and writes no profile fields" || bad "axis snapshot"
+' "$STATE/state.json" "$PPSID" && ok "pend snapshots all six axes and writes no profile fields" || bad "axis snapshot"
 # archive frontmatter carries the pend-time axis snapshot (not whatever the live state became)
 node "$S/passage-check.mjs" --passage "$T/passage.md" --meta "$T/meta-nopredict.json" --state-dir "$STATE" --report "$T/pp_rep.json" > /dev/null 2>&1
 L archive --session "$PPSID" --passage "$T/passage.md" --report "$T/pp_rep.json" > /dev/null 2>&1
-grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2, baseword: 1 }$' "$STATE/passages/$PPSID.md" \
+grepj '^difficulty: { tier: 6, syntax: 2, cohesion: 1, background: 2, baseword: 1, length: 1 }$' "$STATE/passages/$PPSID.md" \
   && ! grepj '^predicted:' "$STATE/passages/$PPSID.md" \
   && ok "archive frontmatter carries the axis snapshot and no predicted line" || bad "archive axis snapshot"
 # context feel (v1.16.0): no longer record-only — it now pulls the background axis down one rung.
@@ -574,10 +574,10 @@ node -e '
 const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
 require("fs").writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const o=JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs","pool","--state-dir",dir,"--no-sync","--limit","1"],{encoding:"utf8"}));
-for(const k of ["词汇","句子","衔接","话题","底词"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
-if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99 --baseword 1")
+for(const k of ["词汇","句子","衔接","话题","底词","篇长"]) if(!o.axes[k]) throw new Error("axis missing: "+k);
+if(o.gateFlags!=="--max-sentence 20 --avg-sentence 12 --max-clauses 4 --max-passives 2 --min-overlap 0 --min-connectives 0 --max-overlap 1 --max-connectives 99 --baseword 1 --min-words 250 --max-words 350 --min-targets 4 --max-targets 5")
   throw new Error("gateFlags mismatch at the default rung: "+o.gateFlags);
-' "$SKILL_DIR" "$T3" && ok "five axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
+' "$SKILL_DIR" "$T3" && ok "six axes exposed and the default gateFlags string matches the rung tables" || bad "axis/gateFlags"
 
 # 点菜入口：axes must set any subset, clamp-check every value, and refuse an empty call
 node -e '
@@ -602,13 +602,13 @@ const L=(...a)=>JSON.parse(cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:5,difficulty:{tier:4,syntax:3,cohesion:2,background:1},words:{},sessions:[],interests:[]}));
 const o=L("pool","--limit","1");
 if(o.menu.底词.current!==1) throw new Error("baseword not defaulted to 1: "+o.menu.底词.current);
-if(!/--baseword 1$/.test(o.gateFlags)) throw new Error("gateFlags: "+o.gateFlags);
+if(!/--baseword 1\b/.test(o.gateFlags)) throw new Error("gateFlags: "+o.gateFlags);
 if(o.menu.底词.rungs.length!==8) throw new Error("底词 rungs: "+o.menu.底词.rungs.length);
 L("interest","--add","bw");
 const st=JSON.parse(fs.readFileSync(dir+"/state.json","utf8"));
 if(st.version!==6||st.difficulty.baseword!==1) throw new Error("v6 stamp missing: "+JSON.stringify(st.difficulty));
 L("axes","--baseword","5");
-if(!/--baseword 5$/.test(L("pool","--limit","1").gateFlags)) throw new Error("baseword 5 not in gateFlags");
+if(!/--baseword 5\b/.test(L("pool","--limit","1").gateFlags)) throw new Error("baseword 5 not in gateFlags");
 for(const bad of ["0","9","x"]){
   const r=cp.spawnSync("node",[S+"/scripts/ledger.mjs","axes","--baseword",bad,"--state-dir",dir,"--no-sync"]);
   if(r.status===0) throw new Error("baseword "+bad+" accepted");
@@ -656,8 +656,8 @@ fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:5,
 const o=JSON.parse(L("pool","--limit","1"));
 const m=o.menu;
 if(!m) throw new Error("menu missing from pool");
-const want={词汇:8,句子:5,衔接:4,话题:3,底词:8};
-const live={词汇:5,句子:1,衔接:1,话题:0,底词:1};
+const want={词汇:8,句子:5,衔接:4,话题:3,底词:8,篇长:5};
+const live={词汇:5,句子:1,衔接:1,话题:0,底词:1,篇长:1};
 for(const [axis,n] of Object.entries(want)){
   const a=m[axis];
   if(!a) throw new Error("axis missing from menu: "+axis);
@@ -686,23 +686,42 @@ for(const axis of ["词汇","句子","衔接","话题","底词"]){
 }
 // fixedLimits must describe the non-adjustable contract, and its numbers must MATCH the
 // passage-check LIMITS defaults -- the panel lied once (v1.24.0); this guards against a repeat.
+// v1.53.0: 篇长与目标词个数 moved onto the length axis, so they left fixedLimits; the adjustable
+// pair that remains fixed is the rate cap and the per-target exposure floor.
 if(!o.fixedLimits||Object.keys(o.fixedLimits).length<4) throw new Error("fixedLimits missing from the panel");
 const pc=fs.readFileSync(S+"/scripts/passage-check.mjs","utf8");
 const Q=String.fromCharCode(39);
 const def=(k)=>{ const i=pc.indexOf(k+Q); if(i<0) return NaN; const m=pc.slice(i).match(/,\s*(\d+)\)/); return m?+m[1]:NaN; };
 const flat=Object.values(o.fixedLimits).join(" | ");
-for(const k of ["min-words","max-words","max-rate","min-targets","max-targets","min-target-hits"]){
+for(const k of ["max-rate","min-target-hits"]){
   const n=def(k);
   if(!Number.isFinite(n)) throw new Error("could not read LIMITS default for "+k);
   if(!flat.includes(String(n))) throw new Error("fixedLimits omits the passage-check "+k+" default "+n+" -- the panel would lie");
 }
+// v1.53.0 篇长轴：gateFlags 必须带上字数与目标词个数，且默认档 = 旧行为（250–350 / 4–5）
+if(!/ --min-words 250 --max-words 350 --min-targets 4 --max-targets 5$/.test(o.gateFlags))
+  throw new Error("gateFlags does not carry the default length rung: "+o.gateFlags);
 // a fresh state must pre-select the defaults, not a stale value
 fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,streakGood:0},words:{},sessions:[],interests:[]}));
 const d=JSON.parse(L("pool","--limit","1")).menu;
-for(const [axis,v] of Object.entries({词汇:4,句子:3,衔接:2,话题:1,底词:1})){
+for(const [axis,v] of Object.entries({词汇:4,句子:3,衔接:2,话题:1,底词:1,篇长:1})){
   if(d[axis].rungs.find(r=>r.current).value!==v) throw new Error(axis+" default wrong on a fresh state");
 }
 ' "$SKILL_DIR" "$T3" && ok "menu: all rungs + one current + direction + set + drift per axis, and fixedLimits matches passage-check LIMITS" || bad "diet menu"
+
+# v1.53.0 篇长轴端到端：点档 → gateFlags 换区间与目标词个数；配额联动；档 1 默认 = 旧行为
+node -e '
+const fs=require("fs"), cp=require("child_process"), S=process.argv[1], dir=process.argv[2];
+const L=(...a)=>cp.execFileSync("node",[S+"/scripts/ledger.mjs",...a,"--state-dir",dir,"--no-sync"],{encoding:"utf8"});
+fs.writeFileSync(dir+"/state.json",JSON.stringify({version:4,difficulty:{tier:4,syntax:3,cohesion:2,background:1,baseword:1,length:1},words:{},sessions:[],interests:[]}));
+if(!JSON.parse(L("pool","--limit","1")).gateFlags.includes("--min-words 250")) throw new Error("default rung lost 250");
+const hi=JSON.parse(L("axes","--length","4"));
+if(!hi.gateFlags.includes("--min-words 850 --max-words 1200 --min-targets 6 --max-targets 8")) throw new Error("超长档 gateFlags wrong: "+hi.gateFlags);
+if(JSON.parse(L("pool","--limit","1")).quota.mustReuse[0]!==5) throw new Error("quota did not follow the length rung");
+const lo=JSON.parse(L("axes","--length","0"));
+if(!lo.gateFlags.includes("--min-words 180 --max-words 250 --min-targets 3 --max-targets 4")) throw new Error("超短档 gateFlags wrong: "+lo.gateFlags);
+if(JSON.parse(L("pool","--limit","1")).quota.fresh[1]!==1) throw new Error("超短档 fresh 配额没收到 1");
+' "$SKILL_DIR" "$T3" && ok "篇长轴：五档 gateFlags/配额联动，默认档 = 旧 250–350/4–5" || bad "length axis"
 
 # the panel must be rendered from a FIXED template, not improvised per agent (v1.26.0): the file
 # has to exist, be linked from SKILL.md, cover all four axes, name every fill source, and keep the
@@ -712,10 +731,10 @@ TPL="$SKILL_DIR/references/panel-templates.md"
 [ -f "$TPL" ] && ok "panel template file exists" || bad "panel-templates.md missing"
 grepj 'references/panel-templates.md' "$SKILL_DIR/SKILL.md" && ok "SKILL.md links the panel template" || bad "template not linked"
 miss=""
-for k in 词汇 句子 衔接 话题 底词 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 越难 不念 代码块; do
+for k in 词汇 句子 衔接 话题 底词 篇长 fixedLimits gateFlags direction driftedSinceLastDraft lastUsed 越难 不念 代码块; do
   grepj "$k" "$TPL" || miss="$miss $k"
 done
-[ -z "$miss" ] && ok "template covers all five axes, every fill source, and its hard rules" || bad "template missing:$miss"
+[ -z "$miss" ] && ok "template covers all six axes, every fill source, and its hard rules" || bad "template missing:$miss"
 
 
 echo "== archive (scripted step-6) =="

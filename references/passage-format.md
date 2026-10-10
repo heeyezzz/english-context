@@ -5,7 +5,7 @@ The learner sees ONE markdown block in chat. There is no output file. Structure:
 ```markdown
 # <English title, A2-simple>
 
-<250–350 words, news style: short paragraphs, facts, one quoted line.
+<整篇字数按篇长档（默认标准档 = 250–350），news style: short paragraphs, facts, one quoted line.
 Every target word appears ≥2 times; first appearance inside **bold**.
 Reunion words appear plain (no bold, no annotation) at least once each.>
 
@@ -30,14 +30,14 @@ Rules that are format, not script-checked:
 
 - 生词注释只给「词性 + 本篇语境义」一行，不整句翻译，不给词典全义（注意假说：焦点是「这个词在这里是什么意思」）。
 - **中文参考翻译（v1.49.0）**：正文每段一行，`| 段 | 译文 |` 表格——`|` 开头行被校验器剔除，
-  **不进篇长/句长/衔接任何指标**，加它不会把 250–350 撑爆。贴段直译优先，不增译不缩译；
+  **不进篇长/句长/衔接任何指标**，加它不会把篇长档撑爆。贴段直译优先，不增译不缩译；
   它是读后核对用的参考答案，阅读时默认收起（阅读站每段独立展开），正文仍是唯一输入。
 - 理解题考大意不考词义记忆，题目本身也必须是 A2 用词；正确答案位置随机。
 - 重逢词在正文里必须语法自然——一个都塞不进就少声明几个，禁止为复现造怪句。
 - 文末可加一行 metrics（词数/生词率/句长），来自 passage-check 输出。
 
-Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长与小句/被动/衔接上下限（由 gateFlags 给出）、
-目标词 4–5 个各≥2 次、纲外 token 率≤4%、未申报纲外词=0、**每个目标词至少加粗一次**、
+Script-checked rules (硬校验，见 passage-check.mjs)：篇长与目标词个数（由篇长档定，gateFlags 给出）、句长与小句/被动/衔接上下限（由 gateFlags 给出）、
+目标词各≥2 次、纲外 token 率≤4%、未申报纲外词=0、**每个目标词至少加粗一次**、
 声明的重逢词至少出现一次。以上全部为硬闸，任一不满足即 FAIL（v1.20.0 起，加粗与重逢词从 warn 提为硬闸）。
 
 ## 起草时的判定细节（读脚本 + 实测得到；每条都对应过一次返工）
@@ -46,8 +46,9 @@ Script-checked rules (硬校验，见 passage-check.mjs)：篇长、句长与小
   安全写作线是 11 词——`and` 连接的复合句最容易超限。
 - **引语会和引导句合并成一句**：`They met again a week later, and one farmer said, "The town is leaving us out."`
   实测被切成 16 词一句（真实 FAIL 案例）。要么把引导句独立成短句，要么让引语自己成句。
-- **两套口径（v1.52.0）**：`#` 开头行与 `|` 表格行永远剔除。**篇长（250–350）数整个成品文件**——
-  重逢词例句行、理解题行都算进字数（正文写 220 词左右 + 附录 ≈ 320 正好落区间）。但**难度闸**
+- **两套口径（v1.52.0）**：`#` 开头行与 `|` 表格行永远剔除。**篇长数整个成品文件**，区间由篇长轴定
+  （v1.53.0；默认标准档 250–350：重逢词例句行、理解题行都算进字数，正文写 220 词左右 + 附录 ≈ 320
+  正好落区间；其余档按 F 表等比挪）。但**难度闸**
   （句长、平均句长、小句数、被动、邻句重叠、连接词密度）**只读正文**，正文止于第一个 `##`/`###`
   附录标题。因为理解题题干不是可理解输入：`"…? — A. … B. … C. …"` 里 `Who … that …` 会被数成
   3 小句，syntax-1 档上限才 2，曾把一篇正文全清的稿件连着误杀 4 次。重逢词例句本就是正文句的复述，

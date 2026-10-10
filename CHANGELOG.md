@@ -2,6 +2,10 @@
 
 Auto-maintained by scripts/ship.mjs — newest first.
 
+## 1.53.0 — 2026-10-10
+
+v1.53.0 篇长成为第六轴（学习者拍板：五档、上限 1200 词）：0 超短 180–250 / 1 标准 250–350（默认=旧行为，不点不变）/ 2 中等 350–550 / 3 长 550–850 / 4 超长 850–1200。目标词个数与 mustReuse/fresh 配额随档联动（超短 3–4、标准·中等 4–5、长 5–6、超长 6–8）——依据是超纲率 4% 按总词数计，短篇塞 5 词顶穿、长篇 5 词太稀。gateFlags 追加 --min-words/--max-words/--min-targets/--max-targets（passage-check 本就支持，零改动）；fixedLimits 撤掉篇长行；pend/archive 档位快照、menu、面板模板 F 表、SKILL.md 六轴口径同步；验收新增篇长轴端到端用例并更新全部轴形状断言（97 项全绿）
+
 ## 1.52.1 — 2026-10-08
 
 v1.52.1 pool 新增 readIds（全部 counted 篇目 id）：站点「已阅读」种子此前借 history 当数据源，而 history 只给最近 8 篇——读过的老篇目一旦滑出 8 篇窗口，换设备或清缓存后就重新冒充「待读」（2026-10-08 实拍：session-4 明明 counted 却回到待读）。纯加法，老消费者不受影响；验收新增用例锁 readIds 覆盖全部 counted、且证明 history 仍被截到 8
