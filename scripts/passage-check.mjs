@@ -257,6 +257,38 @@ for (const [, inner] of chunkMarks) {
   else if (((inner.slice(0, bar).match(/\*\*/g) || []).length) % 2)
     fail.push(`chunk boundary cuts through a bold target word: [[${inner.slice(0, 40)}…]]`);
 }
+
+// ---------- v1.57.0 逐句对照：行号与正文的句子必须一一对上 ----------
+// 表形如 `| 段.句 | 译文 |`。`|` 行不进任何指标（v1.52.0 起两口径），所以这里只查结构：
+// 总行数 = 正文句数、每段编号从 1 连续、每行有中文。旧篇的 `| 段 | 译文 |` 逐段表照旧放行——
+// 缺字段不追认成新形态，也不定罪（站点按"有什么渲染什么"回落）。
+if (/^###\s*中文参考翻译（逐句对照）\s*$/m.test(raw)) {
+  const rows = [...raw.matchAll(/^\|\s*(\d+)\.(\d+)\s*\|\s*([^|]*?)\s*\|\s*$/gm)];
+  if (!rows.length) {
+    fail.push('逐句对照表一行都没有：需要 `| 段.句 | 译文 |`');
+  } else {
+    if (rows.length !== sentences.length)
+      fail.push(`逐句对照 ${rows.length} 行，正文有 ${sentences.length} 句——一行对一句，不许并句或漏句`);
+    const empty = rows.filter(([, , , g]) => !/[一-鿿]/.test(g));
+    if (empty.length) fail.push(`逐句对照有 ${empty.length} 行没有中文`);
+    const byPara = new Map();
+    for (const [, p, s] of rows) {
+      const list = byPara.get(+p) || [];
+      if (list.includes(+s)) fail.push(`逐句对照编号重复：${p}.${s}`);
+      list.push(+s); byPara.set(+p, list);
+    }
+    for (const [p, list] of [...byPara].sort((a, b) => a[0] - b[0])) {
+      const sorted = list.slice().sort((a, b) => a - b);
+      if (sorted[0] !== 1 || sorted.some((v, i) => v !== i + 1))
+        fail.push(`段 ${p} 的逐句编号不连续：${sorted.join(',')}`);
+    }
+    // 段落数只认「以句末标点收尾」的行：frontmatter 的 key: value 行没有句末标点，不会被当成一段
+    const paraCount = bodyProse.split('\n')
+      .filter((l) => /[.?!][”"']*\s*$/.test(l.trim())).length;
+    if (byPara.size !== paraCount)
+      fail.push(`逐句对照覆盖 ${byPara.size} 段，正文有 ${paraCount} 段`);
+  }
+}
 function isReunionWord(base, b) {
   if (reunion.has(base)) return true;
   for (const s of b.surfaces) if (reunion.has(s)) return true;

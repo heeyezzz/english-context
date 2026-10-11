@@ -76,6 +76,20 @@ sed 's/It \*\*updates\*\* again at six\./[[It **updates|更新]] again at six./'
 PC "$T/ck_bad3.md" "$T/meta.json" > "$T/ckb3.json" 2>/dev/null
 grepj 'cuts through a bold' "$T/ckb3.json" && ok "chunk boundary inside a bold target rejected" || bad "bold-cutting chunk slipped through"
 
+# v1.57.0 逐句对照：行数=句数、编号连续、每行有中文；旧形态逐段表不得被定罪
+{ cat "$T/passage.md"; printf '\n### 中文参考翻译（逐句对照）\n| 段.句 | 译文 |\n|---|---|\n| 1.1 | 这个想法很简单。 |\n| 1.2 | 它每天更新一次。 |\n'; } > "$T/sent_short.md"
+PC "$T/sent_short.md" "$T/meta.json" > "$T/st1.json" 2>/dev/null
+grepj '一行对一句' "$T/st1.json" && ok "sentence table shorter than the body rejected" || bad "row/sentence mismatch slipped through"
+{ cat "$T/passage.md"; printf '\n### 中文参考翻译（逐句对照）\n| 段.句 | 译文 |\n|---|---|\n| 1.1 | 甲。 |\n| 1.3 | 乙。 |\n'; } > "$T/sent_gap.md"
+PC "$T/sent_gap.md" "$T/meta.json" > "$T/st2.json" 2>/dev/null
+grepj '编号不连续' "$T/st2.json" && ok "non-contiguous 段.句 numbering rejected" || bad "numbering gap slipped through"
+{ cat "$T/passage.md"; printf '\n### 中文参考翻译（逐句对照）\n| 段.句 | 译文 |\n|---|---|\n| 1.1 |  |\n| 1.2 | 乙。 |\n'; } > "$T/sent_empty.md"
+PC "$T/sent_empty.md" "$T/meta.json" > "$T/st3.json" 2>/dev/null
+grepj '没有中文' "$T/st3.json" && ok "sentence row without a chinese gloss rejected" || bad "glossless row slipped through"
+{ cat "$T/passage.md"; printf '\n### 中文参考翻译（逐段对照）\n| 段 | 译文 |\n|---|---|\n| 1 | 小镇市政厅下有一间旧屋子。 |\n'; } > "$T/sent_old.md"
+PC "$T/sent_old.md" "$T/meta.json" > "$T/st4.json" 2>/dev/null
+grepj '逐句对照' "$T/st4.json" && bad "old paragraph-level table convicted" || ok "legacy 逐段 table still passes untouched"
+
 sed 's/before the trains must stop/before the trains must depart permanently on the way/' "$T/passage.md" > "$T/undeclared.md"
 PC "$T/undeclared.md" "$T/meta.json" > "$T/r1.json" 2>/dev/null
 grepj 'undeclared above-level' "$T/r1.json" && ok "undeclared above-level word rejected" || bad "undeclared detection missing"
