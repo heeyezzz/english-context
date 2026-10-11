@@ -92,13 +92,18 @@ if (existsSync(ankiFile)) for (const w of JSON.parse(readFileSync(ankiFile, 'utf
 
 // ---------- text ----------
 const raw = readFileSync(passagePath, 'utf8');
+// v1.56.0 语块标记 [[english|中文短译]]：对指标完全不可见（块内英文照常计词/句，中文注释剥掉）；
+// 畸形标记留给下面的结构 lint 定罪，这里先清干净，免得 [[ ]] 的残骸污染分词。
+const rawCk = raw
+  .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$1')
+  .replace(/\[\[|\]\]/g, '');
 const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
 const targets = (meta.targets || []).map((w) => w.toLowerCase());
 const reunion = new Set((meta.reunion || []).map((w) => w.toLowerCase()));
 const names = new Set((meta.names || []).map((w) => w.toLowerCase()));
 
 // strip markdown structure but keep bold spans for the highlight check
-const boldSpans = [...raw.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].toLowerCase());
+const boldSpans = [...rawCk.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1].toLowerCase());
 
 const ABBR = /\b(Mr|Mrs|Ms|Dr|St|Prof|Jr|Sr|vs|etc|No|a\.m|p\.m)\b\./gi;
 // markdown → running prose: drop # headings, | tables, blank and dash-rule lines, unbold,
@@ -124,10 +129,10 @@ const toSentences = (text) => toProse(text)
 //    input; grading them on T-unit density mis-fails clean passages (a "Who … that …" quiz stem counts
 //    as 3 clauses > the syntax-1 cap of 2). The body ends at the first appendix heading (level ≥2), since
 //    the title is a single level-1 line.
-const prose = toProse(raw);
-const rawLines = raw.split('\n');
+const prose = toProse(rawCk);
+const rawLines = rawCk.split('\n');
 const appendixAt = rawLines.findIndex((l) => /^#{2,}\s/.test(l));
-const bodyRaw = appendixAt < 0 ? raw : rawLines.slice(0, appendixAt).join('\n');
+const bodyRaw = appendixAt < 0 ? rawCk : rawLines.slice(0, appendixAt).join('\n');
 const bodyProse = toProse(bodyRaw);
 const sentences = toSentences(bodyRaw);
 
@@ -238,6 +243,20 @@ function candidates0(w) {
 
 // ---------- checks ----------
 const fail = [];
+
+// ---------- v1.56.0 语块标记：只查结构，不判语义 ----------
+// 格式 [[english|中文短译]]。机器判不了"这块切得对不对"（没有参考切法），但畸形标记必须当场定罪：
+// 配对、有注释、不拦腰切加粗——这三条守不住，站点渲染和朗读取词都会烂。
+const chunkMarks = [...raw.matchAll(/\[\[([^\]]*)\]\]/g)];
+if (raw.replace(/\[\[[^\]]*\]\]/g, '').match(/\[\[|\]\]/))
+  fail.push('chunk marks unbalanced: every [[ must close with ]] on the same line, no nesting');
+for (const [, inner] of chunkMarks) {
+  const bar = inner.indexOf('|');
+  if (bar < 0 || !inner.slice(0, bar).trim() || !inner.slice(bar + 1).trim())
+    fail.push(`chunk needs both english text and a chinese gloss after | : [[${inner.slice(0, 40)}]]`);
+  else if (((inner.slice(0, bar).match(/\*\*/g) || []).length) % 2)
+    fail.push(`chunk boundary cuts through a bold target word: [[${inner.slice(0, 40)}…]]`);
+}
 function isReunionWord(base, b) {
   if (reunion.has(base)) return true;
   for (const s of b.surfaces) if (reunion.has(s)) return true;

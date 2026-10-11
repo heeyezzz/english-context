@@ -7,7 +7,8 @@ The learner sees ONE markdown block in chat. There is no output file. Structure:
 
 <整篇字数按篇长档（默认标准档 = 250–350），news style: short paragraphs, facts, one quoted line.
 Every target word appears ≥2 times; first appearance inside **bold**.
-Reunion words appear plain (no bold, no annotation) at least once each.>
+Reunion words appear plain (no bold, no annotation) at least once each.
+正文带语块切分（v1.56.0）：[[The ad|那则广告]] [[sold|卖]] [[a small step counter|一个小巧的计步器]].>
 
 ### 目标词 · 只给语境义
 | 词 | 在这篇里 |
@@ -41,6 +42,11 @@ Rules that are format, not script-checked:
   它是读后核对用的参考答案：自由到对不上原句同样不合格，数字、专名、因果必须逐点对得上。
   阅读时默认收起（阅读站每段独立展开），正文仍是唯一输入。
 - 理解题考大意不考词义记忆，题目本身也必须是 A2 用词；正确答案位置随机。
+- **语块切分（v1.56.0）**：正文用 `[[英文块|中文短译]]` 切块。**长句（≥8 词）必切成 ≥2 块，短句可不切**
+  ——逼着切简单句只会制造噪音。块是 2–7 词的意义单位（搭配、框架、修饰组、动宾组），
+  不许把 `**加粗**`、数字（`17,000`）、专名（`manpo-kei`）拦腰切开；短译 3–8 字，只写该块**在本篇里的意思**。
+  校验器只查结构（配对 / 带注释 / 不切加粗），切得好不好由学习者实读校准。**对指标不可见**：
+  块内英文照常计词数句长，`[[ ]]` 与中文注释剥掉。阅读站把它渲染成「语块」开关（默认关，点开可逐块查释义）。
 - 重逢词在正文里必须语法自然——一个都塞不进就少声明几个，禁止为复现造怪句。
 - 文末可加一行 metrics（词数/生词率/句长），来自 passage-check 输出。
 
