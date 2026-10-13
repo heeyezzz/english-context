@@ -92,7 +92,7 @@ if (existsSync(ankiFile)) for (const w of JSON.parse(readFileSync(ankiFile, 'utf
 
 // ---------- text ----------
 const raw = readFileSync(passagePath, 'utf8');
-// v1.56.0 语块标记 [[english|中文短译]]：对指标完全不可见（块内英文照常计词/句，中文注释剥掉）；
+// v1.56.0 意群标记 [[english|中文短译]]：对指标完全不可见（块内英文照常计词/句，中文注释剥掉）；
 // 畸形标记留给下面的结构 lint 定罪，这里先清干净，免得 [[ ]] 的残骸污染分词。
 const rawCk = raw
   .replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, '$1')
@@ -244,7 +244,7 @@ function candidates0(w) {
 // ---------- checks ----------
 const fail = [];
 
-// ---------- v1.56.0 语块标记：只查结构，不判语义 ----------
+// ---------- v1.56.0 意群标记：只查结构，不判语义 ----------
 // 格式 [[english|中文短译]]。机器判不了"这块切得对不对"（没有参考切法），但畸形标记必须当场定罪：
 // 配对、有注释、不拦腰切加粗——这三条守不住，站点渲染和朗读取词都会烂。
 const chunkMarks = [...raw.matchAll(/\[\[([^\]]*)\]\]/g)];

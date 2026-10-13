@@ -59,7 +59,7 @@ sed 's/The idea is simple\./The man who came here said that the boy that you saw
 node "$S/passage-check.mjs" --passage "$T/clause_body.md" --meta "$T/meta.json" --state-dir "$STATE" --max-clauses 2 > "$T/clause_body.json" 2>/dev/null
 grepj 'longest clause run' "$T/clause_body.json" && ok "3-clause BODY sentence still fails (scope fix, not a free pass)" || bad "body clause gate broken"
 
-# v1.56.0 语块标记：结构 lint 三条 + 对指标不可见（块内英文照常计词，中文注释剥净）
+# v1.56.0 意群标记：结构 lint 三条 + 对指标不可见（块内英文照常计词，中文注释剥净）
 sed 's/The idea is simple\./[[The idea|这个想法]] [[is simple|很简单]]./' "$T/passage.md" > "$T/chunked.md"
 PC "$T/chunked.md" "$T/meta.json" > "$T/ck.json" 2>/dev/null
 PC "$T/passage.md" "$T/meta.json" > "$T/nock.json" 2>/dev/null
